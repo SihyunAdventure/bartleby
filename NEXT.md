@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-07 ~ 2026-05-08 — **Day 1-4 capture stack ✅ live verified**
+> 마지막 세션: 2026-05-08 새벽 — **Day 1-5 ✅ 1h system-audio stability live verified**
 
 ---
 
-## 현재 상태 (Day 4 종료, 2026-05-08 새벽)
+## 현재 상태 (Day 5 종료, 2026-05-08 새벽)
 
 ### 누적 commits (main branch)
 
@@ -21,14 +21,22 @@
 | `ecac829` | **Day 3 mic+drift code path** ✅ (7/7 unit tests; SystemAudioSink + MicrophoneSink + drift helper) |
 | `64496df` | **Day 3 mic infra** ✅ (Info.plist + build.rs sectcreate; empirical mic deferred) |
 | `1f12876` | **Day 4 Opus 32kbps + 5s segments** ✅ live (sys: 500b / 2seg / 39.6KB / 0 drop) |
+| `97a5ef9` | NEXT.md sync (Day 1-4 진행 결과 반영) |
+| `eea6060` | **Day 5 1h stability** ✅ live (sys: 720seg / 14MB / 0 drop / RSS peak 135.8MB) — drift O(n+m) fix + RSS sampler |
 
 ### 작동 검증된 것
 
 - `pnpm tauri dev` → "Bartleby" 윈도우 + Rust IPC ↔ React frontend round-trip
-- System audio 캡처 — 10초 → 500 buffers / 480000 frames / 39.6KB Opus / 2 segments
+- System audio 캡처 — Day 4: 10s → 500b / 480000f / 39.6KB / 2seg
+- **System audio 1h capture (Day 5 acceptance)** ✅ — 3600.00s 정확 (172,800,000 frames @ 48kHz, frame ledger 로 sample drop 0 증명)
+  - 720 Opus segments / total 14.0 MB compressed
+  - RSS peak **135.8 MB** (budget 800MB 대비 5.9× 마진), start 130MB → end 134MB (+4.4MB / 60min, leak 사실상 0)
+  - 60분 후 stop_capture → drift 즉시 종료 (O(n+m) two-pointer 통과)
+  - mic=0 (예상대로 deferred)
 - Opus encoder pipeline — mpsc channel + worker thread + rolling 5s segments, sample drop 0
-- 메모리 bounded — Opus encoder flush 마다 disk 로 비움. 1h 캡처 수학적 가능 (~14MB).
-- Drift 측정 helper — testable, 4 unit tests (perfect_sync / constant_offset / growing / empty)
+- **메모리 bounded — empirical 검증 ✅** (Opus encoder flush 마다 disk 로 비움 + drift Vec append-only 11MB/h, 1h 안정)
+- Drift 측정 helper — testable, **O(n+m) two-pointer** (이전 O(n×m) 가 1h ~360K trace 에서 분 단위 hang 일으킴), 4 unit tests
+- RSS sampler — `proc_pidinfo(PROC_PIDTASKINFO)` 기반 own-process 샘플링 (5s 간격, CSV 로그), 1 unit test
 - LC_RPATH `/usr/lib/swift` linker flag (Swift runtime ABI lib 위치)
 - libopus 1.6.1 brew + audiopus_sys pkg-config 빌드 환경
 
@@ -61,37 +69,15 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: ⭐ 1h system-audio stability + RSS profile (Day 5)
-
-> PLAN.md 의 핵심 capture acceptance 미해결 항목. Opus 들어간 *지금* 가능.
-
-**목표**: 60분 연속 system-audio 캡처 → 720 segment / RSS peak < 800MB / sample drop 0.
-
-**slice scope**:
-- Capture button 의 duration 을 UI 입력으로 받게 변경 (현재 hard-coded 10s)
-- Capture 동안 5s 마다 process RSS 측정 → 로그 파일 (`/tmp/bartleby-rss-{ts}.log`)
-- 60분 capture 의 peak RSS 가 800MB 미만이어야 ✅
-- segment 파일 720개 (5s × 720 = 3600s = 60min) 생성 + 각각 audible
-
-**slice 시작 점**:
-- `src-tauri/src/lib.rs` 의 `capture_system_audio(seconds: u64)` 명령에 RSS sampling 추가
-- 또는 별도 thread 가 `proc/self/status` 또는 macOS API 로 RSS 폴링
-- macOS RSS: `task_info(mach_task_self(), TASK_BASIC_INFO, ...)` (libc) 또는 `ps -o rss= -p $$` shell out
-- Frontend 에서 duration 입력 input 추가 (number, min=10 max=3600 default=10)
-
-⚠️ Risk:
-- 시청 동안 사용자가 60분 대기 (Lane B 인프라 진행 가능 시점)
-- macOS sleep / wake 가 capture 중에 일어나면 어떻게 될지 unknown — 한 번은 sleep 안 하게 cmd 실행 또는 caffeinate
-
-### Step 2: Two-window + tauri-plugin-nspanel (Day 5 또는 Day 6)
+### Step 1: ⭐ Two-window + tauri-plugin-nspanel (Day 6)
 
 `pnpm tauri add nspanel` 또는 `cargo add tauri-plugin-nspanel`. main window + 작은 floating overlay (NSPanel) 2개 띄우고 drag/resize/opacity 검증. PRINCIPLES + design-system-extensions/overlay.md 의 spec 가능성 판단. 별도 슬라이스.
 
-### Step 3: DRM detection PoC (Day 6 또는 Day 7)
+### Step 2: DRM detection PoC (Day 7)
 
 Apple TV+ / Netflix 같은 DRM 콘텐츠 재생 중 system audio 가 silent (RMS < -60dBFS) 인지 10-20s 동안 측정해서 DRM-blocked 상태 detect. UI 에 "Bartleby would prefer not to. (DRM blocked)" 표시. 작은 슬라이스.
 
-### Step 4: Lane B 인프라 (사용자 직접, ~1시간)
+### Step 3: Lane B 인프라 (사용자 직접, ~1시간)
 
 - [ ] heybartleby.com 결제 (Cloudflare 또는 Porkbun)
 - [ ] GitHub org `heybartleby` + repo bartleby (private)
@@ -100,7 +86,7 @@ Apple TV+ / Netflix 같은 DRM 콘텐츠 재생 중 system audio 가 silent (RMS
 - [ ] OpenRouter 가입 → API key + $5 충전
 - [ ] **Apple Developer 신청 ($99/년, 승인 1주)** ← Day 3 mic empirical 의 prerequisite
 
-### Step 5: 디자인 시스템 코드 구축 (Phase 0 본진)
+### Step 4: 디자인 시스템 코드 구축 (Phase 0 본진)
 
 이전 NEXT.md 의 designer 위임 가이드 그대로 — `/__gallery` 라우트로 14→19 섹션 1:1 매핑. 자세한 위임 prompt 는 git history (commit `f927321` ~ `3733318`) 또는 별도 노트 참조. 우선순위는 capture 1h 검증 통과 후 (Phase 1 → Phase 0 reordering 그대로).
 
@@ -152,7 +138,7 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | Risk | 현재 상태 | Mitigation |
 |---|---|---|
 | ScreenCaptureKit Rust binding | ✅ Day 1-4 통과 | screencapturekit 2.0 (svtlabs), 결정 |
-| 1h stability + RSS | ⏳ 다음 슬라이스 | Opus pipeline 메모리 bounded, 검증만 |
+| 1h stability + RSS | ✅ Day 5 통과 | RSS peak 135.8MB / 720 seg / drop 0 / drift hang 없음 |
 | Mic 실 캡처 | ⏳ Apple Dev ID 후 | Info.plist + code path 다 들어감, signing 만 남음 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
@@ -170,7 +156,7 @@ source ~/.cargo/env
 # Dev (~1-2분 incremental, 첫 빌드는 5-10분)
 pnpm tauri dev
 
-# 단위 테스트 (11개 — planar 3 + drift 4 + opus 4)
+# 단위 테스트 (12개 — planar 3 + drift 4 + opus 4 + rss 1)
 cargo test --manifest-path src-tauri/Cargo.toml --lib
 
 # Production build (Phase 6 시점)
@@ -198,4 +184,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby has listened, encoded, and timestamped. Bartleby would prefer to listen for an hour next."
+> "Bartleby has listened for an hour. Bartleby would prefer a window to live in next."
