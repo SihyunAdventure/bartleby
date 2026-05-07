@@ -1,0 +1,7 @@
+# macOS 26 (Tahoe) 의 시스템 Swift runtime 은 /usr/lib/swift 에 ABI-stable 형태로 거주.
+# screencapturekit 2.0 이 @rpath/libswift_Concurrency.dylib 를 요청하지만 LC_RPATH 가 비어있어
+# dyld 가 못 찾음. cargo 빌드 시점에 explicit rpath 를 박아 해결.
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "link-arg=-Wl,-rpath,/usr/lib/swift",
+]
