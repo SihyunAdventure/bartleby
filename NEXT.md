@@ -41,20 +41,14 @@ cd ~/Dev/side/bartleby
 
 ### Step 2: 심층 계획 review (`/autoplan`)
 
-✅ **2026-05-07 1차 세션에 완료 — CEO phase 만**.
-- Codex + Claude critic dual voice 결과: 9개 발견 (6 critical/high), reframe 결정.
-- 결과 반영해서 PLAN.md / VISION.md 전면 재작성됨 (commit 참조).
-- ⏳ 미완: Phase 2 (Design review), Phase 3 (Eng review). 다음 세션에서 이어:
+✅ **2026-05-07 1차 세션 완료 — 3 phase 모두**.
+- Phase 1 (CEO): codex + critic dual voice → 6/9 critical → "Korean ears for English audio" reframe.
+- Phase 2 (Design): codex + designer agent → 9/11 confirmed → `design-system-extensions/` 생성 (overlay + settings spec).
+- Phase 3 (Eng): codex + architect agent → 13/14 confirmed → spike scope 확장 + storage schema + STT protocol + SessionSupervisor.
+- 결과 반영해서 PLAN.md / VISION.md / PRINCIPLES.md / README.md / `design-system-extensions/*` 모두 수정됨 (commit 참조).
+- ⏳ 미반영 minor (다음 세션 자동 적용 가능): D2/D3/D5/D6 design copy + E5(DRM hint)/E6(audio router 코드)/E8(permission lifecycle)/E9(test fixture)/E10(Soniox 벤치마크 protocol)/E11(tokens.css L15 Nanum 주석 노트).
 
-```
-/autoplan
-```
-
-→ "이전 세션 CEO review 완료. Phase 2/3 부터 진행해줘." 으로 시작.
-
-목적:
-- Phase 2: design-system / 새 plan 의 alignment, 14 섹션 매핑 표 미리 정의
-- Phase 3: 12-14주 timeline + dual mode 위에서 architecture / test plan / capture spike 구체 deliverable
+→ 다음 세션은 *Week 1 capture spike 실행* 단계. autoplan 재호출 불필요 (Phase 0-3 모두 완료).
 
 ### Step 2.5: ⭐ Capture spike (Week 1 새 sequence)
 
@@ -203,9 +197,14 @@ designer agent 의 마지막 deliverable 로 다음 표를 채워서 보고:
 | 11 | Voice library (system msgs, errors, empty, loading) | /__gallery#voice | ☐ | "Bartleby would prefer not to." |
 | 12 | Applied screens (Library + Recording) | /__gallery#screens | ☐ | 앱 실제 라우트로도 사용 |
 | 13 | App icon (light/dark/mono + dock mock) | /__gallery#icon | ☐ | |
-| 14 | Marketing (hero, wedge, pricing) | /__gallery#marketing | ☐ | 앱 외부지만 디자인 시스템 일부 |
+| 14 | Marketing (hero, wedge, pricing) | /__gallery#marketing | ☐ | 앱 외부지만 디자인 시스템 일부. **Watch 모드 hero 로 reframe** (split: YouTube + overlay, meeting 은 secondary) |
+| 15 | **WatchOverlay** — drag/resize/opacity, 7 states (idle/listening/captioning/translating/reconnecting/drm-blocked/permission-denied/complete), KO Pretendard caption | /__gallery#overlay | ☐ | spec: `design-system-extensions/overlay.md`. NSPanel-equivalent 검증 (Week 1 spike) |
+| 16 | **Mode switch widget** — Segmented control sidebar 상단, 200ms cross-fade, active session 시 confirm modal | /__gallery#mode-switch | ☐ | `design-system/components.css` 의 Segmented 재사용. 라우팅 `/live/watch` ↔ `/live/meeting` |
+| 17 | **Settings UI** — 5 tabs (Keys/Modes/Storage/Shortcuts/About), KeyInput verified/invalid 상태, BYOK 키 Keychain 저장 | /__gallery#settings | ☐ | spec: `design-system-extensions/settings.md`. 단축키 customize 가능 |
+| 18 | **Onboarding flow** — 3 steps (API 키 → 권한 → 첫 watch demo) | /__gallery#onboarding | ☐ | TODO design-system-extensions/onboarding.md (v1.5) |
+| 19 | **Permission / DRM rejection** — Screen Recording / Microphone 거부, DRM-blocked detection (10-20s RMS < -60dBFS), Settings.app deeplink | /__gallery#permission | ☐ | Voice copy 일관 유지 ("Bartleby would prefer not to. (...)") |
 
-**각 row 가 ✅ 가 아니면 Phase 0 미완료**.
+**각 row 가 ✅ 가 아니면 Phase 0 미완료**. 표 14→19 row 로 확장 (autoplan 2026-05-07).
 
 ### Step 5c: 시각 비교 워크플로우 (사용자가 직접 검증)
 
@@ -266,17 +265,25 @@ designer 에게:
 Brand:      Bartleby
 Domain:     heybartleby.com
 Stack:      Tauri 2.0 (Rust + React + TS) — Week 1 spike 결과로 contingency
-STT:        Soniox streaming (BYOK, EN/KO 양방향)
-LLM:        Solar Pro 3 via OpenRouter (BYOK, 128K context)
-Storage:    Local markdown (~/Documents/Bartleby/)
+            Tauri Updater plugin (Sparkle 제거, autoplan 결정)
+최소 OS:    macOS 15 Sequoia (autoplan: ScreenCaptureKit mic feature 호환성)
+STT:        Soniox streaming (BYOK, EN/KO 양방향). Protocol: monotonic seq# + audio-clock + 30s ring reconnect + bounded queue 8
+LLM:        Solar Pro 3 via OpenRouter (BYOK, 128K context). Order-preserving translation, batched 2-3 finals
+Storage:    sessions/{uuid}/{note.md, audio.opus, transcript.jsonl, events.jsonl}
+            bartleby://{uuid} 내부 URI (사용자가 .md 이동해도 audio link 살아있음)
 First user: 본인 (Sihyun) — 매일 영어 YouTube 1h+ 시청
 Wedge:      Korean ears for English audio — 시청 모드 (YouTube/podcast/컨퍼런스 라이브 자막) + 미팅 모드 dual mode
 Layout:     사이드바 240px + 가변 main + floating overlay (시청 모드)
 모드:       시청 모드 (system audio only, overlay) ↔ 미팅 모드 (mic+system, sidebar)
+모드 전환:  Sidebar 상단 Segmented + 단축키 ⌘⌃B (Watch) / ⌘⌃M (Meeting), Settings customize
 Font:       JetBrains Mono + Inter + Pretendard + Cormorant Garamond + Gowun Batang + D2Coding (모두 OFL)
+Typography: live caption = Pretendard (sans), static notes/summaries = Gowun Batang (serif). PRINCIPLES §4.2.1
 Color:      OKLCH chroma 0 (paper-ivory + ink, accent = ink itself, ZERO accent color)
 Timeline:   12-14주 (8주에서 연장, autoplan 결정)
 Sequence:   Week 1 capture spike → Week 2-3 Phase 0/1 → Week 4 STT → ... (UI 보다 capture 먼저)
+검증 표:    14 → 19 섹션 (NEXT Step 5b, +5 rows: overlay/mode-switch/settings/onboarding/permission)
+SessionFSM: 12 states (Idle/PermissionNeeded/Starting/Capturing/STTConnecting/Live/
+            Reconnecting/Degraded/Stopping/Saving/Complete/Error)
 ```
 
 > 2026-05-07 autoplan reframe: "Granola for Korean (미팅 only)" → "Korean ears for English audio (콘텐츠 + 미팅 dual mode)".

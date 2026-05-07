@@ -9,9 +9,12 @@
 
 ## §0 핸드오프 — autoplan 결정사항 (2026-05-07)
 
-이전 plan (8주, 미팅 only) 은 autoplan 의 CEO dual voice review (codex + critic) 에서
-critical 신호 6/9 받음. 사용자 daily reality (매일 영어 YouTube 1h+, 미팅은 영어 능력
-부족으로 suppressed) 기반 reframe 진행. 핵심 변경:
+autoplan 3 phase (CEO + Design + Eng) dual voice review 결과 반영.
+Phase 1 (CEO): 6/9 critical 발견 → wedge 재정렬.
+Phase 2 (Design): 9/11 confirmed → design-system-extensions/ 폴더 생성.
+Phase 3 (Eng): 13/14 confirmed → architecture spec 강화.
+
+핵심 변경:
 
 ### Wedge 재정렬
 - ❌ 기존: "Granola for Korean" (미팅 노트 only) — 12개월 moat 0
@@ -45,6 +48,34 @@ critical 신호 6/9 받음. 사용자 daily reality (매일 영어 YouTube 1h+, 
 - Follow-up email schema (미팅 모드)
 - Mac App Store 배포
 
+### Phase 2 (Design) 추가 결정 (autoplan 2026-05-07)
+- ➕ `design-system-extensions/` 폴더 생성 — overlay.md (WatchOverlay spec) + settings.md (Settings UI spec)
+- ➕ PRINCIPLES.md §4.2.1 Korean typography exception — **live = Pretendard, static = Gowun Batang**
+- ➕ 14 → **19 섹션 매핑 표** (NEXT.md Step 5b) — +5 rows: Floating overlay / Mode switch / Settings / Onboarding / Permission-DRM
+- ✅ Watch caption default: KO only (Pretendard 14-16px). EN ⌥-hold toggle
+- ✅ 모드 전환: Sidebar 상단 Segmented control + 200ms cross-fade + active session confirm modal
+- ✅ Watch mode voice copy matrix (idle/listening/captioning/translating/reconnecting/drm-blocked/permission-denied/complete) → overlay.md
+- ✅ Marketing hero reframe: split (YouTube + overlay), meeting secondary
+
+### Phase 3 (Eng) 추가 결정 (autoplan 2026-05-07)
+- ➕ Week 1 spike scope 확장 — *signed Tauri bundle + 두 window + NSPanel-equivalent + 1h stable + RSS profile + macOS 15 검증*
+- ➕ macOS minimum: 14 → **15 Sequoia** (mic capture 호환성)
+- ➕ Storage: 폴더 구조 `sessions/{uuid}/{note.md, audio.opus, transcript.jsonl, events.jsonl}` + `bartleby://{uuid}` 내부 URI
+- ➕ STT protocol: monotonic seq# + audio-clock timestamp + 30s ring buffer reconnect + bounded queue 8 + order-preserving translation
+- ➕ SessionSupervisor 12-state machine (Rust 단일 owner, React 는 Tauri events 구독)
+- ➕ Audio router: 한 SCStream callback → 3 streams (Opus/STT/RMS), peak RSS < 50MB
+- ➕ DRM detection heuristic: 8-20s RMS < -60dBFS + DRM app bundle ID hint
+- ➕ Permission lifecycle: Settings.app deeplink + 모드별 graceful (Watch 모드는 mic 거부 OK)
+- ➕ Sparkle 제거 → **Tauri Updater plugin** (minisign + GitHub Pages JSON)
+- ➕ Test minimum: audio fixture corpus + state-machine proptest + Soniox WAV replay + storage roundtrip + Friday 1h dogfood-log
+
+### Q1~Q4 사용자 결정 (autoplan final gate)
+- Q1: macOS 15 raise ✅
+- Q2: 임시 spec 본인이 (Claude code) draft, 기존 design-system 토큰/voice 인용 ✅
+- Q3: Settings 임시 spec 본인이 draft ✅
+- Q4: 단축키 default `⌘⌃B` (Watch) / `⌘⌃M` (Meeting), Settings 에서 customize ✅
+- Q5: 핵심 6개 + design-system-extensions 만 이 세션 (D2/D3/D5/D6/E5/E6/E7/E8/E9/E10/E11 미완) ✅
+
 자세한 critical 발견 + decision rationale 은 이번 세션 transcript 참조.
 
 ---
@@ -58,7 +89,11 @@ critical 신호 6/9 받음. 사용자 daily reality (매일 영어 YouTube 1h+, 
 | **시청 모드** (YouTube/podcast/컨퍼런스) | system audio only | Floating overlay window (영상 위) | 실시간 KO 자막 + 종료 후 노트 옵션 |
 | **미팅 모드** | mic + system audio | Sidebar 노트 view | 실시간 KO/EN transcript + 종료 후 한국어 요약 |
 
-**모드 전환**: Sidebar 토글 또는 ⌘⇧B (시청 모드 토글) / ⌘⇧M (미팅 모드 토글).
+**모드 전환**: Sidebar 상단 Segmented control (Watch / Meeting) + 단축키 ⌘⌃B (시청) / ⌘⌃M (미팅). 활성 세션 도중 전환 시 confirm modal.
+
+> 단축키 default 는 `⌘⌃B` / `⌘⌃M` — codex 권고로 `⌘⇧B`/`⌘⇧M` 회피 (Chromium bookmark bar 충돌). Settings 에서 customize 가능.
+
+**캡션 default (시청 모드)**: KO only (Pretendard 14-16px). EN 은 ⌥-hold 또는 Settings 에서 toggle (KO only / KO+EN / EN only).
 
 ### v1 에 들어감
 
@@ -96,22 +131,43 @@ critical 신호 6/9 받음. 사용자 daily reality (매일 영어 YouTube 1h+, 
 
 ### Week 1 (2026-05-07 → 2026-05-13) — Capture Spike + 인프라
 
-> **결정 (autoplan)**: UI 보다 capture 검증 먼저. UI 7일 만들어놓고 Phase 1 에서 막히면
-> 디자인 폐기 위험. spike 가 stack contingency trigger.
+> **결정 (autoplan Phase 3 codex+architect)**: UI 보다 capture 검증 먼저.
+> Spike scope 가 *원래 plan 보다 넓어짐* — 1시간 audio 캡처만으로는 Tauri-vs-Swift 결정 불가.
+> *signed Tauri bundle + 두 window + NSPanel-equivalent + 1h stable + memory profile* 까지 봐야 함.
 
-#### Spike 목표 (~3-5일)
-- [ ] Tauri 2.0 + Rust 프로젝트 생성
-- [ ] `screencapturekit-rs` (또는 fork) 로 ScreenCaptureKit binding 검증
-- [ ] System audio capture 1시간 안정성 (YouTube 영상 1h 시청 시뮬레이션)
-- [ ] mic + system audio mixing (미팅 모드 prep)
-- [ ] Opus 32kbps encoding + 로컬 .opus 저장
-- [ ] 권한 요청 플로우 (Microphone, Screen Recording)
-- [ ] **Anarlog (`fastrepl/anarlog`) 코드 정독** — 이미 작동하는 패턴 차용
+#### Spike 목표 (확장됨, ~5-7일)
 
-#### Spike 결정 gate
-- ✅ 1시간 stable 캡처 → Tauri 강행, Phase 0 UI 시작
-- ⚠️ system audio 만 불안정 → Tauri UI + Swift sidecar fallback
-- ❌ ScreenCaptureKit Rust 실패 → Native SwiftUI pivot, 1주 추가 비용 인정
+**필수 (모두 ✅ 여야 Tauri 강행 결정)**:
+- [ ] Tauri 2.0 + Rust 프로젝트 생성 (`pnpm create tauri-app .`)
+- [ ] `screencapturekit-rs` (또는 fork) 로 ScreenCaptureKit binding 검증 — **Day 1 4시간 안에 audio capture 60초 WAV 검증, 실패 시 즉시 Swift sidecar 로 pivot**
+- [ ] System audio capture **1시간** stable (YouTube 영상 1h 시청 시뮬레이션) — RSS peak < 800MB
+- [ ] mic + system audio mixing — `presentationTimeStamp` drift < 50ms over 60min
+- [ ] Opus 32kbps encoding + chunked write (5s rotation, crash safety)
+- [ ] 권한 요청 플로우 (Microphone, Screen Recording) — **packaged + signed bundle 에서 검증** (Tauri dev 모드 는 entitlement 다름)
+- [ ] **신호된 Tauri bundle 빌드** (Developer ID Application, Hardened Runtime, 필수 entitlements 만)
+- [ ] **두 window 동시** — sidebar/main window + overlay window. 둘 다 활성화된 상태에서 capture 작동
+- [ ] **`tauri-plugin-nspanel` (또는 자체 plugin) 검증** — overlay 가:
+  - 항상 위 (`setLevel(.floating)`)
+  - 영상 fullscreen 위에서도 보임 (`.fullScreenAuxiliary` collection behavior)
+  - click-through toggle (`ignoresMouseEvents`)
+  - drag/resize
+  - macOSPrivateApi (transparent webview) — 직접 DMG 라 OK
+- [ ] **macOS 15 (Sequoia) target 검증** — `screencapturekit-rs` mic feature 가 macOS 15+ 일 가능성. Sonoma 14 는 v1 minimum X.
+- [ ] **Audio router pattern 검증** — 한 SCStream callback 이 3 stream 에 fan-out (Opus disk / STT websocket / RMS DRM detection). 메모리 누적 X
+- [ ] **DRM detection PoC** — Apple TV+ 또는 Netflix 영상 캡처 시도, RMS 모니터링이 silence 를 잡는지
+
+**보조 (강행에 필수는 아니나 봐야 함)**:
+- [ ] **Anarlog (`fastrepl/anarlog`) 코드 정독** — 작동 패턴 차용 (Tauri+ScreenCaptureKit 살아있는 reference)
+- [ ] Notarization workflow dry run (Apple Developer 계정 도착 전, 기존 키로 시뮬레이션 가능 시)
+
+#### Spike 결정 gate (Day 4-5 시점)
+
+| 결과 | 결정 |
+|---|---|
+| ✅ 모든 필수 통과 | **Tauri 강행** — Phase 0 UI 시작 (Week 2) |
+| ⚠️ NSPanel/overlay 만 fail (audio OK) | **Tauri UI + 작은 Swift NSPanel plugin** (Anarlog 패턴) |
+| ⚠️ system audio mixing 만 불안정 | **Tauri UI + Swift sidecar binary** for capture |
+| ❌ Day 1 audio capture 자체 fail | **Native SwiftUI 즉시 pivot** — 디자인 시스템 SwiftUI 재작성 (1-1.5주 추가 인정). 이건 Day 1 안에 결정 |
 
 #### 인프라 (~1시간, 병렬)
 - [ ] heybartleby.com 결제 (Cloudflare/Porkbun, ~$11)
@@ -169,12 +225,47 @@ NEXT.md Step 5 의 designer agent 위임 + 14 섹션 매핑 표 검증 (PRINCIPL
 
 #### Phase 1: Audio capture refinement (~1.5주, Week 2-3 병렬)
 
-Spike 결과를 production-grade 로:
-- [ ] Tauri command: `start_meeting`, `start_watch`, `stop_recording`, `get_recording_state`
-- [ ] React side: 모드별 캡처 source 분기 (시청 = system only, 미팅 = mic + system)
-- [ ] 권한 거부 case 처리 (Bartleby would prefer not to. 톤)
-- [ ] **DRM 영상 감지 + 안내** — ScreenCaptureKit 차단 시 사용자 친절 메시지
-- [ ] 디스크 저장 (.opus, retention 30일 default)
+Spike 결과를 production-grade 로 — autoplan eng review 의 architecture 권고 반영.
+
+**SessionSupervisor — 12-state machine (Rust 단일 owner)**:
+```
+Idle → PermissionNeeded → Starting → Capturing → STTConnecting → Live
+                                                      ↓
+                                                 Reconnecting / Degraded
+                                                      ↓
+                                              Stopping → Saving → Complete → Idle
+                                                            (Error → Idle)
+```
+- React 는 Tauri events 로 state 구독 (`session:state-changed`, `session:transcript-delta`, `session:translation-patch`, `session:overlay-lifecycle`). **polling X**.
+- `start_*` 명령은 `Idle` 외 상태에서 typed error reject (idempotent).
+- `stop_recording` async → `Stopping` 진입 → STT queue 5s drain timeout → 모든 pending translations 5s timeout → `Saving` → markdown write + audio finalize → `Complete` → `Idle`.
+
+**Audio router** — 한 SCStream callback 이 fan-out 3 streams (peak RSS < 50MB, full session PCM 절대 buffer X):
+1. **Opus encoder** → disk (chunked write 5s, file rotate at 60min for crash safety)
+2. **STT sender** → 16kHz mono PCM downsample → bounded `tokio::sync::mpsc` (200ms backpressure) → Soniox websocket
+3. **RMS calculator** → 8s ring buffer, dBFS → DRM detection heuristic
+
+**Tauri commands**:
+- `start_meeting()` → mic + system audio 캡처 시작
+- `start_watch()` → system audio only
+- `stop_recording()` → idempotent, async
+- `get_session_state()` → 디버그용. React 는 events 사용
+- `recheck_permissions()` → 권한 변경 후 재검증
+
+**Permission lifecycle**:
+- 모드별 graceful: Watch 모드는 Microphone 거부 OK (Screen Recording 만 필수). Meeting 모드는 둘 다 필수.
+- 거부 시 `PermissionNeeded` 상태 + Settings.app deeplink:
+  - `x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone`
+  - `x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`
+- "I've granted it" 버튼 → `recheck_permissions()` 호출
+
+**DRM detection** (codex+architect 합의):
+- 8-20초 동안 RMS < -60dBFS *while SCStream active and not paused* → DRM-blocked 신호
+- 추가 hint: 캡처 source app bundle ID 가 known DRM list (`com.apple.TV`, `com.netflix.Netflix` 등) 면 즉시 surface
+- UI: italic Cormorant *"Bartleby would prefer not to. (재생 영상이 보호되어 있는 것 같습니다.)"* + Dismiss / Stop
+- 자동 stop X — 사용자가 단순히 quiet section 일 수도 있음. False positive cost 낮게.
+
+**디스크 저장** — Storage schema 는 §3 Phase 3 참조 (`sessions/{uuid}/` 폴더 구조).
 
 **Phase 0 + 1 acceptance**: 클릭 가능한 UI shell + ⌘⇧B/⌘⇧M 로 캡처 시작/종료, .opus 파일 저장, 시스템+마이크 오디오 둘 다 들림.
 
@@ -182,43 +273,107 @@ Spike 결과를 production-grade 로:
 
 ### Week 4 (2026-05-28 → 2026-06-03) — Phase 2: Streaming STT + Live UI
 
+#### STT protocol (autoplan eng review 결과 — 1-3시간 안정성 위해 명시)
+
+**모든 STT 이벤트는 monotonic seq# + audio-clock timestamp 들고 다님**:
+```rust
+struct SttEvent {
+  seq: u64,                     // monotonic per session
+  t_audio_ms: u64,              // audio-clock (not wall-clock), Soniox 의 processed_audio_ms
+  kind: Partial | Final,
+  text_en: String,
+}
+```
+
+**Reconnect protocol** (network blip 대응):
+- Exponential backoff: 1s → 2s → 4s → 8s → max 30s
+- 캡처된 audio 는 **30s ring buffer** 로 보관 (disconnect 중 손실 X)
+- Reconnect 시 last `t_audio_ms` 부터 ring buffer 에서 ~10s context replay
+- 30s 초과 → drop + UI 에 *"Bartleby lost a moment."* surface
+- Soniox 한 stream 최대 300분 — 그 전에 명시적 reconnect 도 OK
+
+**Backpressure** (LLM 번역이 STT 보다 느릴 때):
+- Translation queue depth 8 (bounded, `tokio::sync::mpsc::channel(8)`)
+- Overflow 시: 가장 오래된 pending translation skip → EN-only 표시 + "(번역 보류)" badge
+- STT ingestion 절대 block X (audio 손실 방지)
+
+**Translation pipeline order preservation** (codex+architect critical):
+- 모든 final → Solar Pro 3 호출 시 `seq` 동반
+- React side: `Map<seq, TranslationState>` 유지
+- Render = *contiguous prefix* of resolved + 다음 pending placeholder 만 (out-of-order 방지)
+- `seq=N` 이 5s timeout 또는 fail → EN fallback 으로 unblock `N+1` 표시
+- Single-flight gate per `seq` (retry 시 double-render 방지)
+- 비용 최적화: 짧은 final 2-3개 (or 1-2초 window) 를 *batch* 해서 한 LLM 호출 — Settings 에서 latency vs cost 토글
+
+**Persistent log** (crash safety):
+- `transcript.jsonl` append-only WAL — 매 STT event 즉시 fsync
+- Crash 후 재시작 시 마지막 fsync 지점부터 복구
+
 #### 시청 모드 (priority 1 — 사용자 daily pain)
-- [ ] Soniox websocket Rust client (또는 Tauri sidecar)
-- [ ] System audio chunk 를 websocket 으로 stream
-- [ ] EN STT event 파싱 (partial / final, timestamps)
-- [ ] **Floating overlay window** (Tauri NSPanel-equivalent):
-  - [ ] 영상 위 표시, drag·resize, opacity 30~100%
-  - [ ] partial = `--partial` 색 + italic
-  - [ ] final = `--ink` 색 + lock + 한국어 번역 stream
-  - [ ] 세션 종료 버튼
-- [ ] Solar Pro 3 streaming translation (final 시점 호출, parallel)
+- [ ] Soniox websocket Rust client (Tauri 의 reqwest/tokio-tungstenite)
+- [ ] System audio (16kHz mono PCM downsample) → websocket stream
+- [ ] EN STT event 파싱 (partial / final, `t_audio_ms`, seq)
+- [ ] **Floating overlay window** (Tauri + `tauri-plugin-nspanel` or 자체 plugin):
+  - 자세한 spec → `design-system-extensions/overlay.md`
+  - 7 states (idle/listening/captioning/translating/reconnecting/drm-blocked/permission-denied/complete)
+  - Caption typography: **Pretendard sans** (PRINCIPLES §4.2.1 exception, NOT Gowun Batang)
+  - Default: KO only. EN ⌥-hold toggle. Settings 에서 `caption-mode: ko | ko+en | en`
+  - Background: translucent material + `backdrop-filter: blur(12px)`. Caption text 항상 100% opacity. Overall opacity 슬라이더 = background only
+  - Drag/resize/click-through (⌥-click toggle)
+- [ ] Solar Pro 3 streaming translation — order-preserving, batched 2-3 finals
+- [ ] `transcript.jsonl` append-only WAL
 
 #### 미팅 모드
 - [ ] React: Live meeting 레이아웃 (사이드바 축소 + KO|EN 좌우 split)
-- [ ] Bilingual STT (Soniox 의 language detection 또는 사용자 선택)
-- [ ] Real-time translation (final → Solar Pro 3)
+- [ ] Bilingual STT (Soniox 의 language detection 또는 사용자 Settings 선택)
+- [ ] Real-time translation (final → Solar Pro 3, 같은 order-preserving pipeline)
 - [ ] LIVE indicator + timer
 - [ ] 미팅 제목 인라인 편집
 - [ ] 일시정지 / 재개 / 종료
 
-**Phase 2 acceptance**: 본인이 영어 YouTube 1시간 시청 → 라이브 한국어 자막 overlay. 별도로 영어 미팅 1시간 → KO|EN split panel 라이브 transcript.
+**Phase 2 acceptance**: 본인이 영어 YouTube 1시간 시청 → 라이브 한국어 자막 overlay (네트워크 blip 한 번 simulate 해도 reconnect 작동). 별도로 영어 미팅 1시간 → KO|EN split panel 라이브 transcript. Peak RSS < 100MB.
 
 ---
 
 ### Week 5 (2026-06-04 → 2026-06-10) — Phase 3: 후처리 (요약 / 노트)
 
-#### 시청 모드 후처리
-- [ ] 영상 끝나면 자막 전체 누적 → "한국어 요약 만들기" 옵션
-- [ ] Solar Pro 3 요약 (5-10문장)
-- [ ] Markdown 파일 저장:
+#### Storage schema (autoplan eng review — session 폴더 first-class)
+
+**디렉토리 구조** — 각 세션이 폴더 (audio + transcript + note 한 묶음):
+
+```
+~/Documents/Bartleby/
+├── sessions/
+│   ├── {uuid}/
+│   │   ├── note.md           ← user-facing markdown (frontmatter + 요약)
+│   │   ├── audio.opus        ← Opus 32kbps (retention default 30일)
+│   │   ├── transcript.jsonl  ← 모든 STT events append-only WAL (영구 보유)
+│   │   └── events.jsonl      ← session lifecycle events (state changes, errors)
+│   └── ... (uuid 별)
+└── library.json              ← Library view 의 fast index (제목/날짜/tag/pin)
+```
+
+- **uuid**: nanoid 8자 (timestamp 기반 X — collision 안전)
+- 사용자가 `note.md` 를 다른 곳으로 이동해도 audio link 살아있음 (frontmatter 의 `audio: bartleby://{uuid}` 내부 URI 가 app 에서 resolve)
+- Audio retention sweep: `sessions/` 디렉토리 walk, frontmatter 가 30일 초과한 audio 자동 삭제 (transcript 는 영구)
+
+#### note.md 시청 모드 frontmatter:
 
 ```yaml
 ---
+version: 1
+id: a3kf2m9p
+type: watch
 title: <YouTube 제목 또는 사용자 입력>
 date: 2026-06-08T14:30:00Z
-duration: 47m
-type: watch
-source: <YouTube URL 또는 'system audio'>
+duration_s: 2820
+source_url: <YouTube URL 또는 null>
+source_app: <com.google.Chrome / com.apple.Safari / null>
+audio: bartleby://a3kf2m9p
+audio_checksum: sha256:abc123...
+audio_retention_until: 2026-07-08
+tags: []
+pinned: false
 ---
 ## TL;DR
 3-5 문장 한국어 요약
@@ -228,25 +383,29 @@ source: <YouTube URL 또는 'system audio'>
 - 핵심 2
 
 ## Full Transcript (EN)
-(영어 원본)
+(영어 원본 — `transcript.jsonl` 에서 hydrate)
 
 ## Translation (KO)
-(한국어 자막)
+(한국어 자막 — final 줄 누적)
 ```
 
-#### 미팅 모드 후처리
-- [ ] Solar Pro 3 요약 호출
-- [ ] Markdown frontmatter:
+#### note.md 미팅 모드 frontmatter:
 
 ```yaml
 ---
+version: 1
+id: b7zq8n4r
+type: meeting
 title: <auto-generated>
 date: 2026-06-08T14:30:00Z
-duration: 47m
-type: meeting
-language: ko/en/mixed
+duration_s: 2820
+language: ko / en / mixed
 participants: [김시현, ...]
+audio: bartleby://b7zq8n4r
+audio_checksum: sha256:def456...
+audio_retention_until: 2026-07-08
 tags: []
+pinned: false
 ---
 ## TL;DR
 3-5 문장 한국어 요약
@@ -262,8 +421,34 @@ tags: []
 > "..." — 화자
 
 ## Full Transcript
-(원본)
+(원본 — `transcript.jsonl` 에서 hydrate)
 ```
+
+#### transcript.jsonl 형식 (append-only WAL):
+
+```jsonl
+{"seq":1,"t_audio_ms":0,"kind":"partial","text_en":"the model"}
+{"seq":2,"t_audio_ms":850,"kind":"final","text_en":"the model handles long contexts surprisingly well","text_ko":"모델이 긴 문맥을 놀랍게 잘 처리합니다","translation_status":"ok","translation_ms":1240}
+...
+```
+
+- Phase 1 부터 매 STT event 즉시 fsync — crash safety
+- `note.md` 의 transcript 섹션은 이걸 hydrate 한 결과물 (저장은 jsonl 가 source of truth)
+- 사용자가 `note.md` 본문 직접 편집 시 별도 `edits.jsonl` 에 patch 저장 (v1.5 — v1 은 단순 markdown 편집만)
+
+#### 시청 모드 후처리
+
+- [ ] 영상 끝나면 (Stop 또는 STT 5분 idle) → "한국어 요약 만들기" 옵션 다이얼로그
+- [ ] 사용자 confirm → Solar Pro 3 호출 (전체 transcript → 5-10문장 TL;DR + 3-5 key points)
+- [ ] `note.md` 작성 (위 frontmatter)
+- [ ] Library 의 watch session 으로 등록
+
+#### 미팅 모드 후처리
+
+- [ ] Stop → 자동 요약 (Settings 에서 OFF 가능)
+- [ ] Solar Pro 3 호출 (TL;DR + Decisions + Action Items + Key Quotes 항목별)
+- [ ] Bartleby brand voice 시스템 프롬프트 ("정중하고 절제됨")
+- [ ] `note.md` 작성 + Library 등록
 
 - [ ] 사용자 편집 가능한 요약 view
 - [ ] Bartleby brand voice 시스템 프롬프트
@@ -329,7 +514,7 @@ tags: []
 #### 배포 prep
 - [ ] DMG 빌드 + Developer ID 서명 + notarize (Apple Developer 승인 후)
 - [ ] Privacy Policy + Terms (단순)
-- [ ] Sparkle 자동 업데이트 SPM 추가 (EdDSA 키, appcast.xml GitHub Pages)
+- [ ] **Tauri Updater plugin** (`tauri-plugin-updater`) — minisign 키, GitHub Pages JSON manifest, `.app.tar.gz` artifact. (autoplan: Sparkle 은 Swift 전용이라 Tauri 와 mismatch — Tauri Updater 가 first-party)
 
 ---
 
@@ -396,9 +581,9 @@ tags: []
 | STT | Soniox streaming (BYOK, EN/KO) |
 | 번역/요약 | Solar Pro 3 via OpenRouter (BYOK, 128K) |
 | 단축키 | Tauri global shortcut 또는 native NSEvent |
-| 최소 OS | macOS 14 Sonoma |
+| 최소 OS | **macOS 15 Sequoia** (autoplan: ScreenCaptureKit mic feature 가 macOS 15+ 일 가능성, 14 면 AVFoundation/CoreAudio fallback 코드 추가 필요. solo dev 비용 > target 시장 손실로 판단) |
 | 아키텍처 | Apple Silicon + Intel universal |
-| 배포 | Developer ID 직접 다운로드 (Sparkle 자동 업데이트) |
+| 배포 | Developer ID 직접 다운로드 + Tauri Updater plugin (minisign 서명) |
 
 ### 디렉토리 (Tauri 가정)
 
