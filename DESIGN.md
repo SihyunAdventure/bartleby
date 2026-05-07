@@ -228,3 +228,14 @@ cd ~/Dev/side/bartleby && pnpm tauri dev
   - OKLCH chroma 0 (accent ZERO)
   - 19c manuscript 방향
   - Korean 4쌍 페어링 시스템 (Pretendard / Gowun Batang / D2Coding / Apple SD Gothic Neo)
+- **2026-05-07 autoplan Phase 2/3**: dual-mode reframe (시청 + 미팅) 으로 design-system-extensions/ 생성. Sacred values 그대로 유지, *추가 surface* 만 spec.
+
+## Design system 노트
+
+### tokens.css L15 의 "Nanum Myeongjo" 주석 (stale)
+
+[tokens.css L15](./design-system/bartleby/project/bartleby/tokens.css#L15) 의 Korean serif companion 주석은 "Nanum Myeongjo" 로 적혀 있음. 하지만 *실제 font-family fallback chain* (L23) 은 Cormorant → **Gowun Batang** → Nanum Myeongjo → ... 순서로 Gowun Batang 이 한국어 우선.
+
+DESIGN.md L49 의 ⭐ Gowun Batang 결정이 source-of-truth. tokens.css L15 주석은 *historical* — design-system 폴더는 영구 read-only 라 주석 fix 안 함. 이 노트가 명확화 함.
+
+→ 한 줄: **한국어 serif = Gowun Batang.** 다른 폰트로 substitute 금지 (PRINCIPLES §4.2 Sacred Values).

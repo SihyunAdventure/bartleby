@@ -240,10 +240,47 @@ Idle → PermissionNeeded → Starting → Capturing → STTConnecting → Live
 - `start_*` 명령은 `Idle` 외 상태에서 typed error reject (idempotent).
 - `stop_recording` async → `Stopping` 진입 → STT queue 5s drain timeout → 모든 pending translations 5s timeout → `Saving` → markdown write + audio finalize → `Complete` → `Idle`.
 
-**Audio router** — 한 SCStream callback 이 fan-out 3 streams (peak RSS < 50MB, full session PCM 절대 buffer X):
-1. **Opus encoder** → disk (chunked write 5s, file rotate at 60min for crash safety)
-2. **STT sender** → 16kHz mono PCM downsample → bounded `tokio::sync::mpsc` (200ms backpressure) → Soniox websocket
-3. **RMS calculator** → 8s ring buffer, dBFS → DRM detection heuristic
+**Audio router** — 한 SCStream callback 이 fan-out 3 streams (peak RSS < 50MB, full session PCM 절대 buffer X).
+
+Pseudocode skeleton (Phase 1 reference — 정식 구현은 spike 결과 후):
+
+```rust
+// src-tauri/src/capture/router.rs
+use tokio::sync::mpsc;
+
+pub struct AudioRouter {
+    opus_tx: mpsc::Sender<AudioFrame>,    // bounded(200ms ≈ 9 frames @ 48kHz/4096)
+    stt_tx:  mpsc::Sender<Pcm16Mono>,     // bounded(200ms ≈ 9 frames @ 16kHz)
+    rms_tx:  mpsc::Sender<RmsSample>,     // unbounded but trivial size
+}
+
+impl SCStreamOutput for AudioRouter {
+    fn handle_audio(&mut self, sample: CMSampleBuffer) {
+        // 1. Opus path (48kHz stereo s16 그대로)
+        let frame = AudioFrame::from_cm(&sample);
+        let _ = self.opus_tx.try_send(frame.clone());  // drop if full → opus 손실 < STT 우선
+
+        // 2. STT path (downsample 48k → 16k mono)
+        let pcm16 = downsample_to_16k_mono(&frame);
+        let _ = self.stt_tx.try_send(pcm16);  // drop if full → backpressure surface UI
+
+        // 3. RMS path (peak / dBFS, 8s ring)
+        let rms = compute_rms_dbfs(&frame);
+        let _ = self.rms_tx.try_send(RmsSample { t: frame.timestamp, dbfs: rms });
+    }
+}
+
+// 별도 task 들이 receiver 소비:
+// - opus_consumer → file 5s chunked write + 60min rotation
+// - stt_consumer → Soniox websocket sender (with seq# + audio-clock t_audio_ms)
+// - rms_consumer → 8s ring + DRM heuristic + DRM bundle ID watcher
+```
+
+핵심 invariant:
+- callback 은 **never block** (모두 `try_send`, drop on full)
+- callback 자체는 < 1ms (downsample 만 inline)
+- 각 consumer task 는 자기 속도로 일함 (backpressure 자체 처리)
+- 각 channel bound = 200ms 분량 → drop 시 200ms 손실, total session 영향 minimal
 
 **Tauri commands**:
 - `start_meeting()` → mic + system audio 캡처 시작
@@ -261,7 +298,25 @@ Idle → PermissionNeeded → Starting → Capturing → STTConnecting → Live
 
 **DRM detection** (codex+architect 합의):
 - 8-20초 동안 RMS < -60dBFS *while SCStream active and not paused* → DRM-blocked 신호
-- 추가 hint: 캡처 source app bundle ID 가 known DRM list (`com.apple.TV`, `com.netflix.Netflix` 등) 면 즉시 surface
+- 추가 hint: 캡처 source app bundle ID 가 known DRM list 에 매칭되면 즉시 surface (RMS 대기 없이):
+
+  ```
+  KNOWN_DRM_BUNDLES = {
+    "com.apple.TV":              "Apple TV",
+    "com.netflix.Netflix":       "Netflix",
+    "com.disney.disneyplus":     "Disney+",
+    "tv.amazon.PrimeVideo":      "Prime Video",
+    "com.hbo.hbomax":             "HBO Max",
+    "com.spotify.client":        "Spotify (DRM)",
+    "com.apple.Music":            "Apple Music",
+    // 한국
+    "com.coupang.PlayApp":        "쿠팡플레이",
+    "com.tving.player":           "TVING",
+    "kr.co.wavve":                "Wavve",
+  }
+  ```
+  Window/process focus 가 위 bundle 이고 capture target = 그 window 면 즉시 *"Bartleby would prefer not to. ({앱이름} 은 보호된 콘텐츠를 제공합니다.)"* 표시.
+- 추가 알림: YouTube/Twitch/일반 웹 video 는 OK 명시 (사용자 안심)
 - UI: italic Cormorant *"Bartleby would prefer not to. (재생 영상이 보호되어 있는 것 같습니다.)"* + Dismiss / Stop
 - 자동 stop X — 사용자가 단순히 quiet section 일 수도 있음. False positive cost 낮게.
 
@@ -554,6 +609,95 @@ pinned: false
 | **DRM 영상 시청 expectation** | low | Low | Advertised non-feature 명시 |
 | **Mac App Store sandbox 호환성** | medium | Low | v1 cut, 직접 DMG 만 |
 | **Customer interview 5명 모집 실패** | 30% | Low | dogfood 만으로 강행 가능 |
+
+---
+
+## §3.1 STT 벤치마크 Protocol (Week 1 Day 5 결정)
+
+### Corpus (`tests/fixtures/audio/`)
+
+총 30-60분, 의도적으로 다양한 condition:
+
+| # | 종류 | 길이 | 음원 | 평가 포인트 |
+|---|---|---|---|---|
+| F1 | EN tech talk (clean speaker, single mic) | 5min | YouTube ID 고정 (Andrej Karpathy / 3Blue1Brown 등) | EN baseline WER |
+| F2 | EN podcast (2명 대화, 자연스러운 turn-taking) | 5min | 고정 podcast snippet | EN diarization |
+| F3 | EN with light Korean accent | 5min | 한국 dev 영어 talk | EN-w/-accent WER |
+| F4 | KO tech talk (clean) | 5min | 한국 conf 발표 | KO baseline WER |
+| F5 | KO podcast (자연스러운 대화) | 5min | 한국 podcast | KO conversational |
+| F6 | EN-KO mixed (사용자 본인 dogfood meeting 시뮬레이션) | 5min | 사용자가 셀프 녹음 | mixed code-switch WER |
+| F7 | YouTube 1h long-haul (하나의 video, capture stability) | 60min | 고정 YouTube ID | reconnect / drift / RSS |
+| F8 | DRM source (Apple TV+ 영상, 캡처 시도) | 30sec | macOS TV.app 재생 | DRM detection PoC (silent buffer 잡는지) |
+
+**저장**: `tests/fixtures/audio/F1.wav` ~ `F8.wav` (16kHz mono PCM, gitignored, `make fixtures` 로 다운로드 또는 record).
+
+### 인간 reference transcript
+
+F1, F4, F6 의 **첫 5분만** 본인이 손으로 transcribe. 약 3시간 작업.
+나머지 파일은 STT 결과를 신뢰 (목적은 비교, 절대 정확도 X).
+
+### 비교 protocol
+
+```
+For each provider in [Soniox, Whisper-API (large-v3), Naver Clova]:
+  For each fixture F1-F6:
+    Run provider on fixture → output transcript
+    Compute WER vs reference (F1, F4, F6) or vs Soniox (others)
+    Measure: final-token latency p50 / p95
+    Measure: cost per hour (provider fee × duration)
+    Note: 명백한 fail (audio not recognized, garbled output)
+```
+
+### 결정 임계값 (codex 권고 보강)
+
+| Metric | Threshold | 결과 |
+|---|---|---|
+| EN WER (F1) | < 12% | ✅ Soniox 강행 |
+| KO WER (F4) | < 18% | ✅ Soniox 강행 |
+| Mixed WER (F6) | < 18% | ✅ Soniox 강행 |
+| Final-token latency p95 | < 2.0s | live caption 가능 |
+| Long-haul (F7) reconnect | 1회 simulate, lossless | stability OK |
+| Cost vs Whisper API | within 1.5× | acceptable |
+
+**Fail 시**: Whisper API (cloud) 로 fallback. 코드 측에서 `SttProvider` trait 으로 swap.
+
+### Open questions
+- Naver Clova 가 한국 IP/카드 제약 — gather 가능 여부 Day 1 확인
+- Whisper API 의 streaming 지원 (OpenAI 가 아직 batch only)? streaming 가능 fallback 으로는 Whisper local (whisper.cpp) 검토
+
+---
+
+## §3.2 Test Fixture & Test Plan (autoplan eng 권고)
+
+### 디렉토리 구조
+
+```
+tests/
+├── fixtures/
+│   ├── audio/F1.wav ~ F8.wav  (gitignored, make fixtures 로 받기)
+│   ├── audio/REFERENCE.json    (F1/F4/F6 인간 transcript)
+│   └── snapshots/              (markdown roundtrip golden files)
+├── unit/                       (Rust + TS unit, fast, runs per-commit)
+├── integration/                (real Soniox/OpenRouter, env vars 필요, weekly)
+└── soak/                       (1h long-haul, manual Friday)
+```
+
+### 5-bullet minimum (solo dev 현실)
+
+1. **Audio fixture corpus** — `tests/fixtures/audio/`. `make fixtures` script 가 YouTube ID/podcast URL 에서 받아서 16kHz mono WAV 로 정규화. gitignored.
+2. **Soniox WebSocket replay test** — fixture WAV → 실제 Soniox client 통해 → seq monotonicity, no gaps, finals received 검증. Weekly run (API credits 소비).
+3. **Storage roundtrip** — markdown + frontmatter 작성 → 다시 read → YAML parse → audio link resolve. 순수 unit test, fast.
+4. **State machine proptest** — `proptest` crate. SessionSupervisor 12 states transition 을 random `start/stop/error/reconnect` event sequence 로 fuzz. 검증: no panic, no double-finalize, no orphan files.
+5. **Friday 1-hour dogfood soak** — 60min YouTube capture + (a) Activity Monitor 메모리 peak 기록, (b) `note.md` 품질 review, (c) Wi-Fi 토글 2회로 reconnect 검증. `dogfood-log.md` 에 기록.
+
+### 시기
+
+| Phase | 추가 test |
+|---|---|
+| Week 1 spike | (4) state machine 의 첫 skeleton + (5) 1h soak |
+| Phase 1 (Week 2-3) | (1) fixture corpus 다운로드 + (3) storage roundtrip |
+| Phase 2 (Week 4) | (2) Soniox WebSocket replay 추가 |
+| Phase 5 (Week 7-8) | full regression — 모든 5개 자동 + dogfood-log review |
 
 ---
 

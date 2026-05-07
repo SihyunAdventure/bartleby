@@ -18,7 +18,10 @@
 **확장된 surface (이 폴더가 채움)**:
 - `overlay.md` — Watch mode 의 floating overlay window (영상 위 라이브 자막)
 - `settings.md` — Settings UI (BYOK key + retention + overlay prefs + shortcut)
-- (TODO v1.5+) `onboarding.md`, `marketing-hero.md`, `voice-watch-matrix.md`
+- `mode-switch.md` — Sidebar 상단 Watch/Meeting 전환 widget + active session confirm modal
+- `permission.md` — 권한 요청 / 거부 / 복구 lifecycle (mic / screen recording)
+- `marketing-hero.md` — Phase 6 landing page hero composition (watch mode primary)
+- (TODO v1.5+) `onboarding.md` — 3-step first launch flow
 
 **예외 결정 (이 폴더에서만 새로 박힘)**:
 - 시청 모드 overlay 의 라이브 자막은 **Pretendard sans** (Gowun Batang 아님 — 14-16px live caption rate 에서 serif 가독성 저하).
