@@ -5,3 +5,9 @@
 rustflags = [
     "-C", "link-arg=-Wl,-rpath,/usr/lib/swift",
 ]
+
+# audiopus_sys (libopus FFI) build script 가 pkg-config 호출 시 /opt/homebrew/bin
+# 을 찾을 수 있도록. brew install opus + brew install pkg-config 가 prerequisite.
+# force=false 라 사용자 shell PATH 에 이미 있으면 그대로 둠.
+[env]
+PATH = { value = "/opt/homebrew/bin", relative = false, force = false }

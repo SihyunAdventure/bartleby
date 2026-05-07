@@ -1,7 +1,12 @@
 //! System audio and microphone capture for Bartleby.
 //!
 //! Captures system audio and microphone via ScreenCaptureKit, converts planar PCM
-//! buffers to interleaved stereo f32, and writes 32-bit float WAV files — one per source.
+//! buffers to interleaved stereo f32, and encodes to rolling 5-second Ogg Opus
+//! segment files at 32 kbps — one set per source.
+//!
+//! Audio callbacks are kept lightweight: each callback sends raw f32 samples
+//! over an unbounded mpsc channel to a dedicated encoder worker thread.
+//! Encoding is ~50× realtime so the worker never backs up under normal conditions.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -15,6 +20,8 @@ use screencapturekit::prelude::{
     SCStreamOutputType,
 };
 use screencapturekit::cm::CMSampleBuffer;
+
+use super::encoding::{encoder_worker, EncodingStats};
 
 // ---------------------------------------------------------------------------
 // Public stats types
@@ -44,20 +51,28 @@ impl DriftStats {
 /// Statistics returned after a completed capture session.
 #[derive(Debug, Clone, Serialize)]
 pub struct CaptureStats {
-    /// System audio buffers received.
+    /// System audio buffers received from SCStream.
     pub buffers_received: usize,
-    /// System audio frames written to WAV.
+    /// System audio encoded frames (samples per channel).
     pub frames_written: usize,
     /// System audio seconds captured.
     pub seconds_captured: f64,
-    /// Microphone buffers received.
+    /// Microphone buffers received from SCStream.
     pub mic_buffers_received: usize,
-    /// Microphone frames written to WAV.
+    /// Microphone encoded frames (samples per channel).
     pub mic_frames_written: usize,
     /// Microphone seconds captured.
     pub mic_seconds_captured: f64,
     /// Presentation timestamp drift analysis.
     pub drift: DriftStats,
+    /// Number of 5-second system audio segment files written.
+    pub system_segments_written: usize,
+    /// Total compressed bytes written for system audio.
+    pub system_bytes_written: usize,
+    /// Number of 5-second microphone segment files written.
+    pub mic_segments_written: usize,
+    /// Total compressed bytes written for microphone audio.
+    pub mic_bytes_written: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -76,11 +91,10 @@ pub struct BufferTrace {
 }
 
 // ---------------------------------------------------------------------------
-// Internal accumulators — one per source, never shared between sinks
+// Internal metadata accumulator — tracks counts and traces, NOT samples
 // ---------------------------------------------------------------------------
 
 struct AudioAccumulator {
-    samples: Vec<f32>,       // interleaved stereo, 48 kHz
     buffer_count: usize,
     traces: Vec<BufferTrace>,
 }
@@ -88,7 +102,6 @@ struct AudioAccumulator {
 impl AudioAccumulator {
     fn new() -> Self {
         Self {
-            samples: Vec::new(),
             buffer_count: 0,
             traces: Vec::new(),
         }
@@ -96,11 +109,14 @@ impl AudioAccumulator {
 }
 
 // ---------------------------------------------------------------------------
-// Two separate sink structs — system audio and microphone
+// Two separate callback structs — system audio and microphone
 // ---------------------------------------------------------------------------
 
 struct SystemAudioSink {
+    /// Metadata-only (buffer count + timing traces).
     accumulator: Arc<Mutex<AudioAccumulator>>,
+    /// Send raw interleaved f32 samples to the encoder worker.
+    sample_tx: std::sync::mpsc::Sender<Vec<f32>>,
 }
 
 impl SCStreamOutputTrait for SystemAudioSink {
@@ -108,12 +124,13 @@ impl SCStreamOutputTrait for SystemAudioSink {
         if output_type != SCStreamOutputType::Audio {
             return;
         }
-        push_audio_buffer(&self.accumulator, sample, "sys");
+        route_audio_buffer(&self.accumulator, &self.sample_tx, sample, "sys");
     }
 }
 
 struct MicrophoneSink {
     accumulator: Arc<Mutex<AudioAccumulator>>,
+    sample_tx: std::sync::mpsc::Sender<Vec<f32>>,
 }
 
 impl SCStreamOutputTrait for MicrophoneSink {
@@ -121,16 +138,17 @@ impl SCStreamOutputTrait for MicrophoneSink {
         if output_type != SCStreamOutputType::Microphone {
             return;
         }
-        push_audio_buffer(&self.accumulator, sample, "mic");
+        route_audio_buffer(&self.accumulator, &self.sample_tx, sample, "mic");
     }
 }
 
 // ---------------------------------------------------------------------------
-// Shared buffer-push logic
+// Shared buffer-routing logic (callback → mpsc channel)
 // ---------------------------------------------------------------------------
 
-fn push_audio_buffer(
+fn route_audio_buffer(
     accumulator: &Arc<Mutex<AudioAccumulator>>,
+    sample_tx: &std::sync::mpsc::Sender<Vec<f32>>,
     sample: CMSampleBuffer,
     label: &str,
 ) {
@@ -157,8 +175,11 @@ fn push_audio_buffer(
     let interleaved = planar_to_interleaved_stereo(&planes);
     let frame_count = interleaved.len() / 2;
 
+    // Send samples to worker — unbounded channel, non-blocking.
+    // If the worker has exited (receiver dropped) we simply discard.
+    let _ = sample_tx.send(interleaved);
+
     let mut acc = accumulator.lock().unwrap();
-    acc.samples.extend_from_slice(&interleaved);
     acc.buffer_count += 1;
     acc.traces.push(BufferTrace {
         host_recv_instant,
@@ -167,11 +188,7 @@ fn push_audio_buffer(
     });
 
     if acc.buffer_count % 100 == 0 {
-        println!(
-            "[{label}] {} buffers ({} interleaved samples so far)...",
-            acc.buffer_count,
-            acc.samples.len()
-        );
+        println!("[{label}] {} buffers received...", acc.buffer_count);
     }
 }
 
@@ -181,12 +198,18 @@ fn push_audio_buffer(
 
 /// Capture system audio and microphone for `duration_secs` seconds.
 ///
-/// Writes a 32-bit float stereo WAV for each source and returns [`CaptureStats`].
-/// Both paths must be distinct; mixing is deferred to a later slice.
-pub fn capture_dual_to_wav(
+/// Encodes each source to rolling 5-second Ogg Opus segment files (32 kbps)
+/// using the naming pattern `{base}-{seg:03}.opus`.  Returns [`CaptureStats`]
+/// with buffer counts, encoded frame counts, and drift analysis.
+///
+/// # Channel design
+/// Uses unbounded `std::sync::mpsc::channel`.  Opus encodes ~50× realtime so
+/// the encoder workers never fall behind the SCStream callbacks.  A bounded
+/// channel would only introduce unnecessary drop risk.
+pub fn capture_dual_to_opus(
     duration_secs: u64,
-    system_output_path: &Path,
-    mic_output_path: &Path,
+    system_base_path: &Path,
+    mic_base_path: &Path,
 ) -> Result<CaptureStats> {
     const SAMPLE_RATE: u32 = 48_000;
     const CHANNELS: u16 = 2;
@@ -215,17 +238,34 @@ pub fn capture_dual_to_wav(
         .with_sample_rate(SAMPLE_RATE as i32)
         .with_channel_count(i32::from(CHANNELS));
 
-    // ---- 3. Wire up two independent sinks and start ---------------------
+    // ---- 3. Create mpsc channels and metadata accumulators --------------
+    let (sys_tx, sys_rx) = std::sync::mpsc::channel::<Vec<f32>>();
+    let (mic_tx, mic_rx) = std::sync::mpsc::channel::<Vec<f32>>();
+
     let sys_accumulator = Arc::new(Mutex::new(AudioAccumulator::new()));
     let mic_accumulator = Arc::new(Mutex::new(AudioAccumulator::new()));
 
     let sys_sink = SystemAudioSink {
         accumulator: Arc::clone(&sys_accumulator),
+        sample_tx: sys_tx,
     };
     let mic_sink = MicrophoneSink {
         accumulator: Arc::clone(&mic_accumulator),
+        sample_tx: mic_tx,
     };
 
+    // ---- 4. Spawn encoder workers before starting the stream ------------
+    let sys_base = system_base_path.to_path_buf();
+    let mic_base = mic_base_path.to_path_buf();
+
+    let sys_worker = std::thread::spawn(move || {
+        encoder_worker(sys_rx, &sys_base, "sys")
+    });
+    let mic_worker = std::thread::spawn(move || {
+        encoder_worker(mic_rx, &mic_base, "mic")
+    });
+
+    // ---- 5. Wire up sinks and start capture -----------------------------
     let mut stream = SCStream::new(&filter, &config);
     stream.add_output_handler(sys_sink, SCStreamOutputType::Audio);
     stream.add_output_handler(mic_sink, SCStreamOutputType::Microphone);
@@ -244,39 +284,41 @@ pub fn capture_dual_to_wav(
 
     println!("Bartleby has finished listening.");
 
-    // ---- 4. Write system audio WAV -------------------------------------
+    // ---- 6. Drop senders so workers' recv() loop terminates -------------
+    // The sinks are owned by the stream; drop them explicitly via block scope
+    // by letting the stream go out of scope.  But we need the accumulators
+    // still alive for drift analysis, so we hold Arc refs separately (already done).
+    //
+    // The senders were moved into the sinks which are inside the stream.
+    // When the stream is dropped the sinks are dropped and the senders close.
+    drop(stream);
+
+    // ---- 7. Join workers and collect stats -------------------------------
+    let sys_enc: EncodingStats = sys_worker
+        .join()
+        .map_err(|_| anyhow::anyhow!("System audio encoder worker panicked"))?
+        .context("System audio encoder worker failed")?;
+
+    let mic_enc: EncodingStats = mic_worker
+        .join()
+        .map_err(|_| anyhow::anyhow!("Microphone encoder worker panicked"))?
+        .context("Microphone encoder worker failed")?;
+
+    // ---- 8. Aggregate stats ---------------------------------------------
     let sys_acc = sys_accumulator.lock().unwrap();
-    let sys_interleaved = &sys_acc.samples;
-    let sys_frames = sys_interleaved.len() / usize::from(CHANNELS);
-
-    write_wav(system_output_path, sys_interleaved, CHANNELS, SAMPLE_RATE)
-        .context("Failed to write system audio WAV")?;
-
-    let sys_seconds = sys_frames as f64 / f64::from(SAMPLE_RATE);
-    println!(
-        "Bartleby wrote {} sys frames ({:.1}s) to {}",
-        sys_frames,
-        sys_seconds,
-        system_output_path.display()
-    );
-
-    // ---- 5. Write microphone WAV ---------------------------------------
     let mic_acc = mic_accumulator.lock().unwrap();
-    let mic_interleaved = &mic_acc.samples;
-    let mic_frames = mic_interleaved.len() / usize::from(CHANNELS);
 
-    write_wav(mic_output_path, mic_interleaved, CHANNELS, SAMPLE_RATE)
-        .context("Failed to write microphone WAV")?;
-
+    let sys_frames = sys_enc.total_frames;
+    let mic_frames = mic_enc.total_frames;
+    let sys_seconds = sys_frames as f64 / f64::from(SAMPLE_RATE);
     let mic_seconds = mic_frames as f64 / f64::from(SAMPLE_RATE);
+
     println!(
-        "Bartleby wrote {} mic frames ({:.1}s) to {}",
-        mic_frames,
-        mic_seconds,
-        mic_output_path.display()
+        "Bartleby encoded {} sys frames ({:.1}s), {} mic frames ({:.1}s)",
+        sys_frames, sys_seconds, mic_frames, mic_seconds
     );
 
-    // ---- 6. Compute drift ---------------------------------------------
+    // ---- 9. Compute drift -----------------------------------------------
     let drift = compute_drift(&sys_acc.traces, &mic_acc.traces);
 
     Ok(CaptureStats {
@@ -287,31 +329,11 @@ pub fn capture_dual_to_wav(
         mic_frames_written: mic_frames,
         mic_seconds_captured: mic_seconds,
         drift,
+        system_segments_written: sys_enc.segments_written,
+        system_bytes_written: sys_enc.total_bytes,
+        mic_segments_written: mic_enc.segments_written,
+        mic_bytes_written: mic_enc.total_bytes,
     })
-}
-
-// ---------------------------------------------------------------------------
-// WAV writer helper
-// ---------------------------------------------------------------------------
-
-fn write_wav(path: &Path, samples: &[f32], channels: u16, sample_rate: u32) -> Result<()> {
-    let wav_spec = hound::WavSpec {
-        channels,
-        sample_rate,
-        bits_per_sample: 32,
-        sample_format: hound::SampleFormat::Float,
-    };
-
-    let mut writer =
-        hound::WavWriter::create(path, wav_spec).context("Failed to create WAV writer")?;
-
-    for &sample in samples {
-        writer
-            .write_sample(sample)
-            .context("Failed to write WAV sample")?;
-    }
-
-    writer.finalize().context("Failed to finalize WAV file")
 }
 
 // ---------------------------------------------------------------------------
@@ -322,23 +344,17 @@ fn write_wav(path: &Path, samples: &[f32], channels: u16, sample_rate: u32) -> R
 ///
 /// Pairs each mic trace to the nearest system trace by `host_recv_instant`,
 /// then removes the initial offset (constant latency is not drift).
-///
-/// - `max_drift_ms`: maximum absolute deviation from the initial offset
-/// - `final_drift_ms`: signed drift at the last paired sample
-/// - `paired_samples`: number of mic traces successfully paired
 pub fn compute_drift(system_traces: &[BufferTrace], mic_traces: &[BufferTrace]) -> DriftStats {
     if system_traces.is_empty() || mic_traces.is_empty() {
         return DriftStats::zero();
     }
 
-    // Pair each mic trace to the nearest (by host_recv_instant) system trace.
     let paired: Vec<(f64, f64)> = mic_traces
         .iter()
         .map(|mic_trace| {
             let sys_trace = system_traces
                 .iter()
                 .min_by_key(|sys_trace| {
-                    // Compute absolute duration between the two instants.
                     let a = mic_trace.host_recv_instant;
                     let b = sys_trace.host_recv_instant;
                     let diff = if a >= b {
@@ -346,7 +362,6 @@ pub fn compute_drift(system_traces: &[BufferTrace], mic_traces: &[BufferTrace]) 
                     } else {
                         b.duration_since(a)
                     };
-                    // Use microseconds as the key — sub-microsecond precision not needed.
                     diff.as_micros()
                 })
                 .expect("system_traces is non-empty");
@@ -354,7 +369,6 @@ pub fn compute_drift(system_traces: &[BufferTrace], mic_traces: &[BufferTrace]) 
         })
         .collect();
 
-    // Initial offset: difference in PTS at time-0 (removes constant latency).
     let initial_offset = paired[0].0 - paired[0].1;
 
     let mut max_drift_ms: f64 = 0.0;
@@ -386,8 +400,6 @@ pub fn compute_drift(system_traces: &[BufferTrace], mic_traces: &[BufferTrace]) 
 /// - If `planes` has one channel (mono), that channel is duplicated to both L and R.
 /// - If `planes` has two or more channels, only the first two are used.
 /// - If `planes` is empty, returns an empty Vec.
-///
-/// The output length is always `2 * frames` where `frames = planes[0].len()`.
 pub fn planar_to_interleaved_stereo(planes: &[&[f32]]) -> Vec<f32> {
     if planes.is_empty() {
         return Vec::new();
@@ -414,7 +426,13 @@ mod tests {
     use super::{compute_drift, planar_to_interleaved_stereo, BufferTrace};
     use std::time::{Duration, Instant};
 
-    // -- planar_to_interleaved_stereo --
+    fn make_trace(base: Instant, offset_ms: u64, pts: f64) -> BufferTrace {
+        BufferTrace {
+            host_recv_instant: base + Duration::from_millis(offset_ms),
+            pts_seconds: pts,
+            frame_count: 960,
+        }
+    }
 
     #[test]
     fn mono_duplicates_to_stereo() {
@@ -437,21 +455,9 @@ mod tests {
         assert!(result.is_empty());
     }
 
-    // -- compute_drift --
-
-    /// Helper: build a trace with a fixed pts and an instant offset from a base.
-    fn make_trace(base: Instant, offset_ms: u64, pts: f64) -> BufferTrace {
-        BufferTrace {
-            host_recv_instant: base + Duration::from_millis(offset_ms),
-            pts_seconds: pts,
-            frame_count: 960,
-        }
-    }
-
     #[test]
     fn perfect_sync_returns_zero_drift() {
         let base = Instant::now();
-        // sys and mic arrive at the same instants with the same PTS values.
         let sys: Vec<BufferTrace> = (0..5)
             .map(|i| make_trace(base, i * 20, i as f64 * 0.02))
             .collect();
@@ -460,7 +466,6 @@ mod tests {
             .collect();
 
         let stats = compute_drift(&sys, &mic);
-
         assert_eq!(stats.paired_samples, 5);
         assert!((stats.max_drift_ms).abs() < 1e-9, "max_drift_ms={}", stats.max_drift_ms);
         assert!((stats.final_drift_ms).abs() < 1e-9, "final_drift_ms={}", stats.final_drift_ms);
@@ -468,7 +473,6 @@ mod tests {
 
     #[test]
     fn constant_offset_subtracts_to_zero() {
-        // Mic PTS is always 100ms behind sys PTS — that is a constant offset, not drift.
         let base = Instant::now();
         let sys: Vec<BufferTrace> = (0..5)
             .map(|i| make_trace(base, i * 20, i as f64 * 0.02))
@@ -478,32 +482,24 @@ mod tests {
             .collect();
 
         let stats = compute_drift(&sys, &mic);
-
         assert_eq!(stats.paired_samples, 5);
-        // After subtracting the initial offset (0.1s), all drifts should be ~0.
         assert!(stats.max_drift_ms.abs() < 1e-6, "max_drift_ms={}", stats.max_drift_ms);
         assert!(stats.final_drift_ms.abs() < 1e-6, "final_drift_ms={}", stats.final_drift_ms);
     }
 
     #[test]
     fn growing_drift_returns_max() {
-        // Mic PTS drifts by 1ms per sample relative to sys (accumulating, so it's
-        // beyond the constant initial offset). N=5 samples → drift grows 0,1,2,3,4 ms.
         let base = Instant::now();
         let n = 5usize;
         let sys: Vec<BufferTrace> = (0..n)
             .map(|i| make_trace(base, (i * 20) as u64, i as f64 * 0.02))
             .collect();
-        // mic[0] has the same relative pts as sys[0] (sets initial_offset),
-        // then each subsequent mic sample is 1ms further behind.
         let mic: Vec<BufferTrace> = (0..n)
             .map(|i| make_trace(base, (i * 20) as u64, i as f64 * 0.02 - i as f64 * 0.001))
             .collect();
 
         let stats = compute_drift(&sys, &mic);
-
         assert_eq!(stats.paired_samples, n);
-        // max drift = (n-1) * 1ms = 4ms; allow small float rounding.
         let expected_max_ms = (n - 1) as f64;
         assert!(
             (stats.max_drift_ms - expected_max_ms).abs() < 1e-6,
@@ -511,7 +507,6 @@ mod tests {
             stats.max_drift_ms,
             expected_max_ms
         );
-        // final drift is signed (mic is behind sys → positive drift in our convention).
         assert!(
             (stats.final_drift_ms - expected_max_ms).abs() < 1e-6,
             "final_drift_ms={}",
@@ -524,17 +519,14 @@ mod tests {
         let base = Instant::now();
         let non_empty: Vec<BufferTrace> = vec![make_trace(base, 0, 0.0)];
 
-        // Both empty.
         let stats = compute_drift(&[], &[]);
         assert_eq!(stats.paired_samples, 0);
         assert_eq!(stats.max_drift_ms, 0.0);
         assert_eq!(stats.final_drift_ms, 0.0);
 
-        // System empty.
         let stats = compute_drift(&[], &non_empty);
         assert_eq!(stats.paired_samples, 0);
 
-        // Mic empty.
         let stats = compute_drift(&non_empty, &[]);
         assert_eq!(stats.paired_samples, 0);
     }

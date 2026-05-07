@@ -17,6 +17,10 @@ interface CaptureStats {
   mic_frames_written: number;
   mic_seconds_captured: number;
   drift: DriftStats;
+  system_segments_written: number;
+  system_bytes_written: number;
+  mic_segments_written: number;
+  mic_bytes_written: number;
 }
 
 function App() {
@@ -68,9 +72,9 @@ function App() {
           try {
             const stats = await invoke<CaptureStats>("capture_system_audio", { seconds: 10 });
             setCaptureStatus(
-              `sys: ${stats.buffers_received}b/${stats.frames_written}f | ` +
-              `mic: ${stats.mic_buffers_received}b/${stats.mic_frames_written}f | ` +
-              `drift: max ${stats.drift.max_drift_ms.toFixed(2)}ms / final ${stats.drift.final_drift_ms.toFixed(2)}ms`
+              `sys: ${stats.buffers_received}b / ${stats.system_segments_written}seg / ${(stats.system_bytes_written / 1024).toFixed(1)}KB | ` +
+              `mic: ${stats.mic_buffers_received}b / ${stats.mic_segments_written}seg / ${(stats.mic_bytes_written / 1024).toFixed(1)}KB | ` +
+              `drift: max ${stats.drift.max_drift_ms.toFixed(2)}ms`
             );
           } catch (err) {
             setCaptureStatus(`Error: ${String(err)}`);

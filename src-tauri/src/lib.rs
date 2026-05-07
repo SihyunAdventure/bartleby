@@ -10,9 +10,9 @@ fn greet(name: &str) -> String {
 
 /// Capture system audio and microphone for `seconds` seconds and return statistics.
 ///
-/// Writes two WAV files (system + mic) to the temp directory and returns
-/// combined stats including drift analysis. Runs blocking SCStream capture on
-/// a dedicated thread so the Tauri async runtime stays responsive.
+/// Encodes each source to rolling 5-second Ogg Opus segment files at 32 kbps
+/// and returns combined stats including drift analysis. Runs blocking SCStream
+/// capture on a dedicated thread so the Tauri async runtime stays responsive.
 #[tauri::command]
 async fn capture_system_audio(seconds: u64) -> Result<CaptureStats, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -21,12 +21,12 @@ async fn capture_system_audio(seconds: u64) -> Result<CaptureStats, String> {
             .unwrap_or_default()
             .as_millis();
 
-        let system_path = std::env::temp_dir()
-            .join(format!("bartleby-system-{}.wav", timestamp));
-        let mic_path = std::env::temp_dir()
-            .join(format!("bartleby-mic-{}.wav", timestamp));
+        let system_base = std::env::temp_dir()
+            .join(format!("bartleby-system-{}", timestamp));
+        let mic_base = std::env::temp_dir()
+            .join(format!("bartleby-mic-{}", timestamp));
 
-        capture::system_audio::capture_dual_to_wav(seconds, &system_path, &mic_path)
+        capture::system_audio::capture_dual_to_opus(seconds, &system_base, &mic_base)
             .map_err(|e| e.to_string())
     })
     .await
