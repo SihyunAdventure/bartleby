@@ -1,26 +1,34 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-07 — autoplan CEO review + reframe ("Korean ears for English audio") + Week 1 prep
+> 마지막 세션: 2026-05-07 — **Day 1 capture spike ✅ 통과** (`screencapturekit 2.0` + macOS 26 검증)
 
 ---
 
-## 현재 상태 (2026-05-07 종료 시점)
+## 현재 상태 (2026-05-07 Day 1 종료 시점)
 
 ✅ 완료:
 - Brand · 도메인 · stack · 디자인 시스템 (Claude Design handoff bundle, design-system/)
 - VISION/DESIGN/PRINCIPLES/PLAN 작성
-- **autoplan CEO review** — codex + critic dual voice, 6/9 critical 발견
-- **Reframe 결정** — 미팅 only → 콘텐츠 + 미팅 dual mode
-- **Timeline 연장** — 8주 → 12-14주
-- **Sequence swap** — UI 먼저 → capture spike 먼저
-- 첫 git commit (이 repo)
+- **autoplan 3 phase review** (CEO + Design + Eng dual-voice, 모두 반영)
+- **design-system-extensions/** (overlay/settings/mode-switch/permission/marketing-hero spec)
+- **Day 1 capture spike PoC** — `~/Dev/_inbox/bartleby-spike` (plain Rust binary):
+  - `screencapturekit 2.0` (svtlabs) crate 선택 — Anarlog 가 쓰는 `cidre` 보다 audio API 우월
+  - macOS 26 (Tahoe) + Xcode 26 + Rust 1.95 호환 ✅
+  - LC_RPATH `/usr/lib/swift` + ad-hoc codesign 두 가지 함정 모두 해결
+  - 60s WAV: 3000 buffers / 5,760,000 samples / 99.9% non-zero / peak -18.41 dBFS / RMS -33.26 dBFS
+  - **Spike 결정 gate ✅ → Tauri 강행 확정**
+- 4 git commits (Initial + autoplan reframe + Phase 2+3 + autoplan minor 후속)
 
-⏳ 다음 세션 (Week 1):
-- **Phase 2/3 autoplan review** 진행 (Design + Eng) — 새 reframe plan 위에서
-- Week 1 capture spike (~3-5일)
+⏳ 다음 세션 (Week 1 Day 2-7):
+- Tauri 2.0 부트스트랩 (`pnpm create tauri-app .`) — `~/Dev/side/bartleby/` 에 React+TS+Vite+pnpm
+- spike binary 의 capture 코드를 Tauri src-tauri 로 재작성 (참조만, naming/architecture 우리 것)
+- 두 window (sidebar/main + overlay) + `tauri-plugin-nspanel` 검증
+- mic + system audio mixing (presentationTimeStamp drift < 50ms)
+- Opus 32kbps encoding + 5s chunked write
+- 1시간 system audio stable + RSS profile (< 800MB)
 - 인프라 (도메인 + GitHub + Twitter + Soniox + OpenRouter + Apple Developer) ~1시간
-- Customer interview 5명 (가능 시)
+- Anarlog (`fastrepl/anarlog`) 코드 정독 — 참조 only, **코드 복사 절대 금지**
 
 ---
 
@@ -50,22 +58,27 @@ cd ~/Dev/side/bartleby
 
 → 다음 세션은 *Week 1 capture spike 실행* 단계. autoplan 재호출 불필요 (Phase 0-3 모두 완료).
 
-### Step 2.5: ⭐ Capture spike (Week 1 새 sequence)
+### Step 2.5: ⭐ Capture spike (Week 1 — Day 1 ✅, Day 2-7 진행 예정)
 
 > autoplan 결정: UI 보다 capture 검증 먼저. 자세한 spike 흐름 → PLAN.md §7
 
-3-5일 Tauri+Rust+ScreenCaptureKit 검증:
-- [ ] `pnpm create tauri-app .`
-- [ ] `screencapturekit-rs` (또는 fork) binding
-- [ ] **Anarlog (`fastrepl/anarlog`) 코드 정독** — 작동 패턴 차용
-- [ ] 1시간 YouTube 영상 system audio 캡처 + .opus 저장
-- [ ] mic + system audio mixing
-- [ ] 권한 요청 플로우
+**Day 1 ✅ 통과 (2026-05-07)** — `screencapturekit 2.0` 60초 WAV PoC 성공. Spike binary `~/Dev/_inbox/bartleby-spike` 보존 (참조용, throwaway).
 
-**Spike 결정 gate** (PLAN.md §7 의 contingency 표 참조):
-- ✅ 1시간 stable → Tauri 강행, Phase 0 (Step 4-5) 진입
-- ⚠️ system audio 만 불안정 → Tauri UI + Swift sidecar
-- ❌ ScreenCaptureKit Rust 실패 → Native SwiftUI pivot (디자인 시스템 SwiftUI 재작성)
+남은 Day 2-7:
+- [ ] `pnpm create tauri-app .` — `~/Dev/side/bartleby/` 에 React+TS+Vite+pnpm
+- [ ] PoC capture 코드를 Tauri `src-tauri/src/capture/` 로 우리 architecture 로 재작성 (spike binary 는 참조만)
+- [ ] 신호된 Tauri bundle (Developer ID 받은 후) + Hardened Runtime
+- [ ] 두 window (main + overlay) + `tauri-plugin-nspanel` 검증
+- [ ] mic + system audio mixing (`presentationTimeStamp` drift < 50ms)
+- [ ] Opus 32kbps encoding + 5s chunked write
+- [ ] 1시간 stable + RSS peak < 800MB profile
+- [ ] **Anarlog (`fastrepl/anarlog`) 코드 정독** — *패턴 참조 only, 코드 복사 절대 금지* (사용자 명시 원칙)
+- [ ] DRM detection PoC (Apple TV+ silent buffer 잡는지)
+
+**Spike 결정 gate**:
+- ✅ Day 1 통과 → **Tauri 강행 확정**. Day 2-7 으로 두 window/audio router/mic mixing 검증.
+- Day 2-7 중 NSPanel 만 실패 → Tauri UI + 작은 Swift NSPanel plugin
+- Day 2-7 중 mic mixing/Opus 실패 → Tauri UI + Swift sidecar binary for capture
 
 ### Step 3: 도메인·계정 인프라 (~1시간, capture spike 와 병렬)
 
@@ -348,4 +361,27 @@ pnpm tauri build
 
 ## 마지막 한 줄
 
-> "Bartleby has prepared the plan. Bartleby would prefer to start scaffolding next."
+> "Bartleby has prepared the plan and proved it can listen. Bartleby would prefer to scaffold next."
+
+---
+
+## Day 1 spike binary 위치
+
+```
+~/Dev/_inbox/bartleby-spike/
+├── Cargo.toml         (screencapturekit 2.0, hound 3.5, anyhow 1, bytemuck 1)
+├── .cargo/config.toml (rpath linker flag for /usr/lib/swift)
+├── src/main.rs        (60s system audio → output.wav, Step A+B)
+└── output.wav         (verified non-silent capture)
+```
+
+Throwaway reference. 다음 세션에서 Tauri scaffold 시 *우리 architecture / naming / voice* 로 새로 작성. 코드 복사 금지.
+
+빌드/실행 reproduce:
+```bash
+source ~/.cargo/env
+cd ~/Dev/_inbox/bartleby-spike
+cargo build
+codesign --force --sign - target/debug/bartleby-spike
+./target/debug/bartleby-spike   # YouTube 같은 audio 켜고 60초 대기
+```

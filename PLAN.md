@@ -139,7 +139,7 @@ Phase 3 (Eng): 13/14 confirmed → architecture spec 강화.
 
 **필수 (모두 ✅ 여야 Tauri 강행 결정)**:
 - [ ] Tauri 2.0 + Rust 프로젝트 생성 (`pnpm create tauri-app .`)
-- [ ] `screencapturekit-rs` (또는 fork) 로 ScreenCaptureKit binding 검증 — **Day 1 4시간 안에 audio capture 60초 WAV 검증, 실패 시 즉시 Swift sidecar 로 pivot**
+- [x] **2026-05-07 Day 1 ✅ 통과** — `screencapturekit 2.0` (svtlabs/screencapturekit-rs, crates.io 명 `screencapturekit`) 로 60초 system audio WAV 검증. spike binary `~/Dev/_inbox/bartleby-spike` (Tauri 와 분리해서 plain Rust binary 로 critical risk 우선 retire). 결과: 3000 buffers @ ~50/s, 5,760,000 samples, 99.9% non-zero, peak -18.41 dBFS / RMS -33.26 dBFS. **macOS 26 (Tahoe) + Xcode 26 + Rust 1.95** 호환 확인.
 - [ ] System audio capture **1시간** stable (YouTube 영상 1h 시청 시뮬레이션) — RSS peak < 800MB
 - [ ] mic + system audio mixing — `presentationTimeStamp` drift < 50ms over 60min
 - [ ] Opus 32kbps encoding + chunked write (5s rotation, crash safety)
@@ -599,7 +599,7 @@ pinned: false
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| **Tauri+Rust ScreenCaptureKit 막힘** | 25% | High | Week 1 spike + Anarlog 코드 차용 + Swift sidecar/native pivot contingency |
+| ~~**Tauri+Rust ScreenCaptureKit 막힘**~~ | ~~25%~~ → **0%** | ~~High~~ | **2026-05-07 Day 1 retired**: `screencapturekit 2.0` PoC ✅ |
 | **Soniox 한국어/영어 정확도 부족** | 35% | Medium | Week 1 가입 시 본인 사용 케이스 직접 검증 + Whisper / Naver Clova 비교 |
 | **Solar Pro 3 번역 품질 부족** | 35% | Medium | OpenRouter 라 Claude/Gemini 즉시 swap |
 | **Granola 한국어 추가** | 40-50% (6개월) | High | 미팅만 — 시청 모드 wedge 살아있음. 영어 콘텐츠 소비 카테고리 사수 |
@@ -719,7 +719,8 @@ tests/
 
 | 영역 | 선택 |
 |---|---|
-| 언어/UI | Swift 5.9+ (또는 React+TS via Tauri) — spike 결과로 결정 |
+| 언어/UI | **Tauri 2.0 + React + TS** (2026-05-07 Day 1 spike ✅ 결과로 확정) |
+| ScreenCaptureKit binding | **`screencapturekit` crate v2.0** (svtlabs/screencapturekit-rs) — `cidre` 또는 `objc2-*` 보다 documentation/audio API 둘 다 우월 |
 | 시스템 레이어 | ScreenCaptureKit + AVFoundation |
 | 영속 | 로컬 markdown file system |
 | STT | Soniox streaming (BYOK, EN/KO) |
@@ -777,13 +778,28 @@ bartleby/
 
 ## §7 즉시 다음 액션 — Week 1
 
-1. **Capture spike** (~3-5일):
-   - Tauri 2.0 부트스트랩 (`pnpm create tauri-app .`)
-   - `screencapturekit-rs` 또는 fork 검증
-   - Anarlog (`fastrepl/anarlog`) 코드 정독
-   - 1시간 YouTube 영상 system audio 캡처 + .opus 저장
-   - mic + system mixing 검증
-   - **Spike 결정 gate**: ✅ → Tauri 강행, ⚠️ → Swift sidecar, ❌ → SwiftUI pivot
+### Day 1 ✅ 통과 (2026-05-07)
+
+`screencapturekit 2.0` 로 60초 system audio → WAV 검증 성공. spike binary `~/Dev/_inbox/bartleby-spike` (plain Rust binary, Tauri 와 분리). 핵심 learning:
+
+- **Crate**: `screencapturekit-rs` 라는 별칭이 PLAN 가정이었으나, 실제 crates.io 이름은 `screencapturekit` (svtlabs). v2.0 부터 audio + macOS 15+ mic.
+- **Anarlog dependency reference**: Anarlog 는 `cidre 0.15` 사용 (lower-level, hand-rolled Apple bindings) — 우리는 더 documented `screencapturekit 2.0` 선택.
+- **macOS 26 (Tahoe) Swift runtime 함정**: binary 가 `@rpath/libswift_Concurrency.dylib` 로 link 되는데 LC_RPATH 가 비어 있어 dyld 가 못 찾음. `.cargo/config.toml` 에 `link-arg=-Wl,-rpath,/usr/lib/swift` 추가 필요. system 의 Swift libs 는 `/usr/lib/swift/` 에 ABI-stable 형태로 존재.
+- **Ad-hoc codesign 필수**: unsigned binary 는 macOS TCC 가 anonymous 처리 → 권한 prompt 안 뜸. `codesign --force --sign -` 로 ad-hoc identifier (binary hash 기반) 부여하면 권한 흐름 정상.
+- **검증 수치**: 3000 buffers @ 48kHz × 2ch × f32, 60.00s, 99.9% non-zero, peak -18.41 dBFS, RMS -33.26 dBFS — 정상 음악 라우드니스.
+- **다음 PoC 진입 기준**: 이미 ✅. Step C (mic mixing / Opus / 1h stable) 은 Day 2-7 spike 에서.
+
+### 남은 Day 2-7 spike (~5-7일)
+
+- Tauri 2.0 부트스트랩 (`pnpm create tauri-app .`) — bartleby/ 에 React+TS+Vite+pnpm
+- 신호된 Tauri bundle (Developer ID 받은 후) + Hardened Runtime + entitlements
+- 두 window (sidebar/main + overlay) + `tauri-plugin-nspanel` (또는 자체)
+- mic + system audio mixing (`presentationTimeStamp` drift < 50ms)
+- Opus 32kbps encoding + 5s chunked write
+- 1시간 system audio stable + RSS peak < 800MB
+- Audio router pattern (한 SCStream callback → Opus/STT/RMS fan-out, peak RSS < 50MB)
+- DRM detection PoC (Apple TV+ 영상 silent buffer 잡는지)
+- Anarlog (`fastrepl/anarlog`) 코드 정독 (참조 only — 패턴만)
 
 2. **인프라** (~1시간 병렬):
    - heybartleby.com 결제
