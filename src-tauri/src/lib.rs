@@ -8,10 +8,11 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-/// Capture system audio for `seconds` seconds and return statistics.
+/// Capture system audio and microphone for `seconds` seconds and return statistics.
 ///
-/// Runs the blocking SCStream capture on a dedicated thread so the Tauri
-/// async runtime stays responsive during the capture window.
+/// Writes two WAV files (system + mic) to the temp directory and returns
+/// combined stats including drift analysis. Runs blocking SCStream capture on
+/// a dedicated thread so the Tauri async runtime stays responsive.
 #[tauri::command]
 async fn capture_system_audio(seconds: u64) -> Result<CaptureStats, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -20,10 +21,12 @@ async fn capture_system_audio(seconds: u64) -> Result<CaptureStats, String> {
             .unwrap_or_default()
             .as_millis();
 
-        let filename = format!("bartleby-capture-{}.wav", timestamp);
-        let output_path = std::env::temp_dir().join(filename);
+        let system_path = std::env::temp_dir()
+            .join(format!("bartleby-system-{}.wav", timestamp));
+        let mic_path = std::env::temp_dir()
+            .join(format!("bartleby-mic-{}.wav", timestamp));
 
-        capture::system_audio::capture_to_wav(seconds, &output_path)
+        capture::system_audio::capture_dual_to_wav(seconds, &system_path, &mic_path)
             .map_err(|e| e.to_string())
     })
     .await

@@ -3,10 +3,20 @@ import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
+interface DriftStats {
+  max_drift_ms: number;
+  final_drift_ms: number;
+  paired_samples: number;
+}
+
 interface CaptureStats {
   buffers_received: number;
   frames_written: number;
   seconds_captured: number;
+  mic_buffers_received: number;
+  mic_frames_written: number;
+  mic_seconds_captured: number;
+  drift: DriftStats;
 }
 
 function App() {
@@ -58,7 +68,9 @@ function App() {
           try {
             const stats = await invoke<CaptureStats>("capture_system_audio", { seconds: 10 });
             setCaptureStatus(
-              `${stats.buffers_received} buffers, ${stats.frames_written} frames, ${stats.seconds_captured.toFixed(1)}s`
+              `sys: ${stats.buffers_received}b/${stats.frames_written}f | ` +
+              `mic: ${stats.mic_buffers_received}b/${stats.mic_frames_written}f | ` +
+              `drift: max ${stats.drift.max_drift_ms.toFixed(2)}ms / final ${stats.drift.final_drift_ms.toFixed(2)}ms`
             );
           } catch (err) {
             setCaptureStatus(`Error: ${String(err)}`);
