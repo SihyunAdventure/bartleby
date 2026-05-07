@@ -231,6 +231,7 @@ dependencies = [
  "anyhow",
  "bytemuck",
  "hound",
+ "libc",
  "ogg",
  "opus",
  "screencapturekit",

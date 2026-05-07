@@ -21,6 +21,7 @@ tauri-build = { version = "2", features = [] }
 anyhow = "1"
 bytemuck = "1"
 hound = "3.5"
+libc = "0.2"
 ogg = "0.9"
 opus = "0.3"
 screencapturekit = "2.0"

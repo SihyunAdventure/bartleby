@@ -25,8 +25,10 @@ async fn capture_system_audio(seconds: u64) -> Result<CaptureStats, String> {
             .join(format!("bartleby-system-{}", timestamp));
         let mic_base = std::env::temp_dir()
             .join(format!("bartleby-mic-{}", timestamp));
+        let rss_log = std::env::temp_dir()
+            .join(format!("bartleby-rss-{}.log", timestamp));
 
-        capture::system_audio::capture_dual_to_opus(seconds, &system_base, &mic_base)
+        capture::system_audio::capture_dual_to_opus(seconds, &system_base, &mic_base, &rss_log)
             .map_err(|e| e.to_string())
     })
     .await

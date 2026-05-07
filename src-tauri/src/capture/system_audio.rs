@@ -9,11 +9,14 @@
 //! Encoding is ~50× realtime so the worker never backs up under normal conditions.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde::Serialize;
+
+use super::rss::RssStats;
 
 use screencapturekit::prelude::{
     SCContentFilter, SCShareableContent, SCStream, SCStreamConfiguration, SCStreamOutputTrait,
@@ -73,6 +76,8 @@ pub struct CaptureStats {
     pub mic_segments_written: usize,
     /// Total compressed bytes written for microphone audio.
     pub mic_bytes_written: usize,
+    /// RSS memory usage stats for the capture session.
+    pub rss: RssStats,
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +215,7 @@ pub fn capture_dual_to_opus(
     duration_secs: u64,
     system_base_path: &Path,
     mic_base_path: &Path,
+    rss_log_path: &Path,
 ) -> Result<CaptureStats> {
     const SAMPLE_RATE: u32 = 48_000;
     const CHANNELS: u16 = 2;
@@ -265,6 +271,14 @@ pub fn capture_dual_to_opus(
         encoder_worker(mic_rx, &mic_base, "mic")
     });
 
+    // ---- 4b. Spawn RSS sampler thread -----------------------------------
+    let rss_stop = Arc::new(AtomicBool::new(false));
+    let rss_stop_clone = Arc::clone(&rss_stop);
+    let rss_path = rss_log_path.to_path_buf();
+    let rss_worker = std::thread::spawn(move || {
+        super::rss::rss_sampler(rss_stop_clone, rss_path)
+    });
+
     // ---- 5. Wire up sinks and start capture -----------------------------
     let mut stream = SCStream::new(&filter, &config);
     stream.add_output_handler(sys_sink, SCStreamOutputType::Audio);
@@ -281,6 +295,9 @@ pub fn capture_dual_to_opus(
     stream
         .stop_capture()
         .context("Failed to stop SCStream capture")?;
+
+    // Signal RSS sampler to stop (before joining encoder workers).
+    rss_stop.store(true, Ordering::Relaxed);
 
     println!("Bartleby has finished listening.");
 
@@ -303,6 +320,11 @@ pub fn capture_dual_to_opus(
         .join()
         .map_err(|_| anyhow::anyhow!("Microphone encoder worker panicked"))?
         .context("Microphone encoder worker failed")?;
+
+    let rss_stats = rss_worker
+        .join()
+        .map_err(|_| anyhow::anyhow!("RSS sampler worker panicked"))?
+        .context("RSS sampler worker failed")?;
 
     // ---- 8. Aggregate stats ---------------------------------------------
     let sys_acc = sys_accumulator.lock().unwrap();
@@ -333,6 +355,7 @@ pub fn capture_dual_to_opus(
         system_bytes_written: sys_enc.total_bytes,
         mic_segments_written: mic_enc.segments_written,
         mic_bytes_written: mic_enc.total_bytes,
+        rss: rss_stats,
     })
 }
 
@@ -349,25 +372,25 @@ pub fn compute_drift(system_traces: &[BufferTrace], mic_traces: &[BufferTrace]) 
         return DriftStats::zero();
     }
 
-    let paired: Vec<(f64, f64)> = mic_traces
-        .iter()
-        .map(|mic_trace| {
-            let sys_trace = system_traces
-                .iter()
-                .min_by_key(|sys_trace| {
-                    let a = mic_trace.host_recv_instant;
-                    let b = sys_trace.host_recv_instant;
-                    let diff = if a >= b {
-                        a.duration_since(b)
-                    } else {
-                        b.duration_since(a)
-                    };
-                    diff.as_micros()
-                })
-                .expect("system_traces is non-empty");
-            (sys_trace.pts_seconds, mic_trace.pts_seconds)
-        })
-        .collect();
+    let abs_dur = |a: std::time::Instant, b: std::time::Instant| {
+        if a >= b { a.duration_since(b) } else { b.duration_since(a) }
+    };
+
+    let mut paired: Vec<(f64, f64)> = Vec::with_capacity(mic_traces.len());
+    let mut sys_idx = 0usize;
+
+    for mic in mic_traces {
+        while sys_idx + 1 < system_traces.len() {
+            let cur_diff  = abs_dur(mic.host_recv_instant, system_traces[sys_idx].host_recv_instant);
+            let next_diff = abs_dur(mic.host_recv_instant, system_traces[sys_idx + 1].host_recv_instant);
+            if next_diff < cur_diff {
+                sys_idx += 1;
+            } else {
+                break;
+            }
+        }
+        paired.push((system_traces[sys_idx].pts_seconds, mic.pts_seconds));
+    }
 
     let initial_offset = paired[0].0 - paired[0].1;
 

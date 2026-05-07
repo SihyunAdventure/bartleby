@@ -9,6 +9,13 @@ interface DriftStats {
   paired_samples: number;
 }
 
+interface RssStats {
+  samples: number;
+  peak_rss_mb: number;
+  mean_rss_mb: number;
+  log_path: string;
+}
+
 interface CaptureStats {
   buffers_received: number;
   frames_written: number;
@@ -21,12 +28,14 @@ interface CaptureStats {
   system_bytes_written: number;
   mic_segments_written: number;
   mic_bytes_written: number;
+  rss: RssStats;
 }
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
   const [name, setName] = useState("");
   const [captureStatus, setCaptureStatus] = useState("");
+  const [seconds, setSeconds] = useState(10);
 
   async function greet() {
     // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -66,23 +75,34 @@ function App() {
       </form>
       <p>{greetMsg}</p>
 
-      <button
-        onClick={async () => {
-          setCaptureStatus("Capturing...");
-          try {
-            const stats = await invoke<CaptureStats>("capture_system_audio", { seconds: 10 });
-            setCaptureStatus(
-              `sys: ${stats.buffers_received}b / ${stats.system_segments_written}seg / ${(stats.system_bytes_written / 1024).toFixed(1)}KB | ` +
-              `mic: ${stats.mic_buffers_received}b / ${stats.mic_segments_written}seg / ${(stats.mic_bytes_written / 1024).toFixed(1)}KB | ` +
-              `drift: max ${stats.drift.max_drift_ms.toFixed(2)}ms`
-            );
-          } catch (err) {
-            setCaptureStatus(`Error: ${String(err)}`);
-          }
-        }}
-      >
-        Capture 10s
-      </button>
+      <div className="row">
+        <input
+          type="number"
+          min="10"
+          max="3600"
+          step="1"
+          value={seconds}
+          onChange={(e) => setSeconds(Number(e.currentTarget.value))}
+        />
+        <button
+          onClick={async () => {
+            setCaptureStatus("Capturing...");
+            try {
+              const stats = await invoke<CaptureStats>("capture_system_audio", { seconds });
+              setCaptureStatus(
+                `sys: ${stats.buffers_received}b / ${stats.system_segments_written}seg / ${(stats.system_bytes_written / 1024).toFixed(1)}KB | ` +
+                `mic: ${stats.mic_buffers_received}b / ${stats.mic_segments_written}seg / ${(stats.mic_bytes_written / 1024).toFixed(1)}KB | ` +
+                `drift: max ${stats.drift.max_drift_ms.toFixed(2)}ms | ` +
+                `peak ${stats.rss.peak_rss_mb.toFixed(0)}MB / ${stats.rss.samples} rss samples`
+              );
+            } catch (err) {
+              setCaptureStatus(`Error: ${String(err)}`);
+            }
+          }}
+        >
+          Capture {seconds}s
+        </button>
+      </div>
       <p>{captureStatus}</p>
     </main>
   );
