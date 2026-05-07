@@ -1,19 +1,26 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-07 — VISION/DESIGN/PLAN 작성 + Phase 0 진입 직전
+> 마지막 세션: 2026-05-07 — autoplan CEO review + reframe ("Korean ears for English audio") + Week 1 prep
 
 ---
 
 ## 현재 상태 (2026-05-07 종료 시점)
 
-✅ 모든 사전 결정 완료:
-- Brand · 도메인 · stack · 디자인 시스템 · 8주 실행 계획
+✅ 완료:
+- Brand · 도메인 · stack · 디자인 시스템 (Claude Design handoff bundle, design-system/)
+- VISION/DESIGN/PRINCIPLES/PLAN 작성
+- **autoplan CEO review** — codex + critic dual voice, 6/9 critical 발견
+- **Reframe 결정** — 미팅 only → 콘텐츠 + 미팅 dual mode
+- **Timeline 연장** — 8주 → 12-14주
+- **Sequence swap** — UI 먼저 → capture spike 먼저
+- 첫 git commit (이 repo)
 
-⏳ 다음에 할 일:
-- 심층 계획 review (`/ralplan` + `/autoplan`)
-- 디자인 시스템 코드 구축 (`designer` 에이전트)
-- Phase 0 실행 (Tauri 부트스트랩 + UI shell)
+⏳ 다음 세션 (Week 1):
+- **Phase 2/3 autoplan review** 진행 (Design + Eng) — 새 reframe plan 위에서
+- Week 1 capture spike (~3-5일)
+- 인프라 (도메인 + GitHub + Twitter + Soniox + OpenRouter + Apple Developer) ~1시간
+- Customer interview 5명 (가능 시)
 
 ---
 
@@ -32,26 +39,41 @@ cd ~/Dev/side/bartleby
 4. `DESIGN.md` — 디자인 시스템 high-level summary
 5. `PLAN.md` — Phase 0-6 8주 계획
 
-### Step 2: 심층 계획 review (`/ralplan` 또는 `/autoplan`)
+### Step 2: 심층 계획 review (`/autoplan`)
 
-```
-/ralplan
-```
-또는
+✅ **2026-05-07 1차 세션에 완료 — CEO phase 만**.
+- Codex + Claude critic dual voice 결과: 9개 발견 (6 critical/high), reframe 결정.
+- 결과 반영해서 PLAN.md / VISION.md 전면 재작성됨 (commit 참조).
+- ⏳ 미완: Phase 2 (Design review), Phase 3 (Eng review). 다음 세션에서 이어:
+
 ```
 /autoplan
 ```
 
+→ "이전 세션 CEO review 완료. Phase 2/3 부터 진행해줘." 으로 시작.
+
 목적:
-- 기존 PLAN.md 를 CEO / Eng / Design / DX 시점에서 review
-- 빠진 부분·우선순위 오류·과대 scope 잡기
-- 실행 진입 전 마지막 sanity check
+- Phase 2: design-system / 새 plan 의 alignment, 14 섹션 매핑 표 미리 정의
+- Phase 3: 12-14주 timeline + dual mode 위에서 architecture / test plan / capture spike 구체 deliverable
 
-리뷰 후 PLAN.md 업데이트.
+### Step 2.5: ⭐ Capture spike (Week 1 새 sequence)
 
-### Step 3: 도메인·계정 인프라 (~1시간)
+> autoplan 결정: UI 보다 capture 검증 먼저. 자세한 spike 흐름 → PLAN.md §7
 
-(Phase 0 / Day 1 의 인프라 부분)
+3-5일 Tauri+Rust+ScreenCaptureKit 검증:
+- [ ] `pnpm create tauri-app .`
+- [ ] `screencapturekit-rs` (또는 fork) binding
+- [ ] **Anarlog (`fastrepl/anarlog`) 코드 정독** — 작동 패턴 차용
+- [ ] 1시간 YouTube 영상 system audio 캡처 + .opus 저장
+- [ ] mic + system audio mixing
+- [ ] 권한 요청 플로우
+
+**Spike 결정 gate** (PLAN.md §7 의 contingency 표 참조):
+- ✅ 1시간 stable → Tauri 강행, Phase 0 (Step 4-5) 진입
+- ⚠️ system audio 만 불안정 → Tauri UI + Swift sidecar
+- ❌ ScreenCaptureKit Rust 실패 → Native SwiftUI pivot (디자인 시스템 SwiftUI 재작성)
+
+### Step 3: 도메인·계정 인프라 (~1시간, capture spike 와 병렬)
 
 - [ ] heybartleby.com 결제 (Cloudflare 또는 Porkbun, ~$11)
 - [ ] GitHub org `heybartleby` 생성, repo `bartleby` 비공개
@@ -238,21 +260,27 @@ designer 에게:
 
 ---
 
-## 핵심 결정사항 (변경 금지, 변경 시 PLAN.md 업데이트)
+## 핵심 결정사항 (변경 시 PLAN.md / VISION.md 업데이트)
 
 ```
 Brand:      Bartleby
 Domain:     heybartleby.com
-Stack:      Tauri 2.0 (Rust + React + TS)
-STT:        Soniox streaming (BYOK)
-LLM:        Solar Pro 3 via OpenRouter (BYOK)
-Storage:    Local markdown
-First user: 본인 (Sihyun)
-Wedge:      No-bot + Korean-first + BYOK + Character + Markdown forever
-Layout:     사이드바 240px + 가변 main, 3 states (Library/Live/Detail)
-Font:       Pretendard Variable + Source Serif 4
-Color:      Cream paper (#FBFAF7) + ink + sepia accent (#8B5A2B)
+Stack:      Tauri 2.0 (Rust + React + TS) — Week 1 spike 결과로 contingency
+STT:        Soniox streaming (BYOK, EN/KO 양방향)
+LLM:        Solar Pro 3 via OpenRouter (BYOK, 128K context)
+Storage:    Local markdown (~/Documents/Bartleby/)
+First user: 본인 (Sihyun) — 매일 영어 YouTube 1h+ 시청
+Wedge:      Korean ears for English audio — 시청 모드 (YouTube/podcast/컨퍼런스 라이브 자막) + 미팅 모드 dual mode
+Layout:     사이드바 240px + 가변 main + floating overlay (시청 모드)
+모드:       시청 모드 (system audio only, overlay) ↔ 미팅 모드 (mic+system, sidebar)
+Font:       JetBrains Mono + Inter + Pretendard + Cormorant Garamond + Gowun Batang + D2Coding (모두 OFL)
+Color:      OKLCH chroma 0 (paper-ivory + ink, accent = ink itself, ZERO accent color)
+Timeline:   12-14주 (8주에서 연장, autoplan 결정)
+Sequence:   Week 1 capture spike → Week 2-3 Phase 0/1 → Week 4 STT → ... (UI 보다 capture 먼저)
 ```
+
+> 2026-05-07 autoplan reframe: "Granola for Korean (미팅 only)" → "Korean ears for English audio (콘텐츠 + 미팅 dual mode)".
+> 사용자 daily reality (영어 YouTube 1h+/일, 미팅은 영어 능력 부족으로 suppressed) 기반.
 
 ---
 
