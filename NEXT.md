@@ -1,387 +1,201 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-07 — **Day 1 capture spike ✅ 통과** (`screencapturekit 2.0` + macOS 26 검증)
+> 마지막 세션: 2026-05-07 ~ 2026-05-08 — **Day 1-4 capture stack ✅ live verified**
 
 ---
 
-## 현재 상태 (2026-05-07 Day 1 종료 시점)
+## 현재 상태 (Day 4 종료, 2026-05-08 새벽)
 
-✅ 완료:
-- Brand · 도메인 · stack · 디자인 시스템 (Claude Design handoff bundle, design-system/)
-- VISION/DESIGN/PRINCIPLES/PLAN 작성
-- **autoplan 3 phase review** (CEO + Design + Eng dual-voice, 모두 반영)
-- **design-system-extensions/** (overlay/settings/mode-switch/permission/marketing-hero spec)
-- **Day 1 capture spike PoC** — `~/Dev/_inbox/bartleby-spike` (plain Rust binary):
-  - `screencapturekit 2.0` (svtlabs) crate 선택 — Anarlog 가 쓰는 `cidre` 보다 audio API 우월
-  - macOS 26 (Tahoe) + Xcode 26 + Rust 1.95 호환 ✅
-  - LC_RPATH `/usr/lib/swift` + ad-hoc codesign 두 가지 함정 모두 해결
-  - 60s WAV: 3000 buffers / 5,760,000 samples / 99.9% non-zero / peak -18.41 dBFS / RMS -33.26 dBFS
-  - **Spike 결정 gate ✅ → Tauri 강행 확정**
-- 4 git commits (Initial + autoplan reframe + Phase 2+3 + autoplan minor 후속)
+### 누적 commits (main branch)
 
-⏳ 다음 세션 (Week 1 Day 2-7):
-- Tauri 2.0 부트스트랩 (`pnpm create tauri-app .`) — `~/Dev/side/bartleby/` 에 React+TS+Vite+pnpm
-- spike binary 의 capture 코드를 Tauri src-tauri 로 재작성 (참조만, naming/architecture 우리 것)
-- 두 window (sidebar/main + overlay) + `tauri-plugin-nspanel` 검증
-- mic + system audio mixing (presentationTimeStamp drift < 50ms)
-- Opus 32kbps encoding + 5s chunked write
-- 1시간 system audio stable + RSS profile (< 800MB)
-- 인프라 (도메인 + GitHub + Twitter + Soniox + OpenRouter + Apple Developer) ~1시간
-- Anarlog (`fastrepl/anarlog`) 코드 정독 — 참조 only, **코드 복사 절대 금지**
+| commit | 슬라이스 |
+|---|---|
+| `f927321` | Initial: VISION/DESIGN/PRINCIPLES/PLAN/NEXT + design-system handoff |
+| `76d8ea8` | autoplan CEO reframe: "Korean ears for English audio" + 12-14주 |
+| `1742fc3` | autoplan Phase 2+3: design-system-extensions + spike scope 확장 |
+| `3733318` | autoplan minor: STT 벤치마크 + test fixture + DRM list |
+| `7c8b295` | **Day 1 capture spike** ✅ — `~/Dev/_inbox/bartleby-spike` (60s WAV, screencapturekit 2.0, macOS 26 호환) |
+| `827d893` | **Tauri scaffold** ✅ — react-ts/pnpm/Tauri 2 / com.heybartleby.bartleby / macOS 15 lock |
+| `c17988e` | **Day 2 system-audio capture** ✅ live (sys: 500b/480000f/10.0s) |
+| `ecac829` | **Day 3 mic+drift code path** ✅ (7/7 unit tests; SystemAudioSink + MicrophoneSink + drift helper) |
+| `64496df` | **Day 3 mic infra** ✅ (Info.plist + build.rs sectcreate; empirical mic deferred) |
+| `1f12876` | **Day 4 Opus 32kbps + 5s segments** ✅ live (sys: 500b / 2seg / 39.6KB / 0 drop) |
+
+### 작동 검증된 것
+
+- `pnpm tauri dev` → "Bartleby" 윈도우 + Rust IPC ↔ React frontend round-trip
+- System audio 캡처 — 10초 → 500 buffers / 480000 frames / 39.6KB Opus / 2 segments
+- Opus encoder pipeline — mpsc channel + worker thread + rolling 5s segments, sample drop 0
+- 메모리 bounded — Opus encoder flush 마다 disk 로 비움. 1h 캡처 수학적 가능 (~14MB).
+- Drift 측정 helper — testable, 4 unit tests (perfect_sync / constant_offset / growing / empty)
+- LC_RPATH `/usr/lib/swift` linker flag (Swift runtime ABI lib 위치)
+- libopus 1.6.1 brew + audiopus_sys pkg-config 빌드 환경
+
+### 작동 *안* 검증된 것 (의도적 deferred)
+
+- **Mic 실 캡처** — Day 3 코드 + Info.plist 모두 들어가 있으나 dev mode 의 unsigned binary 에서 Apple SC daemon (`replayd`) 가 `with_captures_microphone(true)` 를 silently 무효화 (`micEnabled=0`). TCC 자체는 통과 (ffmpeg/AVFoundation 으로 cmux mic 정상 녹음 확인됨). SCStream mic feature 만 별도 enforcement. Apple Dev ID + `tauri build` 의 `.app` bundle (Hardened Runtime + signed) 시점에 풀릴 것으로 예측. PLAN.md L146 stance 와 일치.
+
+### 환경 (재현용)
+
+- Bartleby repo: `~/Dev/side/bartleby/`
+- Spike binary (참조 only, 코드 복사 금지): `~/Dev/_inbox/bartleby-spike/`
+- macOS 26 (Tahoe), Rust 1.95, Tauri 2.x, Vite 7, React 19
+- `.cargo/config.toml` (project root): rpath flag + PATH=/opt/homebrew/bin
+- `src-tauri/Info.plist`: NSMicrophoneUsageDescription / NSScreenCaptureUsageDescription / NSCameraUsageDescription
 
 ---
 
-## 다음 세션 시작 시 — 정확한 순서
+## 다음 세션 진입점
 
-### Step 1: 컨텍스트 로드 (~5분)
+### Step 0: 컨텍스트 빠른 로드
 
-```
+```bash
 cd ~/Dev/side/bartleby
+git log --oneline -10  # 마지막 commit 확인
 ```
 
-읽을 파일 (반드시 순서대로):
-1. `README.md` — 빠른 오리엔테이션
-2. `VISION.md` — 제품 비전·포지셔닝
-3. **`PRINCIPLES.md`** ⭐ — 디자인 구현 원칙 (작업 전 필독, 누락 방어)
-4. `DESIGN.md` — 디자인 시스템 high-level summary
-5. `PLAN.md` — Phase 0-6 8주 계획
+읽을 파일 (이미 다 작성됨, 변경 적게):
+1. **`NEXT.md`** (이 파일) — 현재 상태
+2. `VISION.md` — 비전 (변경 X)
+3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
+4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 2: 심층 계획 review (`/autoplan`)
+### Step 1: ⭐ 1h system-audio stability + RSS profile (Day 5)
 
-✅ **2026-05-07 1차 세션 완료 — 3 phase 모두**.
-- Phase 1 (CEO): codex + critic dual voice → 6/9 critical → "Korean ears for English audio" reframe.
-- Phase 2 (Design): codex + designer agent → 9/11 confirmed → `design-system-extensions/` 생성 (overlay + settings spec).
-- Phase 3 (Eng): codex + architect agent → 13/14 confirmed → spike scope 확장 + storage schema + STT protocol + SessionSupervisor.
-- 결과 반영해서 PLAN.md / VISION.md / PRINCIPLES.md / README.md / `design-system-extensions/*` 모두 수정됨 (commit 참조).
-- ⏳ 미반영 minor (다음 세션 자동 적용 가능): D2/D3/D5/D6 design copy + E5(DRM hint)/E6(audio router 코드)/E8(permission lifecycle)/E9(test fixture)/E10(Soniox 벤치마크 protocol)/E11(tokens.css L15 Nanum 주석 노트).
+> PLAN.md 의 핵심 capture acceptance 미해결 항목. Opus 들어간 *지금* 가능.
 
-→ 다음 세션은 *Week 1 capture spike 실행* 단계. autoplan 재호출 불필요 (Phase 0-3 모두 완료).
+**목표**: 60분 연속 system-audio 캡처 → 720 segment / RSS peak < 800MB / sample drop 0.
 
-### Step 2.5: ⭐ Capture spike (Week 1 — Day 1 ✅, Day 2-7 진행 예정)
+**slice scope**:
+- Capture button 의 duration 을 UI 입력으로 받게 변경 (현재 hard-coded 10s)
+- Capture 동안 5s 마다 process RSS 측정 → 로그 파일 (`/tmp/bartleby-rss-{ts}.log`)
+- 60분 capture 의 peak RSS 가 800MB 미만이어야 ✅
+- segment 파일 720개 (5s × 720 = 3600s = 60min) 생성 + 각각 audible
 
-> autoplan 결정: UI 보다 capture 검증 먼저. 자세한 spike 흐름 → PLAN.md §7
+**slice 시작 점**:
+- `src-tauri/src/lib.rs` 의 `capture_system_audio(seconds: u64)` 명령에 RSS sampling 추가
+- 또는 별도 thread 가 `proc/self/status` 또는 macOS API 로 RSS 폴링
+- macOS RSS: `task_info(mach_task_self(), TASK_BASIC_INFO, ...)` (libc) 또는 `ps -o rss= -p $$` shell out
+- Frontend 에서 duration 입력 input 추가 (number, min=10 max=3600 default=10)
 
-**Day 1 ✅ 통과 (2026-05-07)** — `screencapturekit 2.0` 60초 WAV PoC 성공. Spike binary `~/Dev/_inbox/bartleby-spike` 보존 (참조용, throwaway).
+⚠️ Risk:
+- 시청 동안 사용자가 60분 대기 (Lane B 인프라 진행 가능 시점)
+- macOS sleep / wake 가 capture 중에 일어나면 어떻게 될지 unknown — 한 번은 sleep 안 하게 cmd 실행 또는 caffeinate
 
-남은 Day 2-7:
-- [ ] `pnpm create tauri-app .` — `~/Dev/side/bartleby/` 에 React+TS+Vite+pnpm
-- [ ] PoC capture 코드를 Tauri `src-tauri/src/capture/` 로 우리 architecture 로 재작성 (spike binary 는 참조만)
-- [ ] 신호된 Tauri bundle (Developer ID 받은 후) + Hardened Runtime
-- [ ] 두 window (main + overlay) + `tauri-plugin-nspanel` 검증
-- [ ] mic + system audio mixing (`presentationTimeStamp` drift < 50ms)
-- [ ] Opus 32kbps encoding + 5s chunked write
-- [ ] 1시간 stable + RSS peak < 800MB profile
-- [ ] **Anarlog (`fastrepl/anarlog`) 코드 정독** — *패턴 참조 only, 코드 복사 절대 금지* (사용자 명시 원칙)
-- [ ] DRM detection PoC (Apple TV+ silent buffer 잡는지)
+### Step 2: Two-window + tauri-plugin-nspanel (Day 5 또는 Day 6)
 
-**Spike 결정 gate**:
-- ✅ Day 1 통과 → **Tauri 강행 확정**. Day 2-7 으로 두 window/audio router/mic mixing 검증.
-- Day 2-7 중 NSPanel 만 실패 → Tauri UI + 작은 Swift NSPanel plugin
-- Day 2-7 중 mic mixing/Opus 실패 → Tauri UI + Swift sidecar binary for capture
+`pnpm tauri add nspanel` 또는 `cargo add tauri-plugin-nspanel`. main window + 작은 floating overlay (NSPanel) 2개 띄우고 drag/resize/opacity 검증. PRINCIPLES + design-system-extensions/overlay.md 의 spec 가능성 판단. 별도 슬라이스.
 
-### Step 3: 도메인·계정 인프라 (~1시간, capture spike 와 병렬)
+### Step 3: DRM detection PoC (Day 6 또는 Day 7)
 
-- [ ] heybartleby.com 결제 (Cloudflare 또는 Porkbun, ~$11)
-- [ ] GitHub org `heybartleby` 생성, repo `bartleby` 비공개
+Apple TV+ / Netflix 같은 DRM 콘텐츠 재생 중 system audio 가 silent (RMS < -60dBFS) 인지 10-20s 동안 측정해서 DRM-blocked 상태 detect. UI 에 "Bartleby would prefer not to. (DRM blocked)" 표시. 작은 슬라이스.
+
+### Step 4: Lane B 인프라 (사용자 직접, ~1시간)
+
+- [ ] heybartleby.com 결제 (Cloudflare 또는 Porkbun)
+- [ ] GitHub org `heybartleby` + repo bartleby (private)
 - [ ] Twitter/X `@heybartleby` 핸들 선점
-- [ ] Soniox 가입, API 키
-- [ ] OpenRouter 가입, API 키 + $5 충전
-- [ ] Apple Developer 계정 신청 ($99/년, 승인 1주)
+- [ ] Soniox 가입 → API key (`~/.config/secrets/soniox.env`)
+- [ ] OpenRouter 가입 → API key + $5 충전
+- [ ] **Apple Developer 신청 ($99/년, 승인 1주)** ← Day 3 mic empirical 의 prerequisite
 
-### Step 4: Tauri 프로젝트 부트스트랩 (~1-2시간)
+### Step 5: 디자인 시스템 코드 구축 (Phase 0 본진)
 
-```bash
-cd ~/Dev/side/bartleby
-pnpm create tauri-app .  # 현재 디렉토리에 생성
-# Frontend: React + TypeScript
-# Package manager: pnpm
-# Vite
-```
-
-추가 의존성:
-```bash
-pnpm add @fontsource-variable/pretendard lucide-react
-pnpm add -D tailwindcss@next @tailwindcss/vite
-```
-
-### Step 5: 디자인 시스템 코드 구축 — `designer` 에이전트
-
-> **중요**: 디자인 시스템은 이미 Claude Design 으로 만들어져 있음.
-> `~/Dev/side/bartleby/design-system/bartleby/project/bartleby/` 가 source of truth.
-> designer 에이전트는 *새로 디자인 만드는 게 아니라*, 기존 디자인을 **Tauri+React+TS 로 재구현** 만 하면 됨.
-
-**`designer` 에이전트에게 다음과 같이 위임**:
-
-```
-배경:
-- 프로젝트 루트: ~/Dev/side/bartleby
-- 디자인 시스템 source-of-truth: design-system/bartleby/project/bartleby/
-- 우리 앱 source: src/ (Tauri+React+TS, pnpm)
-
-먼저 읽을 것 (반드시 순서대로):
-1. design-system/bartleby/README.md  — 핸드오프 가이드
-2. design-system/bartleby/chats/chat1.md  — 디자인 의사결정 transcript
-3. design-system/bartleby/project/bartleby/tokens.css  — ⭐ 토큰 (color/type/space/radius/shadow)
-4. design-system/bartleby/project/bartleby/components.css  — 컴포넌트 스타일 전체
-5. design-system/bartleby/project/bartleby/components.jsx  — 컴포넌트 구조
-6. design-system/bartleby/project/bartleby/screens.jsx  — 적용 화면 (Library + Recording)
-7. design-system/bartleby/project/bartleby/macos-window.jsx  — macOS chrome
-8. DESIGN.md  — high-level 요약
-
-작업:
-1. tokens.css 를 src/styles/tokens.css 로 복사 (그대로, OKLCH 유지)
-2. 폰트 임베딩 (모두 OFL, Tauri 번들 자유):
-   - JetBrains Mono Variable
-   - Inter Variable
-   - Pretendard Variable
-   - Cormorant Garamond
-   - Gowun Batang (KR serif, 한국 디자이너 표준)
-   - D2Coding (KR mono)
-   - @fontsource-variable/* 패키지 활용 또는 self-host
-3. Tailwind 4 설정에 OKLCH 토큰 매핑 → tailwind.config.ts
-4. 다크모드: data-theme="dark" 토글 + prefers-color-scheme 자동
-5. 컴포넌트 primitives 재구현 (React+TS, components.jsx 가 reference):
-   - <Button> (primary/secondary/ghost/destructive × sm/md/lg)
-   - <Input> + 특수: <BYOKKeyInput> (verified/invalid 상태)
-   - <Textarea>
-   - <Toggle> + <Checkbox> + <Segmented> + <Select>
-   - <Card>, <MeetingCard>, <TranscriptUtterance>, <SummaryBlock>
-   - <Sidebar> + <SidebarItem>
-   - <Titlebar> (macOS traffic lights 포함)
-   - <RecordingIndicator> (idle/listening/processing/complete)
-   - <AudioMeter>, <StatusStrip>
-   - <Badge>, <Dot>
-   - <Toast>, <Modal>
-   - <EmptyState> (캐릭터 톤)
-6. Korean fallback 검증:
-   - .ko / .ko-display / .ko-serif / .ko-mono 유틸 적용
-   - 한↔영 혼용 텍스트에 .kr-leading 적용
-7. 컴포넌트 갤러리 페이지 (/__gallery 라우트, dev only):
-   - 모든 primitives + 적용 화면 (Library, Recording session)
-   - 다크모드 토글
-   - DESIGN.md 의 14 섹션 구조 그대로 (manifesto, tokens, type, spacing, buttons, forms, recording, ...)
-
-스타일:
-- design-system 의 components.css / page.css 를 참고 reference 로 사용
-- 단 React 컴포넌트로 적절히 분해 (CSS modules 또는 vanilla CSS, styled-components 는 X)
-- Tailwind utility 와 token 기반 CSS variables 혼용 OK
-
-출력:
-- src/styles/tokens.css, src/styles/globals.css
-- src/components/ui/* (각 컴포넌트 별 폴더)
-- src/components/gallery/* (갤러리 페이지 섹션)
-- src/hooks/use-theme.ts (다크모드)
-- src/lib/* (유틸)
-- pnpm tauri dev 실행 시 /__gallery 접속해서 모든 컴포넌트 확인 가능
-
-주의:
-- design-system/ 폴더는 read-only reference. 거기 파일은 수정 X
-- design-system 의 tweaks-panel.jsx 는 앱에 포함 X (디자인 reference 전용)
-- design-system 의 디자인 시스템 페이지를 *브라우저로 렌더하지 말 것* — 코드 직접 읽기
-- accent color = ink 자체, 별도 accent 컬러 추가 금지 (디자인 의도)
-- 캐릭터 강도 75% literary — 시스템 메시지·에러에 italic serif Bartleby voice 살리기
-```
-
-검증:
-- `pnpm tauri dev` 실행 → `/__gallery` 페이지 접속
-- 라이트/다크 모드 양쪽에서 모든 컴포넌트 확인
-- 폰트·컬러·spacing 이 design-system source 와 시각적으로 일치하는지 비교
-- 한국어 텍스트 렌더링 (Pretendard / Gowun Batang / D2Coding) 확인
-
-### Step 5b: 누락 검증 (designer 작업 직후 필수)
-
-**design-system/ 의 14 섹션 vs 우리 gallery 1:1 매핑 표 작성**
-
-designer agent 의 마지막 deliverable 로 다음 표를 채워서 보고:
-
-| # | design-system 섹션 | 우리 gallery 위치 | 상태 | 비고 |
-|---|---|---|---|---|
-| 1 | Manifesto (4 rules) | /__gallery#manifesto | ☐ | |
-| 2 | Color tokens (light + dark) | /__gallery#colors | ☐ | |
-| 3 | Type scale (EN + KR pairing) | /__gallery#typography | ☐ | |
-| 4 | Spacing · radius · elevation | /__gallery#spacing | ☐ | |
-| 5 | Buttons (4 × 3 sizes × states) | /__gallery#buttons | ☐ | |
-| 6 | Form controls (8종) | /__gallery#forms | ☐ | BYOK key field 포함 |
-| 7 | Recording state (4 phases) | /__gallery#recording | ☐ | audio meter 포함 |
-| 8 | Badges & dots | /__gallery#badges | ☐ | |
-| 9 | Domain blocks (meeting/transcript/summary) | /__gallery#domain | ☐ | |
-| 10 | Sidebar + titlebar pattern | /__gallery#window | ☐ | macOS chrome |
-| 11 | Voice library (system msgs, errors, empty, loading) | /__gallery#voice | ☐ | "Bartleby would prefer not to." |
-| 12 | Applied screens (Library + Recording) | /__gallery#screens | ☐ | 앱 실제 라우트로도 사용 |
-| 13 | App icon (light/dark/mono + dock mock) | /__gallery#icon | ☐ | |
-| 14 | Marketing (hero, wedge, pricing) | /__gallery#marketing | ☐ | 앱 외부지만 디자인 시스템 일부. **Watch 모드 hero 로 reframe** (split: YouTube + overlay, meeting 은 secondary) |
-| 15 | **WatchOverlay** — drag/resize/opacity, 7 states (idle/listening/captioning/translating/reconnecting/drm-blocked/permission-denied/complete), KO Pretendard caption | /__gallery#overlay | ☐ | spec: `design-system-extensions/overlay.md`. NSPanel-equivalent 검증 (Week 1 spike) |
-| 16 | **Mode switch widget** — Segmented control sidebar 상단, 200ms cross-fade, active session 시 confirm modal | /__gallery#mode-switch | ☐ | `design-system/components.css` 의 Segmented 재사용. 라우팅 `/live/watch` ↔ `/live/meeting` |
-| 17 | **Settings UI** — 5 tabs (Keys/Modes/Storage/Shortcuts/About), KeyInput verified/invalid 상태, BYOK 키 Keychain 저장 | /__gallery#settings | ☐ | spec: `design-system-extensions/settings.md`. 단축키 customize 가능 |
-| 18 | **Onboarding flow** — 3 steps (API 키 → 권한 → 첫 watch demo) | /__gallery#onboarding | ☐ | TODO design-system-extensions/onboarding.md (v1.5) |
-| 19 | **Permission / DRM rejection** — Screen Recording / Microphone 거부, DRM-blocked detection (10-20s RMS < -60dBFS), Settings.app deeplink | /__gallery#permission | ☐ | Voice copy 일관 유지 ("Bartleby would prefer not to. (...)") |
-
-**각 row 가 ✅ 가 아니면 Phase 0 미완료**. 표 14→19 row 로 확장 (autoplan 2026-05-07).
-
-### Step 5c: 시각 비교 워크플로우 (사용자가 직접 검증)
-
-designer agent 작업 끝난 후, *사용자가* 시각 비교로 최종 검증:
-
-```bash
-# 터미널 1: 원본 design system 페이지 띄우기
-cd ~/Dev/side/bartleby/design-system/bartleby/project
-python3 -m http.server 8081
-# 브라우저에서: http://localhost:8081/Bartleby%20Design%20System.html
-
-# 터미널 2: 우리 앱 gallery 띄우기
-cd ~/Dev/side/bartleby
-pnpm tauri dev
-# 앱 내 /__gallery 라우트
-```
-
-모니터 좌우에 띄우고 **section by section 시각 비교**:
-- 각 섹션의 컴포넌트가 다 있는가?
-- 색·간격·폰트가 일치하는가?
-- hover / focus / disabled 등 상태가 일치하는가?
-- voice copy ("Bartleby would prefer not to." 등) 가 정확한가?
-- 응용 화면 (Library, Recording) 의 layout 디테일까지 매칭되는가?
-
-**불일치·누락 발견 시 → designer agent 한테 spot fix 위임**:
-```
-designer 에게:
-"/__gallery#forms 에서 BYOK key field 의 verified 상태 (체크 아이콘 + 옅은 ok 색)
- 가 누락됨. design-system/bartleby/project/bartleby/components.css 의
- .input-key.verified 클래스 정의를 따라 추가해줘."
-```
-
-이 검증·보정 사이클이 **Phase 0 의 진짜 acceptance criteria**.
-
-### Step 6: 사이드바 + 메인 레이아웃 (Phase 0 Day 4-5)
-
-디자인 시스템 검증 후 진행:
-- App shell (사이드바 240px + 가변 main)
-- 라우팅 (Library / Live / Note Detail / Settings)
-- 사이드바 컴포넌트 (Today / Yesterday / This Week 그룹)
-- 단축키 핸들러
-- Empty state
-
-### Step 7: 더미 데이터로 Library + Note Detail (Phase 0 Day 6-7)
-
-- 더미 미팅 5-10개로 Library 표시
-- Note Detail UI (TL;DR + Decisions + Action Items + Transcript)
-- Markdown rendering
-- 한국어/영어 transcript 토글
-
-→ Phase 0 acceptance: 클릭 가능한 UI shell, 미팅 캡처는 X.
+이전 NEXT.md 의 designer 위임 가이드 그대로 — `/__gallery` 라우트로 14→19 섹션 1:1 매핑. 자세한 위임 prompt 는 git history (commit `f927321` ~ `3733318`) 또는 별도 노트 참조. 우선순위는 capture 1h 검증 통과 후 (Phase 1 → Phase 0 reordering 그대로).
 
 ---
 
-## 핵심 결정사항 (변경 시 PLAN.md / VISION.md 업데이트)
+## 핵심 결정사항 (변경 시 PLAN.md / VISION.md 같이 갱신)
 
 ```
 Brand:      Bartleby
 Domain:     heybartleby.com
-Stack:      Tauri 2.0 (Rust + React + TS) — Week 1 spike 결과로 contingency
-            Tauri Updater plugin (Sparkle 제거, autoplan 결정)
-최소 OS:    macOS 15 Sequoia (autoplan: ScreenCaptureKit mic feature 호환성)
-STT:        Soniox streaming (BYOK, EN/KO 양방향). Protocol: monotonic seq# + audio-clock + 30s ring reconnect + bounded queue 8
-LLM:        Solar Pro 3 via OpenRouter (BYOK, 128K context). Order-preserving translation, batched 2-3 finals
-Storage:    sessions/{uuid}/{note.md, audio.opus, transcript.jsonl, events.jsonl}
+Bundle ID:  com.heybartleby.bartleby (locked, 변경 X)
+Stack:      Tauri 2.0 (Rust + React + TS) — Day 4 까지 작동 ✅
+            Tauri Updater plugin (Sparkle 제거)
+최소 OS:    macOS 15 Sequoia (locked in tauri.conf.json)
+Capture:    screencapturekit 2.0 (svtlabs) — system audio ✅, mic deferred
+Encoding:   Opus 32kbps stereo + Ogg + 5s rolling segments ✅
+Storage:    sessions/{uuid}/{note.md, audio.opus[-NNN], transcript.jsonl, events.jsonl}
+            (현재 임시: $TMPDIR/bartleby-{system,mic}-{ts}-{seg:03}.opus)
             bartleby://{uuid} 내부 URI (사용자가 .md 이동해도 audio link 살아있음)
+STT:        Soniox streaming (BYOK, EN/KO 양방향). 다음 슬라이스 - Phase 2.
+LLM:        Solar Pro 3 via OpenRouter (BYOK, 128K context)
 First user: 본인 (Sihyun) — 매일 영어 YouTube 1h+ 시청
-Wedge:      Korean ears for English audio — 시청 모드 (YouTube/podcast/컨퍼런스 라이브 자막) + 미팅 모드 dual mode
+Wedge:      Korean ears for English audio (시청 + 미팅 dual mode)
 Layout:     사이드바 240px + 가변 main + floating overlay (시청 모드)
-모드:       시청 모드 (system audio only, overlay) ↔ 미팅 모드 (mic+system, sidebar)
-모드 전환:  Sidebar 상단 Segmented + 단축키 ⌘⌃B (Watch) / ⌘⌃M (Meeting), Settings customize
-Font:       JetBrains Mono + Inter + Pretendard + Cormorant Garamond + Gowun Batang + D2Coding (모두 OFL)
-Typography: live caption = Pretendard (sans), static notes/summaries = Gowun Batang (serif). PRINCIPLES §4.2.1
-Color:      OKLCH chroma 0 (paper-ivory + ink, accent = ink itself, ZERO accent color)
-Timeline:   12-14주 (8주에서 연장, autoplan 결정)
-Sequence:   Week 1 capture spike → Week 2-3 Phase 0/1 → Week 4 STT → ... (UI 보다 capture 먼저)
-검증 표:    14 → 19 섹션 (NEXT Step 5b, +5 rows: overlay/mode-switch/settings/onboarding/permission)
-SessionFSM: 12 states (Idle/PermissionNeeded/Starting/Capturing/STTConnecting/Live/
-            Reconnecting/Degraded/Stopping/Saving/Complete/Error)
+모드:       시청 (system audio only, overlay) ↔ 미팅 (mic+system, sidebar)
+Font:       Pretendard (live caption sans) + Gowun Batang (notes serif) + D2Coding (mono)
+            모두 OFL, Tauri 번들 자유
+Color:      OKLCH chroma 0 (paper-ivory + ink, ZERO accent color)
+Timeline:   12-14주
+Sequence:   Week 1 capture spike (Day 1-4 ✅) → Day 5+ 1h stability → Phase 0 UI → Phase 2 STT
+검증 표:    19 섹션 (overlay + mode-switch + settings + onboarding + permission)
+SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 ```
 
-> 2026-05-07 autoplan reframe: "Granola for Korean (미팅 only)" → "Korean ears for English audio (콘텐츠 + 미팅 dual mode)".
-> 사용자 daily reality (영어 YouTube 1h+/일, 미팅은 영어 능력 부족으로 suppressed) 기반.
-
 ---
 
-## 변경 가능 / 의문점 (다음 세션에서 review)
+## 외부 reference (참조 only, 코드 복사 절대 금지 — 사용자 명시 원칙)
 
-- 첫 100명 segment 가설 검증 (창업자·프리랜서·매니저)
-- 가격 모델 ($5/월 flat?)
-- 오픈소스 vs source-available 결정
-- Mac App Store vs 직접 배포
-- 자동 미팅 감지 시점 (v1 vs v1.5)
-- 캐릭터 일러스트레이션·아이콘
-
----
-
-## 참고할 외부 reference
-
-- **Anarlog** (구 Hyprnote/Char) — `fastrepl/anarlog` GitHub
-  - Tauri 기반 미팅 노트, MIT 라이선스
-  - 오디오 캡처 (ScreenCaptureKit) Rust 패턴 차용
-  - Provider adapter 패턴 정독
-  - 1주일 dogfood 권장
-
-- **Soniox docs** — streaming STT websocket 통합
-- **OpenRouter docs** — Solar Pro 3 API 형식
-- **Tauri 2.0 docs** — 특히 macOS-specific 권한·메뉴바·단축키
+- **Anarlog** (`fastrepl/anarlog`) — Tauri+ScreenCaptureKit 미팅 노트 패턴
+- **Soniox docs** — streaming STT websocket
+- **OpenRouter docs** — Solar Pro 3 API
+- **Tauri 2.0 docs** — macOS-specific 권한·메뉴바·단축키
+- **screencapturekit-rs 2.0 source** (`~/.cargo/registry/src/.../screencapturekit-2.0.0/`) — Day 3 mic API 검증 시 grep 한 곳
 
 ---
 
 ## Risk Watch
 
-| Risk | Mitigation |
-|---|---|
-| ScreenCaptureKit Rust binding 어려움 | Anarlog 코드 차용, Phase 1 spike 미리 |
-| Soniox 한국어 정확도 부족 | Phase 2 에서 Naver Clova / Whisper 비교 |
-| Solar Pro 3 요약 품질 부족 | OpenRouter 라 Claude/Gemini 즉시 swap |
-| Apple Developer 승인 지연 | Day 1 에 미리 신청 |
-| 디자인 시스템 over-engineering | Phase 0 1주일 deadline 엄수, Phase 1 진입 |
+| Risk | 현재 상태 | Mitigation |
+|---|---|---|
+| ScreenCaptureKit Rust binding | ✅ Day 1-4 통과 | screencapturekit 2.0 (svtlabs), 결정 |
+| 1h stability + RSS | ⏳ 다음 슬라이스 | Opus pipeline 메모리 bounded, 검증만 |
+| Mic 실 캡처 | ⏳ Apple Dev ID 후 | Info.plist + code path 다 들어감, signing 만 남음 |
+| Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
+| Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
+| Apple Developer 승인 지연 | Lane B 큐, ~1주 | 다음 세션 사용자 신청 권장 |
 
 ---
 
-## 명령어 cheat sheet (다음 세션용)
+## 명령어 cheat sheet
 
 ```bash
 # 프로젝트 진입
 cd ~/Dev/side/bartleby
+source ~/.cargo/env
 
-# Tauri 부트스트랩 (한 번만)
-pnpm create tauri-app .
-
-# 개발
+# Dev (~1-2분 incremental, 첫 빌드는 5-10분)
 pnpm tauri dev
 
-# 빌드 (나중에 Phase 6)
+# 단위 테스트 (11개 — planar 3 + drift 4 + opus 4)
+cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+# Production build (Phase 6 시점)
 pnpm tauri build
+
+# Opus segment 검증
+ffmpeg -i $TMPDIR/bartleby-system-{ts}-000.opus -af volumedetect -f null /dev/null
 ```
 
 ---
 
-## 마지막 한 줄
-
-> "Bartleby has prepared the plan and proved it can listen. Bartleby would prefer to scaffold next."
-
----
-
-## Day 1 spike binary 위치
+## Day 1 spike binary 위치 (참조 only)
 
 ```
 ~/Dev/_inbox/bartleby-spike/
 ├── Cargo.toml         (screencapturekit 2.0, hound 3.5, anyhow 1, bytemuck 1)
 ├── .cargo/config.toml (rpath linker flag for /usr/lib/swift)
-├── src/main.rs        (60s system audio → output.wav, Step A+B)
-└── output.wav         (verified non-silent capture)
+├── src/main.rs        (60s system audio → output.wav)
+└── output.wav         (60s, 99.9% non-zero, peak -18.41 dBFS)
 ```
 
-Throwaway reference. 다음 세션에서 Tauri scaffold 시 *우리 architecture / naming / voice* 로 새로 작성. 코드 복사 금지.
+Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (memory rule).
 
-빌드/실행 reproduce:
-```bash
-source ~/.cargo/env
-cd ~/Dev/_inbox/bartleby-spike
-cargo build
-codesign --force --sign - target/debug/bartleby-spike
-./target/debug/bartleby-spike   # YouTube 같은 audio 켜고 60초 대기
-```
+---
+
+## 마지막 한 줄
+
+> "Bartleby has listened, encoded, and timestamped. Bartleby would prefer to listen for an hour next."
