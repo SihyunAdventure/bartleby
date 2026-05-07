@@ -1,6 +1,19 @@
 pub mod capture;
 
 use capture::CaptureStats;
+use tauri::Manager;
+use tauri_nspanel::{
+    tauri_panel, CollectionBehavior, PanelLevel, StyleMask, WebviewWindowExt,
+};
+
+tauri_panel! {
+    panel!(OverlayPanel {
+        config: {
+            can_become_key_window: true,
+            is_floating_panel: true
+        }
+    })
+}
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -39,6 +52,20 @@ async fn capture_system_audio(seconds: u64) -> Result<CaptureStats, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_nspanel::init())
+        .setup(|app| {
+            let overlay = app.get_webview_window("overlay").expect("overlay window");
+            let panel = overlay.to_panel::<OverlayPanel>().expect("to_panel failed");
+            panel.set_level(PanelLevel::Floating.value());
+            panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
+            panel.set_collection_behavior(
+                CollectionBehavior::new()
+                    .full_screen_auxiliary()
+                    .can_join_all_spaces()
+                    .into(),
+            );
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![greet, capture_system_audio])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

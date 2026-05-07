@@ -3,6 +3,33 @@ import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
+const isOverlay = new URLSearchParams(window.location.search).has("overlay");
+
+function Overlay() {
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100vh",
+        background: "rgba(248, 247, 244, 0.85)",
+        backdropFilter: "blur(12px)",
+        borderRadius: 6,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontSize: 13,
+        fontStyle: "italic",
+        color: "rgba(40, 40, 40, 0.6)",
+        WebkitUserSelect: "none",
+        WebkitAppRegion: "drag",
+      } as React.CSSProperties}
+    >
+      Awaiting English audio.
+    </div>
+  );
+}
+
 interface DriftStats {
   max_drift_ms: number;
   final_drift_ms: number;
@@ -40,6 +67,10 @@ function App() {
   async function greet() {
     // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
     setGreetMsg(await invoke("greet", { name }));
+  }
+
+  if (isOverlay) {
+    return <Overlay />;
   }
 
   return (
