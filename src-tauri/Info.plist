@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Bartleby listens to your microphone during meeting capture so it can transcribe and summarize the conversation.</string>
+
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Bartleby captures system audio (and a 2x2 placeholder video frame) so it can transcribe what you are watching or listening to.</string>
+
+    <key>NSCameraUsageDescription</key>
+    <string>Bartleby does not use the camera. This entry exists defensively because macOS may enforce camera usage descriptions on binaries that declare other capture entitlements.</string>
+</dict>
+</plist>
