@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 — **Day 1-13 ✅** (capture infra 12 days + Phase 0 디자인 시스템 entry + 3-lens review reframe)
+> 마지막 세션: 2026-05-08 — **Day 1-14 ✅** (capture infra 12 days + Phase 0 디자인 시스템 entry + Soniox STT wedge 1차 검증)
 
 ---
 
-## 현재 상태 (Day 13 ✅ 종료, 2026-05-08)
+## 현재 상태 (Day 14 ✅ 종료, 2026-05-08)
 
 ### 누적 commits (main branch)
 
@@ -42,7 +42,8 @@
 | `18d0315` | NEXT.md sync (Day 11 ✅ + Day 12 entry) |
 | `6572a76` | **Day 12 slice** ✅ Auto-capture lifecycle — capture_dual_to_opus 가 (stop, max_seconds) 받아 signal-driven loop. `CaptureSession` + AppState Mutex. start_capture/stop_capture/capture_system_audio 3개 Tauri command. Live verified: Start → ~45s indefinite → Stop, -4.9 dBFS peak / 9 segments. |
 | `958e921` | NEXT.md sync (Day 12 ✅ + Day 13 entry) |
-| *(uncommitted)* | **Day 13 slice + cleanup** ✅ Phase 0 entry — tokens.css copy + Section §00 Manifesto + §01 Color (gallery `?gallery` 분기). 3-lens review (CEO/Design/Eng) 후 큰 cleanup: CSS Modules + sections 분할 + lazy Gallery + theme-cascade + 6 폰트 embedding + production capture UI dress + PRINCIPLES.md §2.2 ship/polish gate split + spec drift fix. |
+| `60121f2` | **Day 13 slice + cleanup** ✅ Phase 0 entry — tokens.css copy + Section §00 Manifesto + §01 Color (gallery `?gallery` 분기). 3-lens review (CEO/Design/Eng) 후 큰 cleanup: CSS Modules + sections 분할 + lazy Gallery + theme-cascade + 6 폰트 embedding + production capture UI dress + PRINCIPLES.md §2.2 ship/polish gate split + spec drift fix. |
+| *(uncommitted)* | **Day 14 spike — wedge 1차 검증** ✅ Soniox STT spike (`~/Dev/_inbox/bartleby-stt-spike/`, throwaway, Day 1 capture spike pattern mirror) — `stt-rt-v4` WebSocket 한국어/영어 wedge 1차 검증 통과. bartleby repo 에 코드 미반영 (Phase 2 시점에 from-scratch 재구현). Phase 2 STT critical risk retired. |
 
 ### 작동 검증된 것
 
@@ -182,6 +183,53 @@ Phase 0 디자인 시스템 entry. 19 섹션 한 슬라이스 X — Section §00
 - Section §02 Typography 시점에 Gowun Batang 로드 검증 + kr-leading-bump CSS calc + pair-table border-radius+overflow Tauri WebView 호환 검증.
 - Overlay (App.tsx L46 inline rgba) → token migration: Day 20+ §15 Mode Switch.
 
+### Day 14 결과 (Soniox STT spike — wedge 1차 검증 ✅)
+
+Phase 2 STT entry. spike binary `~/Dev/_inbox/bartleby-stt-spike/` (throwaway, Day 1 capture spike pattern mirror) 로 critical risk 우선 retire. bartleby repo 에 코드 미반영 — Phase 2 시점에 Tauri 안에서 from-scratch 재구현.
+
+**Pipeline 검증 (코드)**:
+- ✅ WebSocket connect (`wss://stt-rt.soniox.com/transcribe-websocket`) + `native-tls` (macOS Secure Transport, rustls 의 CryptoProvider 이슈 회피)
+- ✅ Initial config JSON: `{model:"stt-rt-v4", audio_format:"pcm_s16le", sample_rate:16000, num_channels:1, language_hints:["en","ko"], enable_endpoint_detection:true, enable_language_identification:true}`
+- ✅ Binary audio frames @ 120ms chunks (3840 bytes / 1920 samples / s16le mono), real-time pacing
+- ✅ End-of-stream signal = empty text frame
+- ✅ Server response parse — `tokens[].{text, is_final, language, speaker, translation_status}` + `finished` + `error_code`/`error_message`
+- ✅ WAV → 16kHz mono s16le 변환 (channel average + linear interpolation resample, speech <4kHz 라 aliasing 무시)
+- ✅ Server-close-aware sender (Arc<AtomicBool> abort flag — error 시 chunk loop 즉시 중단)
+
+**검증 결과 (3 케이스 / 60s 각)**:
+
+| 케이스 | finals | LID | 결과 |
+|---|---|---|---|
+| Day 1 영어 음악 (M.I.A. Paper Planes 추정) | 101 | 100% en | ~90% (음악 가사 치고 매우 좋음, 일반 speech 기대치 더 높음) |
+| 한국어 AI 강연 60s | 413 | 410 ko / 3 ? | "이렇게 되게 좋아졌다라는 수치들이 있는데..." 사실상 완벽, 띄어쓰기·받침·어미·문장부호 다 잡음 |
+| 영어 Claude 강연 60s | 393 | 392 en / 1 ? | "Limits for Claude code... first Code with Claude event of 2026..." 사실상 완벽, 자연 conversational lecture |
+
+**비용**: 3분 STT 사용 = ~$0.011 (Soniox real-time 분당 $0.0036). $5 충전 = ~22시간 STT, Phase 2 통합 검증 + 사용자 dogfood 충분.
+
+**Phase 2 critical risk retired** — Soniox 한국어 + 영어 양방향 production-quality 확인. Day 15+ Tauri 통합 진입 안전.
+
+**Spike 진행 중 fix 한 것**:
+- Initial try: `tokio-tungstenite` 의 `rustls-tls-webpki-roots` feature 만 → rustls 0.23 의 default CryptoProvider 미설치 panic. `native-tls` feature 로 swap (macOS 자체 Secure Transport, simpler). Production Bartleby 의 TLS choice 는 Phase 2 dep audit 시점에 확정.
+- `error_code` deserialize: doc 예시는 string 추정이었으나 실제 server 는 integer (402) 전송. Type 을 `Option<serde_json::Value>` 로 완화.
+- Server close 후 sender 의 "Sending after closing" panic. `Arc<AtomicBool>` abort flag 로 reader 가 close/error 감지 시 sender 가 즉시 break.
+
+**Soniox 결제**: $5 충전 (free tier 자동 적용 안 됨, 신규 가입 시 balance 0 상태). Production 사용은 BYOK pattern 그대로.
+
+**Lane B 진행 상황 갱신**:
+- ✅ Soniox API key + $5 잔액 — `~/.config/secrets/soniox.env`
+- ✅ OpenRouter API key — `~/.config/secrets/openrouter.env` ($5 충전 권장, Day 16+ Solar Pro 3 번역 시점)
+- ⏳ Apple Developer 신청 ($99/년, 1주 lead time) — Phase 1+ mic empirical 의 prerequisite, Phase 2 와 별개
+
+**Evidence (참조 only)**:
+- `~/Dev/_inbox/bartleby-stt-spike/samples/{01-day1-music-paperplanes,02-korean-ai-lecture,03-english-claude-event}.log` — 세 케이스 raw partial+final stream 보존
+- `~/Dev/_inbox/bartleby-spike/{korean,english_lecture}.wav` — Day 14 fresh capture WAV (60s @ 48kHz stereo f32)
+
+**알려진 deferred (Phase 2 통합 시)**:
+- Resampling 은 spike 의 linear interpolation. Production 은 rubato / samplerate 등 proper anti-aliased 필터 (음악·고주파 컨텐츠 검증에는 차이 날 수 있음)
+- `enable_speaker_diarization` 미사용. 미팅 모드에서 활성화 (Phase 3+)
+- Mid-stream 끊김 reconnect (PLAN.md L329-389 spec) 미구현 — Phase 2 본진
+- TLS choice (rustls vs native-tls) production 결정 — Phase 2 dep audit 시점
+
 ### 환경 (재현용)
 
 - Bartleby repo: `~/Dev/side/bartleby/`
@@ -211,32 +259,37 @@ git log --oneline -10  # 마지막 commit 확인
 
 자세한 결과는 위 "Day 13 결과" 섹션 참조. Phase 0 잔여 §02-§18 (ship gate 11 row + polish gate 7 row) 는 production rendering 시점 lazy 채움.
 
-### Step 2: Day 14 — Phase 2 STT entry (CEO reframe, Option B)
+### Step 2: Day 14 — Phase 2 STT entry ✅ *완료*
 
-**큰 reframe**: 원래 PLAN.md sequence 는 Phase 0 (1.5주) → Phase 2 STT 였으나, 3-lens CEO review 가 self-dogfooding solo founder 의 wedge 검증 우선순위로 **Phase 2 STT 우선** 강력 권고. Phase 0 잔여 17 sections 는 *production 에 처음 필요한 시점* lazy 채움.
+자세한 결과는 위 "Day 14 결과" 섹션 참조. Lane B (Soniox + OpenRouter key) 완료, spike binary 통과, 한국어 + 영어 conversational lecture production-quality 검증. Phase 2 STT critical risk retired.
 
-**Day 14 첫 슬라이스** (Day 1 capture spike pattern mirror):
+### Step 3: Day 15 — Tauri 통합 (capture → STT → overlay caption) ← *다음 슬라이스*
 
-#### A. Lane B 사용자 손 (1시간 분량, 사용자 직접 처리)
-- [ ] **Soniox** 가입 → API key → `~/.config/secrets/soniox.env` 에 `export SONIOX_API_KEY='...'` 형식
-- [ ] **OpenRouter** 가입 → API key + $5 충전 → `~/.config/secrets/openrouter.env`
-- [ ] **Apple Developer** 신청 ($99/년, 1주 lead time — mic empirical 의 prerequisite. Phase 2 와 별개로 시작은 지금)
-- 다음 세션 시작 시 `source ~/.config/secrets/soniox.env` + `source ~/.config/secrets/openrouter.env` 로 두 key 환경변수 로드
+bartleby repo 안에서 from-scratch 재구현 (spike 코드 복사 금지, 패턴만). drm_status event pattern mirror.
 
-#### B. Soniox spike binary (~3시간, throwaway)
-Day 1 capture spike 와 같은 패턴 — `~/Dev/_inbox/bartleby-stt-spike/` plain Rust binary 로 critical risk (Soniox 한국어/영어 STT 정확도) 우선 retire.
-- [ ] `cargo init` + deps: `tokio`, `tokio-tungstenite`, `reqwest`, `anyhow`, `bytemuck`, `hound`
-- [ ] 미리 녹음된 영어 wav (16kHz mono PCM) 또는 Day 5 의 1h capture .opus 한 segment → Soniox websocket stream
-- [ ] partial / final STT event stdout 출력 (JSON)
-- [ ] **wedge 검증 1차**: 영어 정확도 + 한국어 정확도 (사용자 본인 한국어 short clip 도 throw)
-- [ ] PLAN.md §3.1 "STT 벤치마크 Protocol" 의 fixture corpus 일부라도 ad-hoc 시도
+#### A. STT module 추가 (Rust side)
+- [ ] `src-tauri/src/stt/` 모듈 — Soniox client (websocket + config + binary frame send + token parse)
+- [ ] `tokio-tungstenite` + `native-tls` (또는 rustls + ring 으로 production 최종 결정 시점) feature 추가
+- [ ] 16kHz mono PCM s16le 로 SystemAudioSink 의 f32 buffer 변환 helper (Phase 2 시점엔 rubato 등 proper resampler 검토. spike 의 linear interpolation 은 wedge 검증 용이었음)
+- [ ] `STT_API_KEY` env var 또는 settings.json (BYOK) 로딩 — Phase 2 후반 §16 Settings UI 에 정식 입력 surface
+- [ ] Token unit tests (config JSON shape, server message parse, error_code as integer)
 
-### Step 3: Day 15+ — Tauri 통합 (capture → STT → overlay caption)
+#### B. Capture pipeline 연결
+- [ ] `capture_dual_to_opus` 가 system audio f32 stream 을 STT module 에 mpsc 로 fan-out (기존 Opus encoder 와 병렬, 둘 다 같은 source consume)
+- [ ] STT thread 가 16kHz mono s16le 로 변환 + 120ms chunk 로 Soniox 에 stream
+- [ ] `stt_partial` / `stt_final` Tauri event emit (`drm_status` pattern 그대로 — `&AppHandle` 받아 `app.emit(...)`)
+- [ ] Server close / error 시 `stt_error` event + auto-reconnect (PLAN.md L329-389 spec — 1→2→4→8→max 30s exponential backoff, 30s ring buffer audio)
 
-- [ ] Soniox client 가 `capture_dual_to_opus` 의 system audio buffer 받아 16kHz downsample 후 ws stream
-- [ ] `stt_partial` / `stt_final` Tauri event emit (drm_status pattern mirror)
-- [ ] Overlay (App.tsx) 가 listen → 영어 caption 표시 (KO 번역은 Day 16+)
-- [ ] PLAN.md L368-380 의 시청 모드 acceptance 1차 (영어 라이브 자막)
+#### C. Overlay caption surface
+- [ ] App.tsx Overlay 의 listener 추가 (`listen<SttPartialPayload>("stt_partial", ...)` + final). drm_status 와 동일 패턴.
+- [ ] partial 은 italic / final 은 plain 같은 visual cue (디자인 시스템 §11 LiveCaption gallery 시 정식)
+- [ ] 영어 자막 1차 (한국어 번역은 Day 16+ Solar Pro 3 통합 시점)
+- [ ] Empty state (capture stopped / DRM detected / no audio) 메시지 기존 drm_status 와 통합
+
+#### D. Acceptance (Day 15 결정 gate)
+- [ ] YouTube 영어 강연 1분 시청 → overlay 에 자연스러운 라이브 자막 (latency 1-2초 내, partial→final 흐름 자연)
+- [ ] 끊김 한 번 simulate (Wi-Fi 잠깐 토글) → 자동 reconnect, 30s 분량 audio 누락 없이 재개
+- [ ] Peak RSS 1h 시청 시 < 200MB (capture-only 1h 가 135MB 였으니 STT thread 추가 여유 60MB 정도 budget)
 
 ### Step 4: Day 16+ — Solar Pro 3 KO translation pipeline
 
@@ -332,7 +385,7 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | Hot key (⌘⇧B global summon) | ✅ Day 11 통과 | tauri-plugin-global-shortcut + global-shortcut:default. main hide ↔ show 토글, inactive 상태에서도 작동. |
 | Auto-capture lifecycle | ✅ Day 12 통과 | signal-driven loop + AppState session + start/stop Tauri command. ~45s indefinite capture live verified. |
 | Phase 0 디자인 시스템 entry | ✅ Day 13 통과 | tokens.css byte-exact + Section §00/§01 gallery + 6 폰트 embedding + production capture UI dressed + ship/polish gate split. Lazy chunk (Gallery 6.80 kB) 분리. |
-| Soniox STT 정확도 (한/영) | ⏳ Day 14 spike | spike binary 우선 → wedge 1차 검증. Whisper / Naver Clova 비교는 Phase 2 acceptance 시점. |
+| Soniox STT 정확도 (한/영) | ✅ Day 14 통과 | spike binary (~/Dev/_inbox/bartleby-stt-spike/) — 한국어 AI 강연 60s + 영어 Claude 강연 60s 모두 conversational lecture 사실상 완벽, LID 99%+. Phase 2 통합 안전. Whisper/Clova 비교는 Phase 2 acceptance 후 optional. |
 | Watch mode toggle (overlay + capture) | ⏳ Phase 2 후 | overlay 와 capture 가 STT pipeline 으로 연결되면 mode toggle 자연스럽게 reify. CEO reframe 에서 Day 14 단독 슬라이스 X. |
 | Mic / Speaker cross-check (DRM 확신) | ⏳ Phase 1+ | Apple Dev ID 후 mic 풀리면 system 무음 + mic 정상 → DRM 확정 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
@@ -386,4 +439,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens until told to stop, surfaces silence, answers to ⌘⇧B, **and now wears his own colors**. Day 14: Bartleby learns to translate (Soniox + Solar Pro 3, wedge 검증)."
+> "Bartleby floats, moves, listens until told to stop, surfaces silence, answers to ⌘⇧B, wears his own colors, **and now hears Korean and English at production quality**. Day 15: capture → Soniox → overlay caption (Tauri 통합), 라이브 영어 자막 1차."
