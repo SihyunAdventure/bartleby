@@ -213,7 +213,7 @@ python3 -m http.server 8081
 
 # 우리 앱 gallery
 cd ~/Dev/side/bartleby && pnpm tauri dev
-# → 앱 내 /__gallery 라우트
+# → 앱 내 ?gallery URL 분기
 ```
 
 좌우 모니터에 띄우고 14 섹션 1:1 비교. 자세한 검증 절차는 [NEXT.md](./NEXT.md) Step 5b/5c 참조.

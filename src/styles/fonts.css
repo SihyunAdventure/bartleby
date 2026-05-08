@@ -1,0 +1,36 @@
+/* ───────────────────────────────────────────────────────────────
+   Bartleby · Embedded font faces
+   All families: SIL OFL licensed, bundled for offline use.
+   Load order: fonts.css → tokens.css → App.css
+   ─────────────────────────────────────────────────────────────── */
+
+/* ── JetBrains Mono (EN display / mono) ── */
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+/* ── Inter Variable (EN body sans) — single file, all weights ── */
+@import "@fontsource-variable/inter";
+
+/* ── Pretendard (KR body sans) — static weights used in tokens ── */
+@import "@fontsource/pretendard/400.css";
+@import "@fontsource/pretendard/500.css";
+@import "@fontsource/pretendard/600.css";
+@import "@fontsource/pretendard/700.css";
+
+/* ── Cormorant Garamond (EN body serif) ── */
+@import "@fontsource/cormorant-garamond/400.css";
+@import "@fontsource/cormorant-garamond/400-italic.css";
+@import "@fontsource/cormorant-garamond/500.css";
+
+/* ── Gowun Batang (KR body serif) ── */
+@import "@fontsource/gowun-batang/400.css";
+@import "@fontsource/gowun-batang/700.css";
+
+/* ── D2Coding (KR display / mono) — no npm package, direct file ── */
+@font-face {
+  font-family: "D2Coding";
+  src: url("/fonts/D2Coding.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

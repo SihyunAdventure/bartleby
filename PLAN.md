@@ -208,7 +208,7 @@ NEXT.md Step 5 의 designer agent 위임 + 14 섹션 매핑 표 검증 (PRINCIPL
   - [ ] `<AudioMeter>` `<StatusStrip>`
   - [ ] `<Badge>` `<Dot>`
   - [ ] `<Toast>` `<Modal>` `<EmptyState>`
-- [ ] 갤러리 페이지 (`/__gallery`) — 14 섹션 모두 시각 비교 가능
+- [ ] 갤러리 페이지 (`?gallery`) — 14 섹션 모두 시각 비교 가능
 - [ ] App shell:
   - [ ] 사이드바 (240px, collapsible ⌘+\)
   - [ ] **모드 전환 UI** (시청 모드 ↔ 미팅 모드)
@@ -739,7 +739,7 @@ bartleby/
 ├── src/                    ← React + TS frontend
 │   ├── App.tsx
 │   ├── components/         ← UI primitives + domain blocks
-│   ├── components/gallery/ ← /__gallery 14 섹션
+│   ├── components/gallery/ ← ?gallery 14 섹션
 │   ├── modes/
 │   │   ├── watch/          ← 시청 모드 (floating overlay)
 │   │   └── meeting/        ← 미팅 모드 (sidebar view)

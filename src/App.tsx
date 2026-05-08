@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { lazy, Suspense, useEffect, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 
-const isOverlay = new URLSearchParams(window.location.search).has("overlay");
+const Gallery = lazy(() => import("./gallery/Gallery"));
+
+const params = new URLSearchParams(window.location.search);
+const isOverlay = params.has("overlay");
+const isGallery = params.has("gallery");
 
 interface DrmStatusPayload {
   drm_blocked: boolean;
@@ -40,6 +43,9 @@ function Overlay() {
   return (
     <div
       data-tauri-drag-region
+      // TODO(Day 20+ §15 Mode Switch): migrate inline rgba() to var(--paper) + opacity
+      //   and var(--ink-3) once data-theme cascade lands. Tokens.css is now imported
+      //   globally so the migration is just CSS, not infra.
       style={{
         width: "100%",
         height: "100vh",
@@ -56,7 +62,7 @@ function Overlay() {
         WebkitUserSelect: "none",
         padding: "0 16px",
         textAlign: "center",
-      } as React.CSSProperties}
+      } as CSSProperties}
     >
       {text}
     </div>
@@ -94,8 +100,6 @@ interface CaptureStats {
 }
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
   const [captureStatus, setCaptureStatus] = useState("");
   const [seconds, setSeconds] = useState(10);
   const [captureRunning, setCaptureRunning] = useState(false);
@@ -113,105 +117,92 @@ function App() {
     );
   };
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
   if (isOverlay) {
     return <Overlay />;
   }
 
+  if (isGallery) {
+    return (
+      <Suspense fallback={null}>
+        <Gallery />
+      </Suspense>
+    );
+  }
+
   return (
     <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+      <header className="capture-hero">
+        <h1 className="display">bartleby</h1>
+        <div className="serif-quote capture-epigraph">
+          "I would prefer not to take notes."
+        </div>
+      </header>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+      <section className="capture-panel">
+        <div className="capture-row">
+          <input
+            type="number"
+            min="10"
+            max="3600"
+            step="1"
+            value={seconds}
+            onChange={(e) => setSeconds(Number(e.currentTarget.value))}
+          />
+          <button
+            className="btn"
+            disabled={captureRunning}
+            onClick={async () => {
+              setCaptureStatus("Capturing...");
+              try {
+                const stats = await invoke<CaptureStats>("capture_system_audio", { seconds });
+                setCaptureStatus(formatStats(stats));
+              } catch (err) {
+                setCaptureStatus(`Error: ${String(err)}`);
+              }
+            }}
+          >
+            Capture {seconds}s
+          </button>
+        </div>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+        <div className="capture-row">
+          <button
+            className="btn btn-primary"
+            disabled={captureRunning}
+            onClick={async () => {
+              try {
+                await invoke("start_capture");
+                setCaptureRunning(true);
+                setCaptureStatus("Listening...");
+              } catch (err) {
+                setCaptureStatus(`Error: ${String(err)}`);
+              }
+            }}
+          >
+            Start capture
+          </button>
+          <button
+            className="btn"
+            disabled={!captureRunning}
+            onClick={async () => {
+              try {
+                const stats = await invoke<CaptureStats>("stop_capture");
+                setCaptureRunning(false);
+                setCaptureStatus(formatStats(stats));
+              } catch (err) {
+                setCaptureRunning(false);
+                setCaptureStatus(`Error: ${String(err)}`);
+              }
+            }}
+          >
+            Stop capture
+          </button>
+        </div>
 
-      <div className="row">
-        <input
-          type="number"
-          min="10"
-          max="3600"
-          step="1"
-          value={seconds}
-          onChange={(e) => setSeconds(Number(e.currentTarget.value))}
-        />
-        <button
-          disabled={captureRunning}
-          onClick={async () => {
-            setCaptureStatus("Capturing...");
-            try {
-              const stats = await invoke<CaptureStats>("capture_system_audio", { seconds });
-              setCaptureStatus(formatStats(stats));
-            } catch (err) {
-              setCaptureStatus(`Error: ${String(err)}`);
-            }
-          }}
-        >
-          Capture {seconds}s
-        </button>
-      </div>
-
-      <div className="row">
-        <button
-          disabled={captureRunning}
-          onClick={async () => {
-            try {
-              await invoke("start_capture");
-              setCaptureRunning(true);
-              setCaptureStatus("Listening...");
-            } catch (err) {
-              setCaptureStatus(`Error: ${String(err)}`);
-            }
-          }}
-        >
-          Start capture
-        </button>
-        <button
-          disabled={!captureRunning}
-          onClick={async () => {
-            try {
-              const stats = await invoke<CaptureStats>("stop_capture");
-              setCaptureRunning(false);
-              setCaptureStatus(formatStats(stats));
-            } catch (err) {
-              setCaptureRunning(false);
-              setCaptureStatus(`Error: ${String(err)}`);
-            }
-          }}
-        >
-          Stop capture
-        </button>
-      </div>
-      <p>{captureStatus}</p>
+        {captureStatus && (
+          <p className="capture-status mono">{captureStatus}</p>
+        )}
+      </section>
     </main>
   );
 }

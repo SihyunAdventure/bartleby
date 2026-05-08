@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 오후 — **Day 1-12 ✅ (capture infra → 시청 모드 lifecycle 까지)**
+> 마지막 세션: 2026-05-08 — **Day 1-13 ✅** (capture infra 12 days + Phase 0 디자인 시스템 entry + 3-lens review reframe)
 
 ---
 
-## 현재 상태 (Day 12 ✅ 종료, 2026-05-08 오후)
+## 현재 상태 (Day 13 ✅ 종료, 2026-05-08)
 
 ### 누적 commits (main branch)
 
@@ -41,6 +41,8 @@
 | `f8329e1` | **Day 11 slice** ✅ ⌘⇧B global shortcut toggles main window — tauri-plugin-global-shortcut + global-shortcut:default 권한 + setup hook 의 on_shortcut. inactive 상태에서도 main hide ↔ show 토글 live verified. |
 | `18d0315` | NEXT.md sync (Day 11 ✅ + Day 12 entry) |
 | `6572a76` | **Day 12 slice** ✅ Auto-capture lifecycle — capture_dual_to_opus 가 (stop, max_seconds) 받아 signal-driven loop. `CaptureSession` + AppState Mutex. start_capture/stop_capture/capture_system_audio 3개 Tauri command. Live verified: Start → ~45s indefinite → Stop, -4.9 dBFS peak / 9 segments. |
+| `958e921` | NEXT.md sync (Day 12 ✅ + Day 13 entry) |
+| *(uncommitted)* | **Day 13 slice + cleanup** ✅ Phase 0 entry — tokens.css copy + Section §00 Manifesto + §01 Color (gallery `?gallery` 분기). 3-lens review (CEO/Design/Eng) 후 큰 cleanup: CSS Modules + sections 분할 + lazy Gallery + theme-cascade + 6 폰트 embedding + production capture UI dress + PRINCIPLES.md §2.2 ship/polish gate split + spec drift fix. |
 
 ### 작동 검증된 것
 
@@ -147,6 +149,39 @@ Capture 가 fixed-duration blocking → signal-driven loop 로 리팩토링. 시
 - ✅ Live: Start → ~45s capture → Stop, peak -4.9 dBFS / 9 segments
 - ✅ 23 tests still pass (capture signature 변경은 internal)
 
+### Day 13 결과 (entry slice + 3-lens review cleanup)
+
+Phase 0 디자인 시스템 entry. 19 섹션 한 슬라이스 X — Section §00+§01 만 진행 후 3-lens review (CEO / Design / Eng) → 큰 cleanup.
+
+**Entry slice (gallery infra)**:
+- ✅ `src/styles/tokens.css` — design-system/bartleby/project/bartleby/tokens.css **byte-exact 복사** (PRINCIPLES.md §0 sacred law)
+- ✅ `src/gallery/Gallery.tsx` (44줄 switchboard) + `components/{DSSection,Swatch}.tsx` + `sections/00-Manifesto.tsx` + `sections/01-Color.tsx`
+- ✅ `src/gallery/Gallery.module.css` (CSS Modules, kebab-case selector + bracket notation TS access. token utility classes 글로벌 유지)
+- ✅ `src/App.tsx` `?gallery` URL 분기 + `lazy()` + `<Suspense>` (Gallery 별도 chunk: 6.80 kB)
+- ✅ `GALLERY.md` — 19 섹션 매핑 표 + ship/polish Gate 컬럼 + ritual + 검증 워크플로우
+
+**3-lens review reframe (Day 13 doubling-down 의 핵심)**:
+- ✅ **CEO Concern A/B (CRITICAL)** → PRINCIPLES.md §2.2 의 19 ✅ hard gate 를 **ship gate 12 + polish gate 7** split. v1 launch acceptance = ship gate 12 만, polish 는 Phase 6.
+- ✅ **CEO Concern D**: production capture UI 가 boilerplate (Vite/Tauri/React logos + "Welcome to Tauri+React" h1 + Greet form) → **dressed**. `<h1 className="display">bartleby</h1>` + `serif-quote` epigraph + `.btn` / `.btn-primary` (mono uppercase, paper-3 hover, ink-on-paper). App.css 의 :root Inter / hex `#0f0f0f` / `#f6f6f6` 모두 삭제, tokens.css OKLCH 토큰 사용.
+- ✅ **CEO Concern E**: PLAN.md L198 명시한 **6 폰트 embedding** — JetBrains Mono · Inter Variable · Pretendard · Cormorant Garamond · Gowun Batang (5종 @fontsource) + D2Coding (4MB ttf, 직접 다운로드, OFL.txt 동봉). `src/styles/fonts.css` 에 모두 모음, main.tsx 에서 tokens.css 위에 import.
+- ✅ **CEO Concern G + Design Fix-02**: spec drift `/__gallery` → `?gallery` (PLAN/PRINCIPLES/DESIGN 5 instances). Manifesto rule-item 한국어 mixed-run 에 `.kr-leading` 적용.
+- ✅ **Eng High #1/#9**: `React.ReactNode` / `React.CSSProperties` UMD global → `import type { ReactNode, CSSProperties } from "react"` (Gallery.tsx + App.tsx).
+- ✅ **Eng High #3**: Gallery `lazy()` + `<Suspense fallback={null}>` — capture-only / overlay-only 사용자가 Gallery code 다운로드 X.
+- ✅ **Eng High #4**: CSS Modules 전환 + `.row` 충돌 fix (App.css `.row` → `.capture-row`, App.tsx 4 callers 동기). tokens.css `.row` 가 글로벌 utility 로 살아남음.
+- ✅ **Eng Medium #6**: Color section theme-card 의 inline raw OKLCH → `data-theme="dark"` cascade (§15 Mode Switch 미리 검증). `var(--paper)` / `var(--ink)` 가 dark theme attribute 상에서 자동 swap.
+- ✅ **Eng Medium #7**: Gallery.tsx 분할 (god-component risk 회피, §13 시점 3000줄 방지).
+- ✅ **Eng Medium #5/#8**: main.tsx 의 import 순서 trap 주석 + Overlay 의 inline rgba TODO 주석 (Day 20+ §15 Mode Switch 시 token cascade 적용).
+
+**검증** (Day 13 acceptance):
+- `pnpm build` (tsc + vite): 0 errors, 417ms. Gallery chunk 6.80 kB / Gallery.css 2.80 kB 분리 확인.
+- `cargo test --lib`: **23/23 pass**. capture infra 회귀 X.
+- 본인이 매일 dogfood 하는 capture surface 가 *Bartleby 처럼 보임* (paper-ivory + display "bartleby" + Cormorant epigraph + mono caps 버튼).
+
+**알려진 deferred** (NEXT.md / GALLERY.md 에 명시):
+- Section §02-§18 의 17 sections — production rendering 시점 lazy 채움. Phase 0 acceptance = ship gate 12 row.
+- Section §02 Typography 시점에 Gowun Batang 로드 검증 + kr-leading-bump CSS calc + pair-table border-radius+overflow Tauri WebView 호환 검증.
+- Overlay (App.tsx L46 inline rgba) → token migration: Day 20+ §15 Mode Switch.
+
 ### 환경 (재현용)
 
 - Bartleby repo: `~/Dev/side/bartleby/`
@@ -172,17 +207,55 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: Day 13 — Phase 0 디자인 시스템 entry (gallery + 14→19 섹션)
+### Step 1: Day 13 — Phase 0 entry (Section §00 + §01) ✅ *완료*
 
-Infra slice (Day 1-12) 마무리. 이제 본격 UI 단계. design-system-extensions 의 gallery route + 19 섹션 매핑. 별도 위임 prompt 는 git history 참조 (commit `f927321` ~ `3733318`). designer agent 위임 추천.
+자세한 결과는 위 "Day 13 결과" 섹션 참조. Phase 0 잔여 §02-§18 (ship gate 11 row + polish gate 7 row) 는 production rendering 시점 lazy 채움.
 
-### Step 2: Day 14+ — Watch mode toggle (overlay + capture 결합)
+### Step 2: Day 14 — Phase 2 STT entry (CEO reframe, Option B)
 
-Day 12 의 start/stop 을 시청 모드 토글에 묶기. 진입 시 overlay show + start_capture, 종료 시 overlay hide + stop_capture. mode-switch.md spec 참조. 현재 분리되어 있는 overlay 표시 (tauri.conf.json 자동 띄움) 와 capture (수동 button) 를 단일 토글로 통합.
+**큰 reframe**: 원래 PLAN.md sequence 는 Phase 0 (1.5주) → Phase 2 STT 였으나, 3-lens CEO review 가 self-dogfooding solo founder 의 wedge 검증 우선순위로 **Phase 2 STT 우선** 강력 권고. Phase 0 잔여 17 sections 는 *production 에 처음 필요한 시점* lazy 채움.
 
-### Step 3: Day 15+ — STT 통합 (Soniox streaming, Phase 2)
+**Day 14 첫 슬라이스** (Day 1 capture spike pattern mirror):
 
-Lane B 셋업 완료 후 (Soniox API key, $5+ 충전). Opus segment 를 ws stream 으로 push, 영어 → 한국어 translation. overlay 에 live caption.
+#### A. Lane B 사용자 손 (1시간 분량, 사용자 직접 처리)
+- [ ] **Soniox** 가입 → API key → `~/.config/secrets/soniox.env` 에 `export SONIOX_API_KEY='...'` 형식
+- [ ] **OpenRouter** 가입 → API key + $5 충전 → `~/.config/secrets/openrouter.env`
+- [ ] **Apple Developer** 신청 ($99/년, 1주 lead time — mic empirical 의 prerequisite. Phase 2 와 별개로 시작은 지금)
+- 다음 세션 시작 시 `source ~/.config/secrets/soniox.env` + `source ~/.config/secrets/openrouter.env` 로 두 key 환경변수 로드
+
+#### B. Soniox spike binary (~3시간, throwaway)
+Day 1 capture spike 와 같은 패턴 — `~/Dev/_inbox/bartleby-stt-spike/` plain Rust binary 로 critical risk (Soniox 한국어/영어 STT 정확도) 우선 retire.
+- [ ] `cargo init` + deps: `tokio`, `tokio-tungstenite`, `reqwest`, `anyhow`, `bytemuck`, `hound`
+- [ ] 미리 녹음된 영어 wav (16kHz mono PCM) 또는 Day 5 의 1h capture .opus 한 segment → Soniox websocket stream
+- [ ] partial / final STT event stdout 출력 (JSON)
+- [ ] **wedge 검증 1차**: 영어 정확도 + 한국어 정확도 (사용자 본인 한국어 short clip 도 throw)
+- [ ] PLAN.md §3.1 "STT 벤치마크 Protocol" 의 fixture corpus 일부라도 ad-hoc 시도
+
+### Step 3: Day 15+ — Tauri 통합 (capture → STT → overlay caption)
+
+- [ ] Soniox client 가 `capture_dual_to_opus` 의 system audio buffer 받아 16kHz downsample 후 ws stream
+- [ ] `stt_partial` / `stt_final` Tauri event emit (drm_status pattern mirror)
+- [ ] Overlay (App.tsx) 가 listen → 영어 caption 표시 (KO 번역은 Day 16+)
+- [ ] PLAN.md L368-380 의 시청 모드 acceptance 1차 (영어 라이브 자막)
+
+### Step 4: Day 16+ — Solar Pro 3 KO translation pipeline
+
+- [ ] OpenRouter Solar Pro 3 streaming translation
+- [ ] Order-preserving (`seq` per final, `Map<seq, TranslationState>`, contiguous prefix render)
+- [ ] Bounded translation queue depth 8 + EN fallback on timeout/skip
+- [ ] Reconnect protocol (1→2→4→8→max 30s exponential backoff, 30s ring buffer audio)
+- [ ] PLAN.md L329-389 spec 그대로
+
+### Step 5: Day 17+ — Phase 2 acceptance
+
+본인이 영어 YouTube 1시간 시청 → 라이브 한국어 자막 overlay (네트워크 blip 한 번 simulate 해도 reconnect 작동). **wedge 1차 검증 완료**. Peak RSS < 100MB.
+
+### Step 6: Phase 0 잔여 17 sections — lazy fill
+
+- §02 Typography: Section 02 진입 시 prep notes 는 GALLERY.md §02 Notes 컬럼 참조 (Risks 4개)
+- §16 Settings UI: Phase 2 acceptance 후 BYOK key field (사용자가 ENV var 대신 UI 로 입력)
+- §14 WatchOverlay: 이미 overlay 가 production 작동 중 — gallery 의 §14 spec 비교는 Phase 2 마무리 시점
+- 나머지 sections: Phase 6 polish 시점
 
 ### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
@@ -258,7 +331,9 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | Overlay surface (silence verdict) | ✅ Day 10 통과 | drm_status Tauri event + Overlay listen → 자동 텍스트 교체. 메시지는 mic cross-check 전까지 neutral. |
 | Hot key (⌘⇧B global summon) | ✅ Day 11 통과 | tauri-plugin-global-shortcut + global-shortcut:default. main hide ↔ show 토글, inactive 상태에서도 작동. |
 | Auto-capture lifecycle | ✅ Day 12 통과 | signal-driven loop + AppState session + start/stop Tauri command. ~45s indefinite capture live verified. |
-| Watch mode toggle (overlay + capture) | ⏳ Day 14 | start/stop 을 mode toggle 에 묶기 (overlay show + start, hide + stop). |
+| Phase 0 디자인 시스템 entry | ✅ Day 13 통과 | tokens.css byte-exact + Section §00/§01 gallery + 6 폰트 embedding + production capture UI dressed + ship/polish gate split. Lazy chunk (Gallery 6.80 kB) 분리. |
+| Soniox STT 정확도 (한/영) | ⏳ Day 14 spike | spike binary 우선 → wedge 1차 검증. Whisper / Naver Clova 비교는 Phase 2 acceptance 시점. |
+| Watch mode toggle (overlay + capture) | ⏳ Phase 2 후 | overlay 와 capture 가 STT pipeline 으로 연결되면 mode toggle 자연스럽게 reify. CEO reframe 에서 Day 14 단독 슬라이스 X. |
 | Mic / Speaker cross-check (DRM 확신) | ⏳ Phase 1+ | Apple Dev ID 후 mic 풀리면 system 무음 + mic 정상 → DRM 확정 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
@@ -278,6 +353,13 @@ pnpm tauri dev
 
 # 단위 테스트 (23개 — planar 3 + drift 4 + opus 4 + rss 1 + silence 11)
 cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+# Frontend build + type check
+pnpm build
+
+# Gallery 시각 검증 (외부 브라우저, 1280px+ width)
+# → http://localhost:1420/?gallery
+# 원본 비교: cd design-system/bartleby/project && python3 -m http.server 8081
 
 # Production build (Phase 6 시점)
 pnpm tauri build
@@ -304,4 +386,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens until told to stop, surfaces silence, answers to ⌘⇧B. Day 13: Bartleby learns its colors and shapes (design system)."
+> "Bartleby floats, moves, listens until told to stop, surfaces silence, answers to ⌘⇧B, **and now wears his own colors**. Day 14: Bartleby learns to translate (Soniox + Solar Pro 3, wedge 검증)."
