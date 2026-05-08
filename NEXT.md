@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 새벽 — **Day 1-6 ✅ + Day 7 partial (drag 3가지 시도 실패, hypothesis 만 남음)**
+> 마지막 세션: 2026-05-08 오전 — **Day 1-7 ✅ (drag triad 발견 — capabilities + acceptFirstMouse + nonactivating_panel)**
 
 ---
 
-## 현재 상태 (Day 7 partial 종료, 2026-05-08 새벽 ~4:00)
+## 현재 상태 (Day 7 ✅ 종료, 2026-05-08 오전)
 
 ### 누적 commits (main branch)
 
@@ -29,6 +29,8 @@
 | `5e3ebd6` | **Day 6 finalize** ✅ Accessory activation policy + transparent CSS fix → fullScreenAuxiliary live verified (YouTube fullscreen 위 floating). drag 만 남음. |
 | `77c307b` | NEXT.md sync (Day 6 ✅ finalize) |
 | `d306b2e` | **Day 7 partial** ⚠️ Drag 3가지 시도 실패 — startDragging() JS handler 만 남김. nonactivating_panel + Accessory 가설 검증은 다음 세션 첫 probe. |
+| `ce07dd5` | NEXT.md sync (Day 7 partial + 다음 세션 3 probes) |
+| `ce29bd2` | **Day 7 slice** ✅ Overlay drag — codex+advisor parallel review 로 root cause triad 확정 (capabilities + acceptFirstMouse + nonactivating_panel). Live verified: 첫 클릭부터 inactive 상태에서 즉시 drag. |
 
 ### 작동 검증된 것
 
@@ -60,50 +62,28 @@
 - ✅ **Always-on-top** (`PanelLevel::Floating`)
 - ✅ 두 윈도우 동시 띄움, NSPanel 변환
 
-#### 남은 항목 — Drag (Day 7 partial 후속)
+### Day 7 결과 (live verified)
 
-3가지 시도 모두 실패. **이건 단순 1줄 fix 가 아니다** (advisor 의 1줄 fix 추측은 evidence 로 falsified):
+Overlay drag 완전 동작 — **3개 piece 모두 필요, 하나라도 빠지면 silent no-op**:
 
-| 시도 | 결과 | Note |
+| Piece | 위치 | 역할 |
 |---|---|---|
-| `WebkitAppRegion: "drag"` (CSS) | ❌ | NSPanel 이 webview 의 -webkit-app-region 가로챔 |
-| `panel.set_movable_by_window_background(true)` (Rust) | ❌ | webview = NSPanel 의 contentView 전체 → window background 영역 자체 없음 → 적용 의미 없음 |
-| `getCurrentWebviewWindow().startDragging()` (JS onMouseDown) | ❌ | mouse event 는 webview 도달 (스크롤 작동 확인됨) — 그러나 startDragging 자체가 NSPanel 환경에서 silently no-op 또는 `nonactivating_panel` style 차단 |
+| `core:window:allow-start-dragging` 권한 + `windows: ["main", "overlay"]` | `capabilities/default.json` | 기본 `core:window:default` 는 start-dragging 제외. per-window list 가 `["main"]` 만이라 overlay 는 IPC drag 권한 0 이었음. |
+| `acceptFirstMouse: true` | `tauri.conf.json` overlay window | wry 가 WKWebView 의 `acceptsFirstMouse:` 를 YES 로 override. 없으면 inactive panel 첫 클릭은 AppKit 이 window-key-order 용으로 swallow → drag.js 의 mousedown handler 도달 안 함. |
+| `data-tauri-drag-region` attribute | `App.tsx` Overlay 의 outer div | Tauri 2 가 inject 한 native mousedown handler 가 `plugin:window|start_dragging` IPC 호출. async `getCurrentWebviewWindow().startDragging()` 의 React 통한 우회보다 직접적. |
 
-**현재 코드 상태**: lib.rs 의 `set_movable_by_window_background` 제거됨, App.tsx 의 onMouseDown→startDragging 만 남음 (chrome button 패턴의 self-document 가치 + drag 시도 evidence).
+NSPanel polish:
+- `nonactivating_panel` style mask — overlay 클릭이 Bartleby app 을 활성화하지 않음. YouTube/Chrome focus 안 뺏김.
+- `becomesKeyOnlyIfNeeded(true)` — panel 이 first responder 필요한 control 클릭 시에만 key 가 됨.
 
-**가설** (확인되지 않은 — *probe 순서대로 검증할 것*):
-- ① `nonactivating_panel` style mask + Accessory 조합이 mouse focus / drag action 을 무효화
-- ② nspanel 자체의 알려진 issue / gap (examples 어디에도 drag 검증 없음 — signal)
-- ③ `is_floating_panel: true` config 가 drag 와 conflict
+**5+ 시도 실패 후 codex + advisor parallel review 로 root cause 발견** — codex 가 capabilities 누락 + acceptFirstMouse API 정확히 지목, advisor 가 async startDragging() 의 sync 가정 오류 + scope question 제기. 이전 NEXT.md 의 3 probe 가설 (nonactivating / nspanel issues / is_floating_panel) 모두 falsified.
 
-#### 다음 세션 Drag probe 순서 (cheapness 순)
+#### Main 윈도우 띄우기 — Day 8 entry point
 
-**Probe 1 (5분, cheap discriminator)** — `nonactivating_panel` 임시 제거 후 retest
-
-`src-tauri/src/lib.rs` setup 의 `panel.set_style_mask(StyleMask::empty().nonactivating_panel().into())` 를 임시로 `panel.set_style_mask(StyleMask::empty().into())` 또는 line 자체 제거. tauri dev 재시작 + drag 시도. 결과:
-- 작동 → ① 가설 확정. 진짜 design tradeoff (drag vs. nonactivating). 사용자 결정 필요.
-- 안 작동 → ① 가설 falsified. Probe 2/3 로.
-
-**Probe 2 (5분)** — nspanel issues 검색
-
-```bash
-gh search issues --repo ahkohd/tauri-nspanel "drag" --json number,title,state
-gh search issues --repo ahkohd/tauri-nspanel "movable" --json number,title,state
-gh search issues --repo ahkohd/tauri-nspanel "startDragging" --json number,title,state
-```
-
-같은 이슈가 등록되어 있는지. 해결책 또는 known limitation 인지.
-
-**Probe 3 (30분)** — minimal isolated app 으로 재현
-
-새 throwaway tauri 2 + nspanel 프로젝트 만들고 같은 config (Accessory + nonactivating + transparent + alwaysOnTop) 로 drag 작동하는지 — 우리 코드 issue vs. nspanel issue isolation. 작동하면 우리 환경이 problem (Bartleby 의 다른 build flag 또는 plugin), 작동 안 하면 nspanel 의 fundamental gap.
-
-#### Main 윈도우 띄우기 — Phase 0+ 별도
-
-Accessory 채택 trade-off — dock icon 없어 main 안 보임. 의도대로. 다음 슬라이스:
-- Menu bar item (NSStatusItem) 또는 hot key 로 main 호출
-- ⌘W 로 main close, overlay 만 유지
+Accessory 채택 trade-off: dock icon 없어 main window 가 처음 launch 후 close 시 다시 호출 불가. 다음 슬라이스 (Phase 0 일부):
+- **Menu bar item (NSStatusItem)** — 가장 자연스러움. macOS overlay-first app 들 standard pattern (Raycast, 1Password, Linear menu bar app 등)
+- 또는 **hot key (⌘⇧B)** — 빠르지만 menu bar 보다 discovery 떨어짐
+- ⌘W 로 main close, overlay 만 유지 (지금 default 동작과 일치)
 - Phase 0 의 mode-switch (시청 ↔ 미팅) 와 묶기
 
 ### 환경 (재현용)
@@ -131,25 +111,32 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: Drag triage — 3 probes (Day 7 후속)
+### Step 1: Day 8 — Main 윈도우 invocation (Phase 0 일부)
 
-위 "남은 항목 — Drag" 섹션의 **Probe 1 → Probe 2 → Probe 3** 순서로 cheap discriminator 부터. Probe 1 이 5분이면 끝, 작동 시 진짜 design tradeoff 만 결정. 작동 안 하면 Probe 2/3 로 가설 narrow.
+Accessory activation policy 의 trade-off 처리. Main window 가 close 후 다시 보이지 않는 문제 해결.
 
-### Step 2: Main 윈도우 띄우기 (Phase 0 일부)
+**스코프 (cheap path)**:
+- `tauri-plugin-positioner` 또는 직접 NSStatusItem (objc2) 으로 menu bar item 생성
+- "Show Bartleby" / "Quit" 두 항목
+- 클릭 시 `app.get_webview_window("main").show().set_focus()`
+- Hot key (⌘⇧B) 는 후속 — `tauri-plugin-global-shortcut` 사용
 
-Accessory tradeoff 처리:
-- Menu bar item (NSStatusItem) 또는 ⌘⇧B 같은 hot key 로 main window show
-- 시청 ↔ 미팅 mode-switch 와 묶기 (design-system-extensions/mode-switch.md)
+**Verify**:
+- 앱 시작 후 main window close → menu bar item 클릭 → main 다시 뜸
+- Quit 으로 정상 종료
+- Overlay 는 main close 와 무관하게 계속 떠있음 (현재 동작 유지)
 
-### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
+**design-system-extensions/mode-switch.md 의 시청 ↔ 미팅 토글과 묶을지** — Day 8 에서 결정. menu bar item 이 mode 표시 (👁️ vs. 🎙️) 도 가능.
 
-`pnpm tauri add nspanel` 또는 `cargo add tauri-plugin-nspanel`. main window + 작은 floating overlay (NSPanel) 2개 띄우고 drag/resize/opacity 검증. PRINCIPLES + design-system-extensions/overlay.md 의 spec 가능성 판단. 별도 슬라이스.
+### Step 2 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
-### Step 2: DRM detection PoC (Day 7)
+PRINCIPLES + design-system-extensions/overlay.md 의 spec — drag 까지 verified.
+
+### Step 3: DRM detection PoC
 
 Apple TV+ / Netflix 같은 DRM 콘텐츠 재생 중 system audio 가 silent (RMS < -60dBFS) 인지 10-20s 동안 측정해서 DRM-blocked 상태 detect. UI 에 "Bartleby would prefer not to. (DRM blocked)" 표시. 작은 슬라이스.
 
-### Step 3: Lane B 인프라 (사용자 직접, ~1시간)
+### Step 4: Lane B 인프라 (사용자 직접, ~1시간)
 
 - [ ] heybartleby.com 결제 (Cloudflare 또는 Porkbun)
 - [ ] GitHub org `heybartleby` + repo bartleby (private)
@@ -158,7 +145,7 @@ Apple TV+ / Netflix 같은 DRM 콘텐츠 재생 중 system audio 가 silent (RMS
 - [ ] OpenRouter 가입 → API key + $5 충전
 - [ ] **Apple Developer 신청 ($99/년, 승인 1주)** ← Day 3 mic empirical 의 prerequisite
 
-### Step 4: 디자인 시스템 코드 구축 (Phase 0 본진)
+### Step 5: 디자인 시스템 코드 구축 (Phase 0 본진)
 
 이전 NEXT.md 의 designer 위임 가이드 그대로 — `/__gallery` 라우트로 14→19 섹션 1:1 매핑. 자세한 위임 prompt 는 git history (commit `f927321` ~ `3733318`) 또는 별도 노트 참조. 우선순위는 capture 1h 검증 통과 후 (Phase 1 → Phase 0 reordering 그대로).
 
@@ -213,8 +200,8 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | 1h stability + RSS | ✅ Day 5 통과 | RSS peak 135.8MB / 720 seg / drop 0 / drift hang 없음 |
 | Mic 실 캡처 | ⏳ Apple Dev ID 후 | Info.plist + code path 다 들어감, signing 만 남음 |
 | nspanel fullScreenAuxiliary | ✅ Day 6 통과 | Accessory + nspanel collection behavior, YouTube fullscreen 위 floating live 검증 |
-| Overlay drag | ⏳ Day 7 partial — 3가지 시도 실패 | 1줄 fix 가설 falsified. Probe 1 (nonactivating 제거) 부터 다음 세션 |
-| Main 윈도우 호출 (Accessory tradeoff) | ⏳ Phase 0 | menu bar item 또는 hot key |
+| Overlay drag | ✅ Day 7 통과 | capabilities + acceptFirstMouse + nonactivating_panel triad. inactive 첫 클릭부터 drag, focus stealing 없음 live verified. |
+| Main 윈도우 호출 (Accessory tradeoff) | ⏳ Day 8 | menu bar item (NSStatusItem) 우선, hot key 후속 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
 | Apple Developer 승인 지연 | Lane B 큐, ~1주 | 다음 세션 사용자 신청 권장 |
@@ -259,4 +246,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats but does not move. Bartleby would prefer a daylight probe."
+> "Bartleby floats and now moves. Bartleby would prefer a menu bar."
