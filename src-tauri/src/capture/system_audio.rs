@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 
 use super::rss::RssStats;
 use super::silence::DrmDetector;
@@ -50,6 +51,15 @@ impl DriftStats {
             paired_samples: 0,
         }
     }
+}
+
+/// Mid-capture verdict emitted to the frontend via the `drm_status` Tauri event.
+/// Sent once per capture, ~3 seconds after audio starts arriving so the overlay
+/// can swap to the DRM-blocked placeholder while the capture is still running.
+#[derive(Debug, Clone, Serialize)]
+pub struct DrmStatus {
+    pub drm_blocked: bool,
+    pub peak_dbfs: f64,
 }
 
 /// Statistics returned after a completed capture session.
@@ -235,6 +245,7 @@ pub fn capture_dual_to_opus(
     system_base_path: &Path,
     mic_base_path: &Path,
     rss_log_path: &Path,
+    app: &AppHandle,
 ) -> Result<CaptureStats> {
     const SAMPLE_RATE: u32 = 48_000;
     const CHANNELS: u16 = 2;
@@ -300,6 +311,36 @@ pub fn capture_dual_to_opus(
         super::rss::rss_sampler(rss_stop_clone, rss_path)
     });
 
+    // ---- 4c. Spawn DRM emit thread --------------------------------------
+    // Polls the detector every 500ms; once we have ~3s of stereo audio the
+    // verdict is stable enough to push to the overlay so it can swap to the
+    // DRM-blocked placeholder while the capture is still running.
+    let drm_min_samples = SAMPLE_RATE as usize * usize::from(CHANNELS);
+    let drm_confidence_samples = drm_min_samples * 3; // ~3 seconds of stereo
+    let drm_emit_stop = Arc::new(AtomicBool::new(false));
+    let drm_emit_stop_clone = Arc::clone(&drm_emit_stop);
+    let drm_for_emit = Arc::clone(&drm_detector);
+    let app_for_emit = app.clone();
+    let drm_emit_thread = std::thread::spawn(move || {
+        let mut emitted = false;
+        while !drm_emit_stop_clone.load(Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_millis(500));
+            if emitted {
+                continue;
+            }
+            let det = drm_for_emit.lock().unwrap();
+            if det.samples_observed() >= drm_confidence_samples {
+                let status = DrmStatus {
+                    drm_blocked: det.is_drm_blocked(drm_min_samples),
+                    peak_dbfs: det.peak_dbfs(),
+                };
+                drop(det);
+                let _ = app_for_emit.emit("drm_status", status);
+                emitted = true;
+            }
+        }
+    });
+
     // ---- 5. Wire up sinks and start capture -----------------------------
     let mut stream = SCStream::new(&filter, &config);
     stream.add_output_handler(sys_sink, SCStreamOutputType::Audio);
@@ -317,8 +358,9 @@ pub fn capture_dual_to_opus(
         .stop_capture()
         .context("Failed to stop SCStream capture")?;
 
-    // Signal RSS sampler to stop (before joining encoder workers).
+    // Signal RSS sampler + DRM emit thread to stop (before joining workers).
     rss_stop.store(true, Ordering::Relaxed);
+    drm_emit_stop.store(true, Ordering::Relaxed);
 
     println!("Bartleby has finished listening.");
 
@@ -346,6 +388,10 @@ pub fn capture_dual_to_opus(
         .join()
         .map_err(|_| anyhow::anyhow!("RSS sampler worker panicked"))?
         .context("RSS sampler worker failed")?;
+
+    drm_emit_thread
+        .join()
+        .map_err(|_| anyhow::anyhow!("DRM emit thread panicked"))?;
 
     // ---- 8. Aggregate stats ---------------------------------------------
     let sys_acc = sys_accumulator.lock().unwrap();

@@ -31,7 +31,10 @@ fn greet(name: &str) -> String {
 /// and returns combined stats including drift analysis. Runs blocking SCStream
 /// capture on a dedicated thread so the Tauri async runtime stays responsive.
 #[tauri::command]
-async fn capture_system_audio(seconds: u64) -> Result<CaptureStats, String> {
+async fn capture_system_audio(
+    app: tauri::AppHandle,
+    seconds: u64,
+) -> Result<CaptureStats, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -45,8 +48,14 @@ async fn capture_system_audio(seconds: u64) -> Result<CaptureStats, String> {
         let rss_log = std::env::temp_dir()
             .join(format!("bartleby-rss-{}.log", timestamp));
 
-        capture::system_audio::capture_dual_to_opus(seconds, &system_base, &mic_base, &rss_log)
-            .map_err(|e| e.to_string())
+        capture::system_audio::capture_dual_to_opus(
+            seconds,
+            &system_base,
+            &mic_base,
+            &rss_log,
+            &app,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?

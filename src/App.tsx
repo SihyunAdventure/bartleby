@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 
 const isOverlay = new URLSearchParams(window.location.search).has("overlay");
+
+interface DrmStatusPayload {
+  drm_blocked: boolean;
+  peak_dbfs: number;
+}
 
 function Overlay() {
   // Drag wiring requires three pieces working together (any one missing →
@@ -11,6 +17,26 @@ function Overlay() {
   // `core:window:allow-start-dragging` capability + overlay listed in
   // capabilities/default.json, (3) `acceptFirstMouse: true` on the overlay
   // window in tauri.conf.json so inactive-state first click reaches drag.js.
+  const [drmBlocked, setDrmBlocked] = useState(false);
+
+  useEffect(() => {
+    const unlistenPromise = listen<DrmStatusPayload>("drm_status", (event) => {
+      setDrmBlocked(event.payload.drm_blocked);
+    });
+    return () => {
+      unlistenPromise.then((fn) => fn());
+    };
+  }, []);
+
+  // The detector flags any sustained silence — could be DRM, mute, paused
+  // playback, or wrong audio routing. Without mic cross-check (Phase 1+,
+  // gated on signed builds) we can't tell which, so the message stays
+  // neutral. Bartleby's signature refusal line is reserved for confirmed
+  // DRM cases later.
+  const text = drmBlocked
+    ? "No audio detected."
+    : "Awaiting English audio.";
+
   return (
     <div
       data-tauri-drag-region
@@ -28,9 +54,11 @@ function Overlay() {
         fontStyle: "italic",
         color: "rgba(40, 40, 40, 0.6)",
         WebkitUserSelect: "none",
+        padding: "0 16px",
+        textAlign: "center",
       } as React.CSSProperties}
     >
-      Awaiting English audio.
+      {text}
     </div>
   );
 }
@@ -128,7 +156,7 @@ function App() {
             try {
               const stats = await invoke<CaptureStats>("capture_system_audio", { seconds });
               const drmTag = stats.drm_detected
-                ? `DRM blocked (peak ${stats.peak_system_dbfs.toFixed(1)} dBFS — Bartleby would prefer not to) | `
+                ? `silent (peak ${stats.peak_system_dbfs.toFixed(1)} dBFS — muted/paused/DRM?) | `
                 : `level peak ${stats.peak_system_dbfs.toFixed(1)} dBFS | `;
               setCaptureStatus(
                 drmTag +
