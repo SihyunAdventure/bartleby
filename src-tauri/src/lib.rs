@@ -63,18 +63,24 @@ pub fn run() {
             let overlay = app.get_webview_window("overlay").expect("overlay window");
             let panel = overlay.to_panel::<OverlayPanel>().expect("to_panel failed");
             panel.set_level(PanelLevel::Floating.value());
+            // nonactivating_panel: 비활성 상태에서 클릭해도 backing app
+            // (Bartleby) 을 활성화하지 않음. 즉시 drag 가능 + YouTube 등 다른
+            // app focus 를 빼앗지 않음 (overlay는 passive caption display).
             panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
+            // becomesKeyOnlyIfNeeded: 비활성 panel 첫 클릭이 panel 을 key 로
+            // 만들기만 하고 swallow 되는 문제 (click-then-drag) 회피. 클릭이
+            // underlying view 로 그대로 전달돼서 첫 클릭부터 drag 처리됨.
+            panel.set_becomes_key_only_if_needed(true);
             panel.set_collection_behavior(
                 CollectionBehavior::new()
                     .full_screen_auxiliary()
                     .can_join_all_spaces()
                     .into(),
             );
-            // Drag handling is wired on the JS side via startDragging() because
-            // it doubles as the chrome-button pattern (mousedown on draggable
-            // surface, ignore on no-drag elements). See Overlay in App.tsx.
-            // (Note: drag still not working as of this commit — see NEXT.md
-            // for the next-session probe sequence.)
+            // Drag is wired via `data-tauri-drag-region` attribute on the
+            // overlay div (App.tsx). Tauri 2 injects a native mousedown handler
+            // that calls plugin:window|start_dragging — capability granted in
+            // capabilities/default.json (core:window:allow-start-dragging).
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![greet, capture_system_audio])

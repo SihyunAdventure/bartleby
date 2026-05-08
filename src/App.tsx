@@ -1,22 +1,19 @@
 import { useState } from "react";
 import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./App.css";
 
 const isOverlay = new URLSearchParams(window.location.search).has("overlay");
 
 function Overlay() {
-  // NSPanel intercepts mouse events before reaching `-webkit-app-region: drag`,
-  // so we wire mousedown to Tauri's native startDragging() instead.
-  const handleMouseDown = async (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    await getCurrentWebviewWindow().startDragging();
-  };
-
+  // Drag wiring requires three pieces working together (any one missing →
+  // silent no-op): (1) `data-tauri-drag-region` attribute below, (2)
+  // `core:window:allow-start-dragging` capability + overlay listed in
+  // capabilities/default.json, (3) `acceptFirstMouse: true` on the overlay
+  // window in tauri.conf.json so inactive-state first click reaches drag.js.
   return (
     <div
-      onMouseDown={handleMouseDown}
+      data-tauri-drag-region
       style={{
         width: "100%",
         height: "100vh",

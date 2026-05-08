@@ -27,6 +27,7 @@
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
+        "acceptFirstMouse": true,
         "resizable": true,
         "minWidth": 320,
         "minHeight": 120,
