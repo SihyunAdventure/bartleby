@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 오전 — **Day 1-9 ✅ (drag + tray + DRM silence detection)**
+> 마지막 세션: 2026-05-08 오전 — **Day 1-10 ✅ (drag + tray + silence detection + overlay event)**
 
 ---
 
-## 현재 상태 (Day 9 ✅ 종료, 2026-05-08 오전)
+## 현재 상태 (Day 10 ✅ 종료, 2026-05-08 오전)
 
 ### 누적 commits (main branch)
 
@@ -35,6 +35,8 @@
 | `adb4b83` | **Day 8 slice** ✅ Menu bar item (NSStatusItem) + main-close-to-hide — Show Bartleby / Quit, main close 시 hide 후 tray 로 re-summon. Live verified. |
 | `7e61f7e` | NEXT.md sync (Day 8 ✅ + Day 9 entry) |
 | `f6a3c46` | **Day 9 slice** ✅ DRM silence detection — capture/silence.rs (RMS + dBFS + DrmDetector, 11 tests) + CaptureStats `peak_system_dbfs` / `drm_detected`. YouTube -25.7 dBFS, Netflix(Widevine) -10.7 dBFS (not flagged), silent → -120 dBFS (flagged). |
+| `6348b5f` | NEXT.md sync (Day 9 ✅ + Day 10 entry) |
+| `fdea697` | **Day 10 slice** ✅ Overlay surfaces silence verdict — capture_dual_to_opus 가 AppHandle 받고 dedicated thread 가 ~3s 분량 sample 모이면 `drm_status` event emit. Overlay listen → "No audio detected." 텍스트 교체. 메시지는 mic cross-check 전까지 부드러운 톤 유지. |
 
 ### 작동 검증된 것
 
@@ -107,6 +109,17 @@ DRM silence detection PoC — `capture/silence.rs` (pure helpers + DrmDetector a
 
 **개선 후속 (Phase 1+ 시점)**: silence vs. DRM 구분은 mic cross-check 로 가능 — system 무음 + mic 무음 = 그냥 조용한 환경, system 무음 + mic 정상 = DRM 의심. Mic 캡처가 풀린 시점 (Apple Dev ID + signed build) 에 추가.
 
+### Day 10 결과 (live verified)
+
+`drm_status` Tauri event + overlay listen — 캡처 중 ~3s 후 overlay 텍스트 자동 교체.
+
+- ✅ `capture_dual_to_opus` 가 `&AppHandle` 인자 받아 dedicated thread 에서 detector polling
+- ✅ ~3s 분량 stereo (`SAMPLE_RATE * 2 * 3` samples) 모이면 single-shot emit
+- ✅ Overlay (App.tsx) `useEffect` + `listen<DrmStatusPayload>("drm_status", ...)` 으로 React state 업데이트
+- ✅ YouTube → 텍스트 그대로 "Awaiting English audio." / Silent → "No audio detected."
+
+**메시지 결정 (사용자 push-back)**: 무음 cause 가 다양 (mute / pause / 라우팅 / DRM) — mic cross-check 없이 단정 X. "Bartleby would prefer not to" 의 refusal line 은 mic cross-check 가 풀려 진짜 DRM 확정 가능한 시점 (Phase 1+) 까지 reserve. 지금은 neutral wording.
+
 ### 환경 (재현용)
 
 - Bartleby repo: `~/Dev/side/bartleby/`
@@ -132,18 +145,17 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: Day 10 — Overlay 에 DRM 상태 surface (Day 9 후속)
+### Step 1: Day 11 — Hot key (⌘⇧B) global summon (Day 8 후속)
 
-Day 9 PoC 는 main 윈도우 status bar 만 — 정작 시청 모드의 first-class surface 인 overlay 에는 DRM 상태가 안 보임. 자막이 안 떠도 사용자가 *왜* 안 뜨는지 모름.
+`tauri-plugin-global-shortcut` 으로 ⌘⇧B 토글 (main hide ↔ show). discovery 는 menu bar 보다 떨어지지만 power user 가성비 좋음. Phase 0 의 mode-switch 와 묶일 수 있음.
 
-**스코프**:
-- `capture_dual_to_opus` 가 capture 시작 ~3-5초 시점에 Tauri event `drm_status` emit (또는 `peak_system_dbfs` 진행률) — AppHandle 을 capture 함수에 주입
-- Overlay (App.tsx) 가 `listen("drm_status", ...)` 으로 구독, drm_blocked 면 placeholder 텍스트를 "Bartleby would prefer not to. (DRM blocked)" 로 교체
-- 시청 시작 시점부터 자동 capture 시작 (지금은 main 윈도우 버튼 클릭 필요) — Phase 1+ 의 capture lifecycle 와 묶일 수 있음, 일단 Day 10 에서는 수동 trigger 유지
+### Step 2: Day 12 — Auto-capture lifecycle (시청 모드 entry)
 
-### Step 2: Day 11 — Hot key (⌘⇧B) global summon (선택)
-
-Day 8 의 menu bar tray 후속. `tauri-plugin-global-shortcut` 으로 ⌘⇧B 토글 (main hide ↔ show). discovery 는 menu bar 보다 떨어지지만 power user 가성비 좋음.
+지금까지는 main 윈도우 "Capture Ns" 버튼이 트리거. 실제 product 에서는 시청 모드 진입 시 자동 시작 / 종료. 스코프:
+- "Watch mode" toggle (overlay 띄우기 + capture 자동 시작) vs. capture 일시정지
+- mode-switch.md spec 참조
+- 캡처 lifecycle 을 Tauri command set 으로 (start_capture / stop_capture / pause_capture)
+- 현재 `capture_dual_to_opus` 는 fixed-duration blocking — 변경 필요 (start/stop signal 받게)
 
 ### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
@@ -215,7 +227,8 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | nspanel fullScreenAuxiliary | ✅ Day 6 통과 | Accessory + nspanel collection behavior, YouTube fullscreen 위 floating live 검증 |
 | Overlay drag | ✅ Day 7 통과 | capabilities + acceptFirstMouse + nonactivating_panel triad. inactive 첫 클릭부터 drag, focus stealing 없음 live verified. |
 | Main 윈도우 호출 (Accessory tradeoff) | ✅ Day 8 통과 | TrayIconBuilder + on_window_event hide. main close 시 hide → tray 의 Show 로 즉시 re-summon. Live verified. |
-| DRM detection (capture path) | ✅ Day 9 통과 | silence.rs (11 tests) + CaptureStats peak_system_dbfs/drm_detected. YouTube/Netflix/silent 모두 verify. Overlay surface 는 Day 10 후속. |
+| DRM detection (capture path) | ✅ Day 9 통과 | silence.rs (11 tests) + CaptureStats peak_system_dbfs/drm_detected. YouTube/Netflix/silent 모두 verify. |
+| Overlay surface (silence verdict) | ✅ Day 10 통과 | drm_status Tauri event + Overlay listen → 자동 텍스트 교체. 메시지는 mic cross-check 전까지 neutral. |
 | Mic / Speaker cross-check (DRM 확신) | ⏳ Phase 1+ | Apple Dev ID 후 mic 풀리면 system 무음 + mic 정상 → DRM 확정 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
@@ -261,4 +274,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, lives in the menu bar, and listens for silence. Bartleby would prefer to surface this on the overlay next."
+> "Bartleby floats, moves, lives in the menu bar, listens for silence, and tells the overlay so. Bartleby reserves the refusal line for the day mic confirms the DRM."
