@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 오전 — **Day 1-10 ✅ (drag + tray + silence detection + overlay event)**
+> 마지막 세션: 2026-05-08 오전 — **Day 1-11 ✅ (drag + tray + silence detection + overlay event + ⌘⇧B)**
 
 ---
 
-## 현재 상태 (Day 10 ✅ 종료, 2026-05-08 오전)
+## 현재 상태 (Day 11 ✅ 종료, 2026-05-08 오전)
 
 ### 누적 commits (main branch)
 
@@ -37,6 +37,8 @@
 | `f6a3c46` | **Day 9 slice** ✅ DRM silence detection — capture/silence.rs (RMS + dBFS + DrmDetector, 11 tests) + CaptureStats `peak_system_dbfs` / `drm_detected`. YouTube -25.7 dBFS, Netflix(Widevine) -10.7 dBFS (not flagged), silent → -120 dBFS (flagged). |
 | `6348b5f` | NEXT.md sync (Day 9 ✅ + Day 10 entry) |
 | `fdea697` | **Day 10 slice** ✅ Overlay surfaces silence verdict — capture_dual_to_opus 가 AppHandle 받고 dedicated thread 가 ~3s 분량 sample 모이면 `drm_status` event emit. Overlay listen → "No audio detected." 텍스트 교체. 메시지는 mic cross-check 전까지 부드러운 톤 유지. |
+| `71e7f63` | NEXT.md sync (Day 10 ✅ + Day 11 entry) |
+| `f8329e1` | **Day 11 slice** ✅ ⌘⇧B global shortcut toggles main window — tauri-plugin-global-shortcut + global-shortcut:default 권한 + setup hook 의 on_shortcut. inactive 상태에서도 main hide ↔ show 토글 live verified. |
 
 ### 작동 검증된 것
 
@@ -120,6 +122,15 @@ DRM silence detection PoC — `capture/silence.rs` (pure helpers + DrmDetector a
 
 **메시지 결정 (사용자 push-back)**: 무음 cause 가 다양 (mute / pause / 라우팅 / DRM) — mic cross-check 없이 단정 X. "Bartleby would prefer not to" 의 refusal line 은 mic cross-check 가 풀려 진짜 DRM 확정 가능한 시점 (Phase 1+) 까지 reserve. 지금은 neutral wording.
 
+### Day 11 결과 (live verified)
+
+⌘⇧B global shortcut → main window 토글. menu bar tray 의 power-user complement.
+
+- ✅ `tauri-plugin-global-shortcut` v2 + `global-shortcut:default` capability
+- ✅ `Shortcut::new(Some(SUPER | SHIFT), Code::KeyB)` + `on_shortcut(...)` 한 호출로 등록 + handler 바인딩
+- ✅ 다른 앱 active 상태에서도 작동 (global), main hide ↔ show 토글
+- ✅ Overlay 는 영향 없음 (separate label)
+
 ### 환경 (재현용)
 
 - Bartleby repo: `~/Dev/side/bartleby/`
@@ -145,17 +156,18 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: Day 11 — Hot key (⌘⇧B) global summon (Day 8 후속)
-
-`tauri-plugin-global-shortcut` 으로 ⌘⇧B 토글 (main hide ↔ show). discovery 는 menu bar 보다 떨어지지만 power user 가성비 좋음. Phase 0 의 mode-switch 와 묶일 수 있음.
-
-### Step 2: Day 12 — Auto-capture lifecycle (시청 모드 entry)
+### Step 1: Day 12 — Auto-capture lifecycle (시청 모드 entry)
 
 지금까지는 main 윈도우 "Capture Ns" 버튼이 트리거. 실제 product 에서는 시청 모드 진입 시 자동 시작 / 종료. 스코프:
 - "Watch mode" toggle (overlay 띄우기 + capture 자동 시작) vs. capture 일시정지
 - mode-switch.md spec 참조
 - 캡처 lifecycle 을 Tauri command set 으로 (start_capture / stop_capture / pause_capture)
 - 현재 `capture_dual_to_opus` 는 fixed-duration blocking — 변경 필요 (start/stop signal 받게)
+- App state 으로 capture handle (Mutex<Option<CaptureSession>>) 관리
+
+### Step 2: Day 13+ — Phase 0 디자인 시스템 entry (gallery + 14→19 섹션)
+
+infra slice (Day 1-12) 마무리 후 본격 UI. design-system-extensions 의 gallery route + 19 섹션 매핑. 별도 위임 prompt 는 git history 참조 (commit `f927321` ~ `3733318`).
 
 ### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
@@ -229,6 +241,8 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | Main 윈도우 호출 (Accessory tradeoff) | ✅ Day 8 통과 | TrayIconBuilder + on_window_event hide. main close 시 hide → tray 의 Show 로 즉시 re-summon. Live verified. |
 | DRM detection (capture path) | ✅ Day 9 통과 | silence.rs (11 tests) + CaptureStats peak_system_dbfs/drm_detected. YouTube/Netflix/silent 모두 verify. |
 | Overlay surface (silence verdict) | ✅ Day 10 통과 | drm_status Tauri event + Overlay listen → 자동 텍스트 교체. 메시지는 mic cross-check 전까지 neutral. |
+| Hot key (⌘⇧B global summon) | ✅ Day 11 통과 | tauri-plugin-global-shortcut + global-shortcut:default. main hide ↔ show 토글, inactive 상태에서도 작동. |
+| Auto-capture lifecycle | ⏳ Day 12 | Tauri command (start/stop/pause) + capture_dual_to_opus 의 fixed-duration → signal-driven 변환 |
 | Mic / Speaker cross-check (DRM 확신) | ⏳ Phase 1+ | Apple Dev ID 후 mic 풀리면 system 무음 + mic 정상 → DRM 확정 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
@@ -274,4 +288,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, lives in the menu bar, listens for silence, and tells the overlay so. Bartleby reserves the refusal line for the day mic confirms the DRM."
+> "Bartleby floats, moves, lives in the menu bar, listens for silence, tells the overlay so, and answers to ⌘⇧B. Bartleby would prefer to start and stop on its own next."
