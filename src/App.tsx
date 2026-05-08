@@ -1,13 +1,22 @@
 import { useState } from "react";
 import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./App.css";
 
 const isOverlay = new URLSearchParams(window.location.search).has("overlay");
 
 function Overlay() {
+  // NSPanel intercepts mouse events before reaching `-webkit-app-region: drag`,
+  // so we wire mousedown to Tauri's native startDragging() instead.
+  const handleMouseDown = async (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    await getCurrentWebviewWindow().startDragging();
+  };
+
   return (
     <div
+      onMouseDown={handleMouseDown}
       style={{
         width: "100%",
         height: "100vh",
@@ -22,7 +31,6 @@ function Overlay() {
         fontStyle: "italic",
         color: "rgba(40, 40, 40, 0.6)",
         WebkitUserSelect: "none",
-        WebkitAppRegion: "drag",
       } as React.CSSProperties}
     >
       Awaiting English audio.

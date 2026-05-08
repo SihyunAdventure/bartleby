@@ -70,6 +70,11 @@ pub fn run() {
                     .can_join_all_spaces()
                     .into(),
             );
+            // Drag handling is wired on the JS side via startDragging() because
+            // it doubles as the chrome-button pattern (mousedown on draggable
+            // surface, ignore on no-drag elements). See Overlay in App.tsx.
+            // (Note: drag still not working as of this commit — see NEXT.md
+            // for the next-session probe sequence.)
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![greet, capture_system_audio])
