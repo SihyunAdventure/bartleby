@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 오전 — **Day 1-8 ✅ (drag triad + menu bar tray)**
+> 마지막 세션: 2026-05-08 오전 — **Day 1-9 ✅ (drag + tray + DRM silence detection)**
 
 ---
 
-## 현재 상태 (Day 8 ✅ 종료, 2026-05-08 오전)
+## 현재 상태 (Day 9 ✅ 종료, 2026-05-08 오전)
 
 ### 누적 commits (main branch)
 
@@ -33,6 +33,8 @@
 | `ce29bd2` | **Day 7 slice** ✅ Overlay drag — codex+advisor parallel review 로 root cause triad 확정 (capabilities + acceptFirstMouse + nonactivating_panel). Live verified: 첫 클릭부터 inactive 상태에서 즉시 drag. |
 | `f004883` | NEXT.md sync (Day 7 ✅ + Day 8 entry) |
 | `adb4b83` | **Day 8 slice** ✅ Menu bar item (NSStatusItem) + main-close-to-hide — Show Bartleby / Quit, main close 시 hide 후 tray 로 re-summon. Live verified. |
+| `7e61f7e` | NEXT.md sync (Day 8 ✅ + Day 9 entry) |
+| `f6a3c46` | **Day 9 slice** ✅ DRM silence detection — capture/silence.rs (RMS + dBFS + DrmDetector, 11 tests) + CaptureStats `peak_system_dbfs` / `drm_detected`. YouTube -25.7 dBFS, Netflix(Widevine) -10.7 dBFS (not flagged), silent → -120 dBFS (flagged). |
 
 ### 작동 검증된 것
 
@@ -47,6 +49,7 @@
 - **메모리 bounded — empirical 검증 ✅** (Opus encoder flush 마다 disk 로 비움 + drift Vec append-only 11MB/h, 1h 안정)
 - Drift 측정 helper — testable, **O(n+m) two-pointer** (이전 O(n×m) 가 1h ~360K trace 에서 분 단위 hang 일으킴), 4 unit tests
 - RSS sampler — `proc_pidinfo(PROC_PIDTASKINFO)` 기반 own-process 샘플링 (5s 간격, CSV 로그), 1 unit test
+- DRM silence detector — RMS / linear→dBFS / 누적 peak, 11 unit tests. YouTube -25.7 dBFS, Netflix(Widevine) -10.7 dBFS (정상), silent → -120 dBFS (flagged). 23 tests pass total.
 - LC_RPATH `/usr/lib/swift` linker flag (Swift runtime ABI lib 위치)
 - libopus 1.6.1 brew + audiopus_sys pkg-config 빌드 환경
 
@@ -91,6 +94,19 @@ Tauri 2 built-in `TrayIconBuilder` 로 Accessory tradeoff 해결 — 외부 plug
 
 Cargo features: `tauri = { features = ["macos-private-api", "tray-icon", "image-png"] }`. `image-png` 는 bundle icon (PNG) 디코딩 용.
 
+### Day 9 결과 (live verified)
+
+DRM silence detection PoC — `capture/silence.rs` (pure helpers + DrmDetector accumulator) → CaptureStats 의 `peak_system_dbfs` / `drm_detected`. 1초 stereo 분량의 min_samples gate 로 zero-buffer false positive 방지.
+
+| 케이스 | peak dBFS | drm_detected | Note |
+|---|---|---|---|
+| Silent system | -120.0 | true | sentinel — 진짜 무음 또는 DRM zero-fill 둘 다 동일 path |
+| YouTube | -25.7 | false | 일반 음악/대사 레벨 |
+| Netflix (Widevine) | -10.7 | false | Widevine 은 video-level 암호화, 시스템 오디오 silence X — false positive 회피 확인 |
+| Apple TV+ (FairPlay) | n/a | n/a | local 미보유, 차후 verify. silent-system path 로 mechanism 은 검증됨 |
+
+**개선 후속 (Phase 1+ 시점)**: silence vs. DRM 구분은 mic cross-check 로 가능 — system 무음 + mic 무음 = 그냥 조용한 환경, system 무음 + mic 정상 = DRM 의심. Mic 캡처가 풀린 시점 (Apple Dev ID + signed build) 에 추가.
+
 ### 환경 (재현용)
 
 - Bartleby repo: `~/Dev/side/bartleby/`
@@ -116,22 +132,16 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: Day 9 — DRM detection PoC (capture path 의 product wedge)
+### Step 1: Day 10 — Overlay 에 DRM 상태 surface (Day 9 후속)
 
-Apple TV+ / Netflix 같은 DRM 콘텐츠 재생 중 system audio 가 silent. capture 자체는 성공하지만 buffer 가 zero 라 STT 가 무의미. 사용자 입장에서는 *왜 자막이 안 뜨는지* 모르면 product trust 깎임. 명시적 detect + UI feedback.
+Day 9 PoC 는 main 윈도우 status bar 만 — 정작 시청 모드의 first-class surface 인 overlay 에는 DRM 상태가 안 보임. 자막이 안 떠도 사용자가 *왜* 안 뜨는지 모름.
 
 **스코프**:
-- `capture/` 모듈에 RMS 계산 helper (frame slice → linear RMS → dBFS) — testable
-- 캡처 시작 후 첫 ~10-20s 의 system buffer 들 RMS 모니터링 — 모두 < -60 dBFS 면 DRM 의심
-- (mic 없이 system 만 무음인 게 핵심 시그널 — mic 도 무음이면 그냥 조용한 환경)
-- Tauri event 로 frontend 에 `drm_blocked` 통지
-- Overlay 의 placeholder 텍스트가 "Bartleby would prefer not to. (DRM blocked)" 으로 변경
+- `capture_dual_to_opus` 가 capture 시작 ~3-5초 시점에 Tauri event `drm_status` emit (또는 `peak_system_dbfs` 진행률) — AppHandle 을 capture 함수에 주입
+- Overlay (App.tsx) 가 `listen("drm_status", ...)` 으로 구독, drm_blocked 면 placeholder 텍스트를 "Bartleby would prefer not to. (DRM blocked)" 로 교체
+- 시청 시작 시점부터 자동 capture 시작 (지금은 main 윈도우 버튼 클릭 필요) — Phase 1+ 의 capture lifecycle 와 묶일 수 있음, 일단 Day 10 에서는 수동 trigger 유지
 
-**Verify**:
-- YouTube (DRM 없음) 재생 → 정상 (자막 placeholder)
-- Apple TV+ trailer 또는 Netflix episode → DRM detected 메시지
-
-### Step 2: Day 10 — Hot key (⌘⇧B) global summon (선택)
+### Step 2: Day 11 — Hot key (⌘⇧B) global summon (선택)
 
 Day 8 의 menu bar tray 후속. `tauri-plugin-global-shortcut` 으로 ⌘⇧B 토글 (main hide ↔ show). discovery 는 menu bar 보다 떨어지지만 power user 가성비 좋음.
 
@@ -205,7 +215,8 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | nspanel fullScreenAuxiliary | ✅ Day 6 통과 | Accessory + nspanel collection behavior, YouTube fullscreen 위 floating live 검증 |
 | Overlay drag | ✅ Day 7 통과 | capabilities + acceptFirstMouse + nonactivating_panel triad. inactive 첫 클릭부터 drag, focus stealing 없음 live verified. |
 | Main 윈도우 호출 (Accessory tradeoff) | ✅ Day 8 통과 | TrayIconBuilder + on_window_event hide. main close 시 hide → tray 의 Show 로 즉시 re-summon. Live verified. |
-| DRM detection (Apple TV+ / Netflix) | ⏳ Day 9 | RMS 모니터링 + Tauri event 로 overlay placeholder 변경 |
+| DRM detection (capture path) | ✅ Day 9 통과 | silence.rs (11 tests) + CaptureStats peak_system_dbfs/drm_detected. YouTube/Netflix/silent 모두 verify. Overlay surface 는 Day 10 후속. |
+| Mic / Speaker cross-check (DRM 확신) | ⏳ Phase 1+ | Apple Dev ID 후 mic 풀리면 system 무음 + mic 정상 → DRM 확정 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
 | Apple Developer 승인 지연 | Lane B 큐, ~1주 | 다음 세션 사용자 신청 권장 |
@@ -222,7 +233,7 @@ source ~/.cargo/env
 # Dev (~1-2분 incremental, 첫 빌드는 5-10분)
 pnpm tauri dev
 
-# 단위 테스트 (12개 — planar 3 + drift 4 + opus 4 + rss 1)
+# 단위 테스트 (23개 — planar 3 + drift 4 + opus 4 + rss 1 + silence 11)
 cargo test --manifest-path src-tauri/Cargo.toml --lib
 
 # Production build (Phase 6 시점)
@@ -250,4 +261,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, and lives in the menu bar. Bartleby would prefer not to (when DRM-blocked)."
+> "Bartleby floats, moves, lives in the menu bar, and listens for silence. Bartleby would prefer to surface this on the overlay next."
