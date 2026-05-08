@@ -29,6 +29,16 @@ interface SttErrorPayload {
   message: string;
 }
 
+interface TranslationFinalPayload {
+  original: string;
+  translation: string;
+}
+
+interface TranslationErrorPayload {
+  message: string;
+  original: string;
+}
+
 // Overlay caption window — keep last N chars of running final transcript so
 // the surface doesn't grow unbounded. §11 LiveCaption gallery will tune this.
 const FINAL_WINDOW_CHARS = 220;
@@ -43,6 +53,8 @@ function Overlay() {
   const [finalText, setFinalText] = useState("");
   const [partialText, setPartialText] = useState("");
   const [sttError, setSttError] = useState<string | null>(null);
+  const [koText, setKoText] = useState("");
+  const [translationError, setTranslationError] = useState<string | null>(null);
 
   useEffect(() => {
     const subs = [
@@ -66,6 +78,18 @@ function Overlay() {
       listen<SttErrorPayload>("stt_error", (event) => {
         setSttError(event.payload.message);
       }),
+      listen<TranslationFinalPayload>("translation_final", (event) => {
+        setKoText((prev) => {
+          const joined = (prev + " " + event.payload.translation).trim();
+          return joined.length > FINAL_WINDOW_CHARS
+            ? joined.slice(-FINAL_WINDOW_CHARS)
+            : joined;
+        });
+        setTranslationError(null);
+      }),
+      listen<TranslationErrorPayload>("translation_error", (event) => {
+        setTranslationError(event.payload.message);
+      }),
     ];
     return () => {
       subs.forEach((p) => p.then((fn) => fn()));
@@ -75,21 +99,51 @@ function Overlay() {
   // Priority: STT error > caption stream > DRM placeholder > default.
   // Once captions are flowing, drm_status is by definition false; suppress
   // the placeholder so it doesn't flicker between caption tokens.
-  const hasCaption = finalText.length > 0 || partialText.length > 0;
+  const hasEnCaption = finalText.length > 0 || partialText.length > 0;
+  const hasKoCaption = koText.length > 0;
+  const hasAnyCaption = hasEnCaption || hasKoCaption;
+
   let body: React.ReactNode;
   if (sttError) {
-    body = `STT: ${sttError}`;
-  } else if (hasCaption) {
+    body = <span style={{ fontStyle: "italic" }}>STT: {sttError}</span>;
+  } else if (hasAnyCaption) {
     body = (
-      <span>
-        {finalText}
-        {partialText && (
-          <span style={{ opacity: 0.55 }}>
-            {finalText ? " " : ""}
-            {partialText}
-          </span>
-        )}
-      </span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+        {/* English (source) — smaller / lighter so Korean wins focus */}
+        <div
+          style={{
+            fontSize: 11,
+            color: "rgba(40, 40, 40, 0.55)",
+            lineHeight: 1.35,
+            minHeight: "1.35em",
+          }}
+        >
+          {finalText}
+          {partialText && (
+            <span style={{ opacity: 0.7 }}>
+              {finalText ? " " : ""}
+              {partialText}
+            </span>
+          )}
+        </div>
+        {/* Korean (translation) — primary value layer */}
+        <div
+          style={{
+            fontSize: 14,
+            color: "rgba(15, 15, 15, 0.92)",
+            lineHeight: 1.45,
+            fontWeight: 400,
+            minHeight: "1.45em",
+          }}
+        >
+          {koText}
+          {translationError && !koText && (
+            <span style={{ fontSize: 11, fontStyle: "italic", color: "rgba(40, 40, 40, 0.55)" }}>
+              번역 대기 중… ({translationError})
+            </span>
+          )}
+        </div>
+      </div>
     );
   } else if (drmBlocked) {
     body = "No audio detected.";
@@ -114,11 +168,11 @@ function Overlay() {
         justifyContent: "center",
         fontFamily: "system-ui, -apple-system, sans-serif",
         fontSize: 13,
-        fontStyle: hasCaption ? "normal" : "italic",
-        color: hasCaption ? "rgba(20, 20, 20, 0.85)" : "rgba(40, 40, 40, 0.6)",
+        fontStyle: hasAnyCaption ? "normal" : "italic",
+        color: hasAnyCaption ? "rgba(20, 20, 20, 0.85)" : "rgba(40, 40, 40, 0.6)",
         WebkitUserSelect: "none",
-        padding: "8px 14px",
-        textAlign: "center",
+        padding: "10px 14px",
+        textAlign: "left",
         lineHeight: 1.45,
         overflow: "hidden",
       } as CSSProperties}

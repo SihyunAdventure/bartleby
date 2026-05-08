@@ -67,11 +67,16 @@ struct ServerMessage {
 /// Run the websocket session until `stop` flips, the chunk channel closes, or
 /// the server reports `finished`/error. Intended to be `block_on`'d from a
 /// dedicated thread that owns its tokio runtime.
+///
+/// `final_tx` is an optional sink the translator pipeline subscribes to —
+/// for each emitted `stt_final` we also push the same text into this
+/// channel so a downstream Solar Pro 3 worker can translate it.
 pub async fn run_session(
     api_key: String,
     app: AppHandle,
     mut chunk_rx: UnboundedReceiver<Vec<u8>>,
     stop: Arc<AtomicBool>,
+    final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 ) -> Result<()> {
     let (ws, _resp) = connect_async(SONIOX_WS_URL)
         .await
@@ -103,6 +108,7 @@ pub async fn run_session(
     // frontend should add to its running transcript.
     let app_for_reader = app.clone();
     let aborted_reader = aborted.clone();
+    let final_tx_for_reader = final_tx.clone();
     let reader = tokio::spawn(async move {
         let mut last_partial_was_empty = true;
 
@@ -140,6 +146,20 @@ pub async fn run_session(
                             }
                         }
                         if !final_text.is_empty() {
+                            // Forward to translator before consuming the
+                            // text in the emit. English finals only — Korean
+                            // finals are already in the user's language and
+                            // need no translation; let the frontend show
+                            // them as-is.
+                            if let Some(tx) = &final_tx_for_reader {
+                                let is_english = final_lang
+                                    .as_deref()
+                                    .map(|l| l.starts_with("en"))
+                                    .unwrap_or(true);
+                                if is_english {
+                                    let _ = tx.send(final_text.clone());
+                                }
+                            }
                             let _ = app_for_reader.emit(
                                 "stt_final",
                                 SttFinal {

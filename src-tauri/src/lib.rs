@@ -1,5 +1,6 @@
 pub mod capture;
 pub mod stt;
+pub mod translate;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -34,12 +35,15 @@ fn greet(name: &str) -> String {
 
 /// In-progress capture session — stop flag drives the capture thread out of
 /// its polling loop, the join handle returns final stats once it's done.
-/// `stt` is `Some` iff `SONIOX_API_KEY` was set when the session started; it
-/// runs in parallel and is joined on stop_capture.
+/// `stt` is `Some` iff `SONIOX_API_KEY` was set when the session started.
+/// `translator` is `Some` iff *both* keys (SONIOX + OPENROUTER) are set —
+/// translation can't operate without an STT source. Both are joined on
+/// stop_capture in dependency order: capture → STT → translator.
 struct CaptureSession {
     stop: Arc<AtomicBool>,
     handle: std::thread::JoinHandle<Result<CaptureStats, String>>,
     stt: Option<stt::SttSession>,
+    translator: Option<translate::TranslatorSession>,
 }
 
 #[derive(Default)]
@@ -54,14 +58,40 @@ fn spawn_capture(
     let stop = Arc::new(AtomicBool::new(false));
     let stop_for_thread = Arc::clone(&stop);
 
-    // BYOK: SONIOX_API_KEY env var (set via `source ~/.config/secrets/soniox.env`
-    // before launching `pnpm tauri dev`). Settings UI surface comes in §16.
-    let (stt_sender, stt_session) = match std::env::var("SONIOX_API_KEY") {
-        Ok(key) if !key.is_empty() => {
-            let (tx, sess) = stt::start(key, app.clone());
+    // BYOK: SONIOX_API_KEY + UPSTAGE_API_KEY env vars
+    // (`source ~/.config/secrets/{soniox,upstage}.env` before
+    // `pnpm tauri dev`). Settings UI surface comes in §16.
+    //
+    // Upstage direct (not OpenRouter) — OpenRouter's pooled Upstage account
+    // ran out of credit 2026-05-08, indefinite outage. Direct API has same
+    // pricing and avoids the routing dependency.
+    let stt_key = std::env::var("SONIOX_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
+    let upstage_key = std::env::var("UPSTAGE_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
+
+    // Translator is the upstream consumer of STT finals — start it first so
+    // STT can hand it the final-text sender at construction.
+    let (final_tx, translator_session) = match (&stt_key, upstage_key) {
+        (Some(_), Some(up_key)) => {
+            let (tx, sess) = translate::start(up_key, app.clone());
             (Some(tx), Some(sess))
         }
-        _ => {
+        (Some(_), None) => {
+            println!("[translate] UPSTAGE_API_KEY not set — Korean translation disabled (English-only captions)");
+            (None, None)
+        }
+        _ => (None, None),
+    };
+
+    let (stt_sender, stt_session) = match stt_key {
+        Some(key) => {
+            let (tx, sess) = stt::start(key, app.clone(), final_tx);
+            (Some(tx), Some(sess))
+        }
+        None => {
             println!("[capture] SONIOX_API_KEY not set — STT disabled (overlay caption unavailable)");
             (None, None)
         }
@@ -95,6 +125,7 @@ fn spawn_capture(
         stop,
         handle,
         stt: stt_session,
+        translator: translator_session,
     }
 }
 
@@ -105,6 +136,15 @@ fn join_stt(stt: stt::SttSession) {
     stt.stop.store(true, Ordering::SeqCst);
     if let Err(e) = stt.join.join() {
         eprintln!("[stt] thread panicked: {e:?}");
+    }
+}
+
+/// Wait for a translator session to wind down. STT teardown drops the
+/// final-text sender, which closes the translator's recv loop; this joins
+/// the runtime thread.
+fn join_translator(translator: translate::TranslatorSession) {
+    if let Err(e) = translator.join.join() {
+        eprintln!("[translate] thread panicked: {e:?}");
     }
 }
 
@@ -123,6 +163,9 @@ async fn capture_system_audio(
             .map_err(|_| "Capture thread panicked".to_string())?;
         if let Some(stt) = session.stt {
             join_stt(stt);
+        }
+        if let Some(translator) = session.translator {
+            join_translator(translator);
         }
         stats
     })
@@ -164,6 +207,9 @@ async fn stop_capture(
             .map_err(|_| "Capture thread panicked".to_string())?;
         if let Some(stt) = session.stt {
             join_stt(stt);
+        }
+        if let Some(translator) = session.translator {
+            join_translator(translator);
         }
         stats
     })

@@ -32,9 +32,14 @@ pub struct SttSession {
 ///
 /// Dropping the returned sender flushes remaining samples and closes the
 /// websocket — capture-thread teardown does this for us automatically.
+///
+/// `final_tx` is an optional sink for finalized English text — when set,
+/// every `stt_final` event also forwards its text to the translator
+/// pipeline (Day 16a).
 pub fn start(
     api_key: String,
     app: AppHandle,
+    final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 ) -> (std::sync::mpsc::Sender<Vec<f32>>, SttSession) {
     let (sample_tx, sample_rx) = std::sync::mpsc::channel::<Vec<f32>>();
     let stop = Arc::new(AtomicBool::new(false));
@@ -68,7 +73,9 @@ pub fn start(
                 }
             });
 
-            if let Err(e) = soniox::run_session(api_key, app, chunk_rx, stop_for_thread).await {
+            if let Err(e) =
+                soniox::run_session(api_key, app, chunk_rx, stop_for_thread, final_tx).await
+            {
                 eprintln!("[stt] session error: {e}");
             }
             // Best-effort wait for bridge thread to wind down. It will return
