@@ -9,6 +9,9 @@ use tauri::{
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, PanelLevel, StyleMask, WebviewWindowExt,
 };
+use tauri_plugin_global_shortcut::{
+    Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
+};
 
 tauri_panel! {
     panel!(OverlayPanel {
@@ -66,6 +69,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_nspanel::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             // fullScreenAuxiliary collection behavior requires Accessory or
             // Prohibited activation policy. Bartleby is overlay-first (watch
@@ -116,6 +120,26 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+
+            // ⌘⇧B toggles main window visibility — power-user complement
+            // to the menu bar item. Discovery is poor, but the gesture is
+            // muscle-memory cheap once learned.
+            let cmd_shift_b = Shortcut::new(
+                Some(Modifiers::SUPER | Modifiers::SHIFT),
+                Code::KeyB,
+            );
+            app.global_shortcut().on_shortcut(cmd_shift_b, |app, _shortcut, event| {
+                if event.state() == ShortcutState::Pressed {
+                    if let Some(window) = app.get_webview_window("main") {
+                        if window.is_visible().unwrap_or(false) {
+                            let _ = window.hide();
+                        } else {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                }
+            })?;
             Ok(())
         })
         .on_window_event(|window, event| {
