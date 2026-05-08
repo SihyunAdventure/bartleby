@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 새벽 — **Day 1-6 ✅ fullScreenAuxiliary 통과 (drag 만 남음)**
+> 마지막 세션: 2026-05-08 새벽 — **Day 1-6 ✅ + Day 7 partial (drag 3가지 시도 실패, hypothesis 만 남음)**
 
 ---
 
-## 현재 상태 (Day 6 종료, 2026-05-08 새벽 ~3:30)
+## 현재 상태 (Day 7 partial 종료, 2026-05-08 새벽 ~4:00)
 
 ### 누적 commits (main branch)
 
@@ -27,6 +27,8 @@
 | `9dc4644` | **Day 6 partial** ⚠️ tauri-nspanel 인프라 (두 윈도우 + setup hook 통과) — drag/transparent/fullScreenAuxiliary 3가지 후속 |
 | `b092cc7` | NEXT.md sync (Day 6 partial + 미해결 명시) |
 | `5e3ebd6` | **Day 6 finalize** ✅ Accessory activation policy + transparent CSS fix → fullScreenAuxiliary live verified (YouTube fullscreen 위 floating). drag 만 남음. |
+| `77c307b` | NEXT.md sync (Day 6 ✅ finalize) |
+| `d306b2e` | **Day 7 partial** ⚠️ Drag 3가지 시도 실패 — startDragging() JS handler 만 남김. nonactivating_panel + Accessory 가설 검증은 다음 세션 첫 probe. |
 
 ### 작동 검증된 것
 
@@ -58,15 +60,44 @@
 - ✅ **Always-on-top** (`PanelLevel::Floating`)
 - ✅ 두 윈도우 동시 띄움, NSPanel 변환
 
-#### 남은 항목 1개 — Drag
+#### 남은 항목 — Drag (Day 7 partial 후속)
 
-`WebkitAppRegion: "drag"` (camelCase outer container) 적용 + tauri dev 재시작 후에도 overlay drag 안 됨 → HMR 가설 제거, **NSPanel 의 webkit-app-region 차단 확정**.
+3가지 시도 모두 실패. **이건 단순 1줄 fix 가 아니다** (advisor 의 1줄 fix 추측은 evidence 로 falsified):
 
-가설/조사 방향:
-- nspanel `Panel` 의 movable API 확인 (`panel.set_movable_by_window_background(true)` 또는 비슷한 method signature 조사)
-- ahkohd/tauri-nspanel `examples/basic` 또는 `examples/panel_builder` 의 drag 처리 패턴 학습
-- 안 되면 webview 의 mousedown event 잡고 manual `panel.start_drag()` 같은 native API 사용
-- 작은 슬라이스 (1줄 fix 부터 시작)
+| 시도 | 결과 | Note |
+|---|---|---|
+| `WebkitAppRegion: "drag"` (CSS) | ❌ | NSPanel 이 webview 의 -webkit-app-region 가로챔 |
+| `panel.set_movable_by_window_background(true)` (Rust) | ❌ | webview = NSPanel 의 contentView 전체 → window background 영역 자체 없음 → 적용 의미 없음 |
+| `getCurrentWebviewWindow().startDragging()` (JS onMouseDown) | ❌ | mouse event 는 webview 도달 (스크롤 작동 확인됨) — 그러나 startDragging 자체가 NSPanel 환경에서 silently no-op 또는 `nonactivating_panel` style 차단 |
+
+**현재 코드 상태**: lib.rs 의 `set_movable_by_window_background` 제거됨, App.tsx 의 onMouseDown→startDragging 만 남음 (chrome button 패턴의 self-document 가치 + drag 시도 evidence).
+
+**가설** (확인되지 않은 — *probe 순서대로 검증할 것*):
+- ① `nonactivating_panel` style mask + Accessory 조합이 mouse focus / drag action 을 무효화
+- ② nspanel 자체의 알려진 issue / gap (examples 어디에도 drag 검증 없음 — signal)
+- ③ `is_floating_panel: true` config 가 drag 와 conflict
+
+#### 다음 세션 Drag probe 순서 (cheapness 순)
+
+**Probe 1 (5분, cheap discriminator)** — `nonactivating_panel` 임시 제거 후 retest
+
+`src-tauri/src/lib.rs` setup 의 `panel.set_style_mask(StyleMask::empty().nonactivating_panel().into())` 를 임시로 `panel.set_style_mask(StyleMask::empty().into())` 또는 line 자체 제거. tauri dev 재시작 + drag 시도. 결과:
+- 작동 → ① 가설 확정. 진짜 design tradeoff (drag vs. nonactivating). 사용자 결정 필요.
+- 안 작동 → ① 가설 falsified. Probe 2/3 로.
+
+**Probe 2 (5분)** — nspanel issues 검색
+
+```bash
+gh search issues --repo ahkohd/tauri-nspanel "drag" --json number,title,state
+gh search issues --repo ahkohd/tauri-nspanel "movable" --json number,title,state
+gh search issues --repo ahkohd/tauri-nspanel "startDragging" --json number,title,state
+```
+
+같은 이슈가 등록되어 있는지. 해결책 또는 known limitation 인지.
+
+**Probe 3 (30분)** — minimal isolated app 으로 재현
+
+새 throwaway tauri 2 + nspanel 프로젝트 만들고 같은 config (Accessory + nonactivating + transparent + alwaysOnTop) 로 drag 작동하는지 — 우리 코드 issue vs. nspanel issue isolation. 작동하면 우리 환경이 problem (Bartleby 의 다른 build flag 또는 plugin), 작동 안 하면 nspanel 의 fundamental gap.
 
 #### Main 윈도우 띄우기 — Phase 0+ 별도
 
@@ -100,15 +131,9 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: Drag fix (Day 6 후속, small slice)
+### Step 1: Drag triage — 3 probes (Day 7 후속)
 
-NSPanel 의 webkit-app-region 차단 확정. nspanel 의 native drag API 조사:
-
-1. crate docs 에서 `Panel` / `WebviewWindowExt` 의 movable 관련 method (rg "movable\|drag\|start_drag" `~/.cargo/registry/src/.../tauri-nspanel-2.1.0/src/`)
-2. `examples/basic/src-tauri/src/main.rs` 또는 `examples/panel_builder/...` 의 drag 처리 패턴
-3. 가장 가능성 높은 API: `panel.set_movable_by_window_background(true)` — 1줄 fix
-4. 안 되면 webview 의 mousedown event hook + `panel.start_drag()` Tauri 2 API
-5. 시각 검증: overlay 클릭 + drag → 이동
+위 "남은 항목 — Drag" 섹션의 **Probe 1 → Probe 2 → Probe 3** 순서로 cheap discriminator 부터. Probe 1 이 5분이면 끝, 작동 시 진짜 design tradeoff 만 결정. 작동 안 하면 Probe 2/3 로 가설 narrow.
 
 ### Step 2: Main 윈도우 띄우기 (Phase 0 일부)
 
@@ -188,7 +213,7 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | 1h stability + RSS | ✅ Day 5 통과 | RSS peak 135.8MB / 720 seg / drop 0 / drift hang 없음 |
 | Mic 실 캡처 | ⏳ Apple Dev ID 후 | Info.plist + code path 다 들어감, signing 만 남음 |
 | nspanel fullScreenAuxiliary | ✅ Day 6 통과 | Accessory + nspanel collection behavior, YouTube fullscreen 위 floating live 검증 |
-| Overlay drag | ⏳ nspanel API 조사 | webkit-app-region 차단 확정, native API 1줄 fix 추정 |
+| Overlay drag | ⏳ Day 7 partial — 3가지 시도 실패 | 1줄 fix 가설 falsified. Probe 1 (nonactivating 제거) 부터 다음 세션 |
 | Main 윈도우 호출 (Accessory tradeoff) | ⏳ Phase 0 | menu bar item 또는 hot key |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
@@ -234,4 +259,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats above all fullscreens. Bartleby would prefer to be moved by hand next."
+> "Bartleby floats but does not move. Bartleby would prefer a daylight probe."
