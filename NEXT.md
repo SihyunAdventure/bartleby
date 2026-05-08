@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 새벽 — **Day 1-5 ✅ + Day 6 partial (nspanel infra 통과, 3가지 미해결)**
+> 마지막 세션: 2026-05-08 새벽 — **Day 1-6 ✅ fullScreenAuxiliary 통과 (drag 만 남음)**
 
 ---
 
-## 현재 상태 (Day 6 partial 종료, 2026-05-08 새벽 ~3:00)
+## 현재 상태 (Day 6 종료, 2026-05-08 새벽 ~3:30)
 
 ### 누적 commits (main branch)
 
@@ -25,6 +25,8 @@
 | `eea6060` | **Day 5 1h stability** ✅ live (sys: 720seg / 14MB / 0 drop / RSS peak 135.8MB) — drift O(n+m) fix + RSS sampler |
 | `4713c01` | NEXT.md sync (Day 5 결과 반영) |
 | `9dc4644` | **Day 6 partial** ⚠️ tauri-nspanel 인프라 (두 윈도우 + setup hook 통과) — drag/transparent/fullScreenAuxiliary 3가지 후속 |
+| `b092cc7` | NEXT.md sync (Day 6 partial + 미해결 명시) |
+| `5e3ebd6` | **Day 6 finalize** ✅ Accessory activation policy + transparent CSS fix → fullScreenAuxiliary live verified (YouTube fullscreen 위 floating). drag 만 남음. |
 
 ### 작동 검증된 것
 
@@ -46,19 +48,32 @@
 
 - **Mic 실 캡처** — Day 3 코드 + Info.plist 모두 들어가 있으나 dev mode 의 unsigned binary 에서 Apple SC daemon (`replayd`) 가 `with_captures_microphone(true)` 를 silently 무효화 (`micEnabled=0`). TCC 자체는 통과 (ffmpeg/AVFoundation 으로 cmux mic 정상 녹음 확인됨). SCStream mic feature 만 별도 enforcement. Apple Dev ID + `tauri build` 의 `.app` bundle (Hardened Runtime + signed) 시점에 풀릴 것으로 예측. PLAN.md L146 stance 와 일치.
 
-### Day 6 미해결 (다음 세션 첫 트리아지)
+### Day 6 결과 (live verified)
 
-Day 6 시도 결과 — `tauri-nspanel` 인프라는 통과했지만 시각 검증 단계에서 3가지 발견:
+`tauri-nspanel` PoC empirically 통과:
 
-1. **Drag 안 됨** — `WebkitAppRegion: "drag"` (camelCase outer container) 적용했으나 overlay 가 안 움직임. 가설: ① Vite HMR 이 NSPanel 변환된 webview 에 미적용, 또는 ② NSPanel 변환 후 macOS native drag 처리로 webkit-app-region 차단. 검증법: tauri dev 통째로 재시작 → 그래도 안 되면 ② 확정 → nspanel 의 `panel.set_movable_by_window_background(true)` 또는 비슷한 API 조사.
+- ✅ **fullScreenAuxiliary** — YouTube fullscreen 위 overlay 그대로 floating. Watch mode 의 product 핵심 wedge 검증 완료.
+- ✅ **Transparent** — overlay 가 desktop 비치는 cream blur. App.css 의 `html, body, #root { background: transparent }` 명시 + `:root` 의 회색 background 를 `.container` 로 이동 (main only).
+- ✅ **Activation policy = Accessory** (사용자 결정) — Dock icon 없음, overlay-first vibe 와 매칭. lib.rs 의 setup 에서 `app.set_activation_policy(ActivationPolicy::Accessory)`.
+- ✅ **Always-on-top** (`PanelLevel::Floating`)
+- ✅ 두 윈도우 동시 띄움, NSPanel 변환
 
-2. **Transparent 안 됨** — overlay 가 회색 박스로 표시 (cream blur translucent 의도). desktop 이 비쳐야 정상. 가설: `index.html` / `App.css` / `#root` 의 default background 가 transparent 차단. macOSPrivateApi:true + tauri.conf.json `transparent:true` 는 적용됨 (빌드 통과). CSS 쪽에서 `html, body, #root { background: transparent }` 명시 필요.
+#### 남은 항목 1개 — Drag
 
-3. **fullScreenAuxiliary 안 됨** ⚠️ **Daylight decision** — `set_collection_behavior(.full_screen_auxiliary().can_join_all_spaces())` 적용했으나 YouTube fullscreen 위에 overlay 가 사라짐. 원인: `fullScreenAuxiliary` 는 `ActivationPolicy::Accessory` 또는 `Prohibited` 에서만 작동. 우리는 default `Regular`. **Tradeoff**:
-    - **(A) Accessory 채택** — dock icon 사라짐. overlay-first vibe 와 매칭 ("Korean ears for English audio" wedge 와 일치). main 윈도우는 hot key/menu bar 로 띄워야.
-    - **(B) Higher window level** — `set_level()` 을 NSStatusWindowLevel(25) 또는 NSScreenSaverWindowLevel(1000) 로. Regular policy 유지 가능. 단 OS alert 위에도 떠 (heavy).
-    - **(C) Runtime switching** — overlay 표시 중 Accessory, 숨김 시 Regular. State machine complexity.
-    - 현재 답 없음. PRINCIPLES + product wedge 관점에서 (A) 유력해 보이나 사용자/디자이너 결정 필요.
+`WebkitAppRegion: "drag"` (camelCase outer container) 적용 + tauri dev 재시작 후에도 overlay drag 안 됨 → HMR 가설 제거, **NSPanel 의 webkit-app-region 차단 확정**.
+
+가설/조사 방향:
+- nspanel `Panel` 의 movable API 확인 (`panel.set_movable_by_window_background(true)` 또는 비슷한 method signature 조사)
+- ahkohd/tauri-nspanel `examples/basic` 또는 `examples/panel_builder` 의 drag 처리 패턴 학습
+- 안 되면 webview 의 mousedown event 잡고 manual `panel.start_drag()` 같은 native API 사용
+- 작은 슬라이스 (1줄 fix 부터 시작)
+
+#### Main 윈도우 띄우기 — Phase 0+ 별도
+
+Accessory 채택 trade-off — dock icon 없어 main 안 보임. 의도대로. 다음 슬라이스:
+- Menu bar item (NSStatusItem) 또는 hot key 로 main 호출
+- ⌘W 로 main close, overlay 만 유지
+- Phase 0 의 mode-switch (시청 ↔ 미팅) 와 묶기
 
 ### 환경 (재현용)
 
@@ -85,19 +100,23 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: ⭐ Day 6 finalize — drag + transparent + fullScreenAuxiliary
+### Step 1: Drag fix (Day 6 후속, small slice)
 
-위 "Day 6 미해결" 3개 트리아지. 권장 순서:
+NSPanel 의 webkit-app-region 차단 확정. nspanel 의 native drag API 조사:
 
-**1-a. Activation policy 결정 (먼저)** — fullScreenAuxiliary 가 PoC 의 핵심 acceptance 이고 design decision 이라 가장 먼저. (A)/(B)/(C) 중 선택. 결정 시 lib.rs 의 `setup` 에 `app.set_activation_policy(ActivationPolicy::Accessory)` 추가 (또는 (B) 면 `panel.set_level(25)` 변경).
+1. crate docs 에서 `Panel` / `WebviewWindowExt` 의 movable 관련 method (rg "movable\|drag\|start_drag" `~/.cargo/registry/src/.../tauri-nspanel-2.1.0/src/`)
+2. `examples/basic/src-tauri/src/main.rs` 또는 `examples/panel_builder/...` 의 drag 처리 패턴
+3. 가장 가능성 높은 API: `panel.set_movable_by_window_background(true)` — 1줄 fix
+4. 안 되면 webview 의 mousedown event hook + `panel.start_drag()` Tauri 2 API
+5. 시각 검증: overlay 클릭 + drag → 이동
 
-**1-b. Transparent fix** — `src/index.css` 또는 `App.css` 에 `html, body, #root { background: transparent }` 추가. Vite + Tauri 2 transparent webview 표준 패턴. 적용 후 overlay 가 desktop 비쳐 보여야.
+### Step 2: Main 윈도우 띄우기 (Phase 0 일부)
 
-**1-c. Drag fix** — tauri dev 재시작으로 HMR 가설 검증. 안 되면 nspanel `WebviewWindowExt` / `Panel` 의 movable API 확인. `panel.set_movable_by_window_background(true)` 또는 NSPanel 의 `becomesKeyOnlyIfNeeded` 같은 macos-private setting.
+Accessory tradeoff 처리:
+- Menu bar item (NSStatusItem) 또는 ⌘⇧B 같은 hot key 로 main window show
+- 시청 ↔ 미팅 mode-switch 와 묶기 (design-system-extensions/mode-switch.md)
 
-**1-d. 시각 재검증** — 두 윈도우 + transparent + drag + always-on-top + fullScreenAuxiliary 5가지 한 번에. 통과해야 Day 6 ✅.
-
-### Step 1.5 (이전): Two-window + tauri-plugin-nspanel — *부분 완료* (Day 6)
+### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
 `pnpm tauri add nspanel` 또는 `cargo add tauri-plugin-nspanel`. main window + 작은 floating overlay (NSPanel) 2개 띄우고 drag/resize/opacity 검증. PRINCIPLES + design-system-extensions/overlay.md 의 spec 가능성 판단. 별도 슬라이스.
 
@@ -168,7 +187,9 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | ScreenCaptureKit Rust binding | ✅ Day 1-4 통과 | screencapturekit 2.0 (svtlabs), 결정 |
 | 1h stability + RSS | ✅ Day 5 통과 | RSS peak 135.8MB / 720 seg / drop 0 / drift hang 없음 |
 | Mic 실 캡처 | ⏳ Apple Dev ID 후 | Info.plist + code path 다 들어감, signing 만 남음 |
-| nspanel fullScreenAuxiliary | ⏳ activation policy decision | (A) Accessory / (B) High level / (C) Runtime switch — 다음 세션 첫 트리아지 |
+| nspanel fullScreenAuxiliary | ✅ Day 6 통과 | Accessory + nspanel collection behavior, YouTube fullscreen 위 floating live 검증 |
+| Overlay drag | ⏳ nspanel API 조사 | webkit-app-region 차단 확정, native API 1줄 fix 추정 |
+| Main 윈도우 호출 (Accessory tradeoff) | ⏳ Phase 0 | menu bar item 또는 hot key |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
 | Apple Developer 승인 지연 | Lane B 큐, ~1주 | 다음 세션 사용자 신청 권장 |
@@ -213,4 +234,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby has two windows but cannot move freely between them. Bartleby would prefer a clear policy."
+> "Bartleby floats above all fullscreens. Bartleby would prefer to be moved by hand next."
