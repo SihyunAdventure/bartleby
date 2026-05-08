@@ -17,6 +17,7 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 
 use super::rss::RssStats;
+use super::silence::DrmDetector;
 
 use screencapturekit::prelude::{
     SCContentFilter, SCShareableContent, SCStream, SCStreamConfiguration, SCStreamOutputTrait,
@@ -78,6 +79,11 @@ pub struct CaptureStats {
     pub mic_bytes_written: usize,
     /// RSS memory usage stats for the capture session.
     pub rss: RssStats,
+    /// Peak system audio level in dBFS over the whole capture window.
+    pub peak_system_dbfs: f64,
+    /// True iff system audio stayed below the silence threshold for the
+    /// entire capture (DRM-protected sources zero-fill the buffer).
+    pub drm_detected: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +128,8 @@ struct SystemAudioSink {
     accumulator: Arc<Mutex<AudioAccumulator>>,
     /// Send raw interleaved f32 samples to the encoder worker.
     sample_tx: std::sync::mpsc::Sender<Vec<f32>>,
+    /// DRM silence detector — only system audio is silenced by DRM.
+    drm_detector: Arc<Mutex<DrmDetector>>,
 }
 
 impl SCStreamOutputTrait for SystemAudioSink {
@@ -129,7 +137,13 @@ impl SCStreamOutputTrait for SystemAudioSink {
         if output_type != SCStreamOutputType::Audio {
             return;
         }
-        route_audio_buffer(&self.accumulator, &self.sample_tx, sample, "sys");
+        route_audio_buffer(
+            &self.accumulator,
+            &self.sample_tx,
+            Some(&self.drm_detector),
+            sample,
+            "sys",
+        );
     }
 }
 
@@ -143,7 +157,7 @@ impl SCStreamOutputTrait for MicrophoneSink {
         if output_type != SCStreamOutputType::Microphone {
             return;
         }
-        route_audio_buffer(&self.accumulator, &self.sample_tx, sample, "mic");
+        route_audio_buffer(&self.accumulator, &self.sample_tx, None, sample, "mic");
     }
 }
 
@@ -154,6 +168,7 @@ impl SCStreamOutputTrait for MicrophoneSink {
 fn route_audio_buffer(
     accumulator: &Arc<Mutex<AudioAccumulator>>,
     sample_tx: &std::sync::mpsc::Sender<Vec<f32>>,
+    drm_detector: Option<&Arc<Mutex<DrmDetector>>>,
     sample: CMSampleBuffer,
     label: &str,
 ) {
@@ -179,6 +194,10 @@ fn route_audio_buffer(
 
     let interleaved = planar_to_interleaved_stereo(&planes);
     let frame_count = interleaved.len() / 2;
+
+    if let Some(detector) = drm_detector {
+        detector.lock().unwrap().observe(&interleaved);
+    }
 
     // Send samples to worker — unbounded channel, non-blocking.
     // If the worker has exited (receiver dropped) we simply discard.
@@ -250,10 +269,12 @@ pub fn capture_dual_to_opus(
 
     let sys_accumulator = Arc::new(Mutex::new(AudioAccumulator::new()));
     let mic_accumulator = Arc::new(Mutex::new(AudioAccumulator::new()));
+    let drm_detector = Arc::new(Mutex::new(DrmDetector::new()));
 
     let sys_sink = SystemAudioSink {
         accumulator: Arc::clone(&sys_accumulator),
         sample_tx: sys_tx,
+        drm_detector: Arc::clone(&drm_detector),
     };
     let mic_sink = MicrophoneSink {
         accumulator: Arc::clone(&mic_accumulator),
@@ -343,6 +364,14 @@ pub fn capture_dual_to_opus(
     // ---- 9. Compute drift -----------------------------------------------
     let drift = compute_drift(&sys_acc.traces, &mic_acc.traces);
 
+    // ---- 10. DRM silence verdict ----------------------------------------
+    let drm = drm_detector.lock().unwrap();
+    // Require at least 1 second of stereo samples (interleaved → SAMPLE_RATE*2)
+    // before flagging — guards against zero-buffer captures.
+    let drm_min_samples = SAMPLE_RATE as usize * usize::from(CHANNELS);
+    let peak_system_dbfs = drm.peak_dbfs();
+    let drm_detected = drm.is_drm_blocked(drm_min_samples);
+
     Ok(CaptureStats {
         buffers_received: sys_acc.buffer_count,
         frames_written: sys_frames,
@@ -356,6 +385,8 @@ pub fn capture_dual_to_opus(
         mic_segments_written: mic_enc.segments_written,
         mic_bytes_written: mic_enc.total_bytes,
         rss: rss_stats,
+        peak_system_dbfs,
+        drm_detected,
     })
 }
 
