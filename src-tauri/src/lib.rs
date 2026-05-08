@@ -54,6 +54,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_nspanel::init())
         .setup(|app| {
+            // fullScreenAuxiliary collection behavior requires Accessory or
+            // Prohibited activation policy. Bartleby is overlay-first (watch
+            // mode = primary surface), so dropping the dock icon is on-spec.
+            // Main window is reachable via menu bar item (Phase 0+).
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let overlay = app.get_webview_window("overlay").expect("overlay window");
             let panel = overlay.to_panel::<OverlayPanel>().expect("to_panel failed");
             panel.set_level(PanelLevel::Floating.value());
