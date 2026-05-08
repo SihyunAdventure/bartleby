@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 오전 — **Day 1-11 ✅ (drag + tray + silence detection + overlay event + ⌘⇧B)**
+> 마지막 세션: 2026-05-08 오후 — **Day 1-12 ✅ (capture infra → 시청 모드 lifecycle 까지)**
 
 ---
 
-## 현재 상태 (Day 11 ✅ 종료, 2026-05-08 오전)
+## 현재 상태 (Day 12 ✅ 종료, 2026-05-08 오후)
 
 ### 누적 commits (main branch)
 
@@ -39,6 +39,8 @@
 | `fdea697` | **Day 10 slice** ✅ Overlay surfaces silence verdict — capture_dual_to_opus 가 AppHandle 받고 dedicated thread 가 ~3s 분량 sample 모이면 `drm_status` event emit. Overlay listen → "No audio detected." 텍스트 교체. 메시지는 mic cross-check 전까지 부드러운 톤 유지. |
 | `71e7f63` | NEXT.md sync (Day 10 ✅ + Day 11 entry) |
 | `f8329e1` | **Day 11 slice** ✅ ⌘⇧B global shortcut toggles main window — tauri-plugin-global-shortcut + global-shortcut:default 권한 + setup hook 의 on_shortcut. inactive 상태에서도 main hide ↔ show 토글 live verified. |
+| `18d0315` | NEXT.md sync (Day 11 ✅ + Day 12 entry) |
+| `6572a76` | **Day 12 slice** ✅ Auto-capture lifecycle — capture_dual_to_opus 가 (stop, max_seconds) 받아 signal-driven loop. `CaptureSession` + AppState Mutex. start_capture/stop_capture/capture_system_audio 3개 Tauri command. Live verified: Start → ~45s indefinite → Stop, -4.9 dBFS peak / 9 segments. |
 
 ### 작동 검증된 것
 
@@ -131,6 +133,20 @@ DRM silence detection PoC — `capture/silence.rs` (pure helpers + DrmDetector a
 - ✅ 다른 앱 active 상태에서도 작동 (global), main hide ↔ show 토글
 - ✅ Overlay 는 영향 없음 (separate label)
 
+### Day 12 결과 (live verified)
+
+Capture 가 fixed-duration blocking → signal-driven loop 로 리팩토링. 시청 모드 의 핵심 lifecycle infrastructure.
+
+- ✅ `capture_dual_to_opus(stop: Arc<AtomicBool>, max_seconds: Option<u64>, ...)` — 100ms poll loop
+- ✅ Tauri command 3개:
+  - `capture_system_audio(seconds)` — legacy fixed-duration ("Capture Ns" 버튼)
+  - `start_capture()` — indefinite, AppState 의 Mutex<Option<CaptureSession>> 에 session 저장. 이미 running 이면 error.
+  - `stop_capture()` — session take(), stop flag 설정, thread join, stats 반환
+- ✅ App.tsx Start/Stop 버튼 + `captureRunning` state cross-binding (disabled)
+- ✅ App.css `:disabled` styling (Tauri webview 의 browser default 가 너무 subtle 했음)
+- ✅ Live: Start → ~45s capture → Stop, peak -4.9 dBFS / 9 segments
+- ✅ 23 tests still pass (capture signature 변경은 internal)
+
 ### 환경 (재현용)
 
 - Bartleby repo: `~/Dev/side/bartleby/`
@@ -156,18 +172,17 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: Day 12 — Auto-capture lifecycle (시청 모드 entry)
+### Step 1: Day 13 — Phase 0 디자인 시스템 entry (gallery + 14→19 섹션)
 
-지금까지는 main 윈도우 "Capture Ns" 버튼이 트리거. 실제 product 에서는 시청 모드 진입 시 자동 시작 / 종료. 스코프:
-- "Watch mode" toggle (overlay 띄우기 + capture 자동 시작) vs. capture 일시정지
-- mode-switch.md spec 참조
-- 캡처 lifecycle 을 Tauri command set 으로 (start_capture / stop_capture / pause_capture)
-- 현재 `capture_dual_to_opus` 는 fixed-duration blocking — 변경 필요 (start/stop signal 받게)
-- App state 으로 capture handle (Mutex<Option<CaptureSession>>) 관리
+Infra slice (Day 1-12) 마무리. 이제 본격 UI 단계. design-system-extensions 의 gallery route + 19 섹션 매핑. 별도 위임 prompt 는 git history 참조 (commit `f927321` ~ `3733318`). designer agent 위임 추천.
 
-### Step 2: Day 13+ — Phase 0 디자인 시스템 entry (gallery + 14→19 섹션)
+### Step 2: Day 14+ — Watch mode toggle (overlay + capture 결합)
 
-infra slice (Day 1-12) 마무리 후 본격 UI. design-system-extensions 의 gallery route + 19 섹션 매핑. 별도 위임 prompt 는 git history 참조 (commit `f927321` ~ `3733318`).
+Day 12 의 start/stop 을 시청 모드 토글에 묶기. 진입 시 overlay show + start_capture, 종료 시 overlay hide + stop_capture. mode-switch.md spec 참조. 현재 분리되어 있는 overlay 표시 (tauri.conf.json 자동 띄움) 와 capture (수동 button) 를 단일 토글로 통합.
+
+### Step 3: Day 15+ — STT 통합 (Soniox streaming, Phase 2)
+
+Lane B 셋업 완료 후 (Soniox API key, $5+ 충전). Opus segment 를 ws stream 으로 push, 영어 → 한국어 translation. overlay 에 live caption.
 
 ### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
@@ -242,7 +257,8 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | DRM detection (capture path) | ✅ Day 9 통과 | silence.rs (11 tests) + CaptureStats peak_system_dbfs/drm_detected. YouTube/Netflix/silent 모두 verify. |
 | Overlay surface (silence verdict) | ✅ Day 10 통과 | drm_status Tauri event + Overlay listen → 자동 텍스트 교체. 메시지는 mic cross-check 전까지 neutral. |
 | Hot key (⌘⇧B global summon) | ✅ Day 11 통과 | tauri-plugin-global-shortcut + global-shortcut:default. main hide ↔ show 토글, inactive 상태에서도 작동. |
-| Auto-capture lifecycle | ⏳ Day 12 | Tauri command (start/stop/pause) + capture_dual_to_opus 의 fixed-duration → signal-driven 변환 |
+| Auto-capture lifecycle | ✅ Day 12 통과 | signal-driven loop + AppState session + start/stop Tauri command. ~45s indefinite capture live verified. |
+| Watch mode toggle (overlay + capture) | ⏳ Day 14 | start/stop 을 mode toggle 에 묶기 (overlay show + start, hide + stop). |
 | Mic / Speaker cross-check (DRM 확신) | ⏳ Phase 1+ | Apple Dev ID 후 mic 풀리면 system 무음 + mic 정상 → DRM 확정 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
@@ -288,4 +304,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, lives in the menu bar, listens for silence, tells the overlay so, and answers to ⌘⇧B. Bartleby would prefer to start and stop on its own next."
+> "Bartleby floats, moves, listens until told to stop, surfaces silence, answers to ⌘⇧B. Day 13: Bartleby learns its colors and shapes (design system)."
