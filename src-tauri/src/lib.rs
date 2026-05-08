@@ -1,7 +1,11 @@
 pub mod capture;
 
 use capture::CaptureStats;
-use tauri::Manager;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    Manager, WindowEvent,
+};
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, PanelLevel, StyleMask, WebviewWindowExt,
 };
@@ -81,7 +85,39 @@ pub fn run() {
             // overlay div (App.tsx). Tauri 2 injects a native mousedown handler
             // that calls plugin:window|start_dragging — capability granted in
             // capabilities/default.json (core:window:allow-start-dragging).
+
+            // Menu bar tray: Accessory policy hides dock icon, so this is the
+            // only way to re-summon main window after it's closed.
+            let show = MenuItem::with_id(app, "show", "Show Bartleby", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let _tray = TrayIconBuilder::with_id("bartleby-tray")
+                .icon(app.default_window_icon().expect("window icon").clone())
+                .icon_as_template(true)
+                .menu(&menu)
+                .show_menu_on_left_click(true)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .build(app)?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Intercept main window close so the user can re-summon it from
+            // the tray. Overlay is not affected — closing it is a real close.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![greet, capture_system_audio])
         .run(tauri::generate_context!())
