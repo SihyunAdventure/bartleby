@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 오전 — **Day 1-7 ✅ (drag triad 발견 — capabilities + acceptFirstMouse + nonactivating_panel)**
+> 마지막 세션: 2026-05-08 오전 — **Day 1-8 ✅ (drag triad + menu bar tray)**
 
 ---
 
-## 현재 상태 (Day 7 ✅ 종료, 2026-05-08 오전)
+## 현재 상태 (Day 8 ✅ 종료, 2026-05-08 오전)
 
 ### 누적 commits (main branch)
 
@@ -31,6 +31,8 @@
 | `d306b2e` | **Day 7 partial** ⚠️ Drag 3가지 시도 실패 — startDragging() JS handler 만 남김. nonactivating_panel + Accessory 가설 검증은 다음 세션 첫 probe. |
 | `ce07dd5` | NEXT.md sync (Day 7 partial + 다음 세션 3 probes) |
 | `ce29bd2` | **Day 7 slice** ✅ Overlay drag — codex+advisor parallel review 로 root cause triad 확정 (capabilities + acceptFirstMouse + nonactivating_panel). Live verified: 첫 클릭부터 inactive 상태에서 즉시 drag. |
+| `f004883` | NEXT.md sync (Day 7 ✅ + Day 8 entry) |
+| `adb4b83` | **Day 8 slice** ✅ Menu bar item (NSStatusItem) + main-close-to-hide — Show Bartleby / Quit, main close 시 hide 후 tray 로 re-summon. Live verified. |
 
 ### 작동 검증된 것
 
@@ -78,13 +80,16 @@ NSPanel polish:
 
 **5+ 시도 실패 후 codex + advisor parallel review 로 root cause 발견** — codex 가 capabilities 누락 + acceptFirstMouse API 정확히 지목, advisor 가 async startDragging() 의 sync 가정 오류 + scope question 제기. 이전 NEXT.md 의 3 probe 가설 (nonactivating / nspanel issues / is_floating_panel) 모두 falsified.
 
-#### Main 윈도우 띄우기 — Day 8 entry point
+### Day 8 결과 (live verified)
 
-Accessory 채택 trade-off: dock icon 없어 main window 가 처음 launch 후 close 시 다시 호출 불가. 다음 슬라이스 (Phase 0 일부):
-- **Menu bar item (NSStatusItem)** — 가장 자연스러움. macOS overlay-first app 들 standard pattern (Raycast, 1Password, Linear menu bar app 등)
-- 또는 **hot key (⌘⇧B)** — 빠르지만 menu bar 보다 discovery 떨어짐
-- ⌘W 로 main close, overlay 만 유지 (지금 default 동작과 일치)
-- Phase 0 의 mode-switch (시청 ↔ 미팅) 와 묶기
+Tauri 2 built-in `TrayIconBuilder` 로 Accessory tradeoff 해결 — 외부 plugin 불필요.
+
+- ✅ Menu bar item (default window icon, `icon_as_template(true)` 로 dark/light auto)
+- ✅ "Show Bartleby" / "Quit" 메뉴 항목, left-click 으로 메뉴 즉시 펼침
+- ✅ Main window close → hide (`on_window_event` + `prevent_close()`), tray 의 Show 로 즉시 re-summon (webview rebuild 없음)
+- ✅ Overlay 는 main close 와 무관하게 floating 유지
+
+Cargo features: `tauri = { features = ["macos-private-api", "tray-icon", "image-png"] }`. `image-png` 는 bundle icon (PNG) 디코딩 용.
 
 ### 환경 (재현용)
 
@@ -111,30 +116,28 @@ git log --oneline -10  # 마지막 commit 확인
 3. `PRINCIPLES.md` — 디자인 구현 원칙 (변경 X)
 4. `PLAN.md` — Phase 0-6 (Day 1-4 진행을 PLAN 의 Phase 1 spike 와 매핑)
 
-### Step 1: Day 8 — Main 윈도우 invocation (Phase 0 일부)
+### Step 1: Day 9 — DRM detection PoC (capture path 의 product wedge)
 
-Accessory activation policy 의 trade-off 처리. Main window 가 close 후 다시 보이지 않는 문제 해결.
+Apple TV+ / Netflix 같은 DRM 콘텐츠 재생 중 system audio 가 silent. capture 자체는 성공하지만 buffer 가 zero 라 STT 가 무의미. 사용자 입장에서는 *왜 자막이 안 뜨는지* 모르면 product trust 깎임. 명시적 detect + UI feedback.
 
-**스코프 (cheap path)**:
-- `tauri-plugin-positioner` 또는 직접 NSStatusItem (objc2) 으로 menu bar item 생성
-- "Show Bartleby" / "Quit" 두 항목
-- 클릭 시 `app.get_webview_window("main").show().set_focus()`
-- Hot key (⌘⇧B) 는 후속 — `tauri-plugin-global-shortcut` 사용
+**스코프**:
+- `capture/` 모듈에 RMS 계산 helper (frame slice → linear RMS → dBFS) — testable
+- 캡처 시작 후 첫 ~10-20s 의 system buffer 들 RMS 모니터링 — 모두 < -60 dBFS 면 DRM 의심
+- (mic 없이 system 만 무음인 게 핵심 시그널 — mic 도 무음이면 그냥 조용한 환경)
+- Tauri event 로 frontend 에 `drm_blocked` 통지
+- Overlay 의 placeholder 텍스트가 "Bartleby would prefer not to. (DRM blocked)" 으로 변경
 
 **Verify**:
-- 앱 시작 후 main window close → menu bar item 클릭 → main 다시 뜸
-- Quit 으로 정상 종료
-- Overlay 는 main close 와 무관하게 계속 떠있음 (현재 동작 유지)
+- YouTube (DRM 없음) 재생 → 정상 (자막 placeholder)
+- Apple TV+ trailer 또는 Netflix episode → DRM detected 메시지
 
-**design-system-extensions/mode-switch.md 의 시청 ↔ 미팅 토글과 묶을지** — Day 8 에서 결정. menu bar item 이 mode 표시 (👁️ vs. 🎙️) 도 가능.
+### Step 2: Day 10 — Hot key (⌘⇧B) global summon (선택)
 
-### Step 2 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
+Day 8 의 menu bar tray 후속. `tauri-plugin-global-shortcut` 으로 ⌘⇧B 토글 (main hide ↔ show). discovery 는 menu bar 보다 떨어지지만 power user 가성비 좋음.
 
-PRINCIPLES + design-system-extensions/overlay.md 의 spec — drag 까지 verified.
+### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
-### Step 3: DRM detection PoC
-
-Apple TV+ / Netflix 같은 DRM 콘텐츠 재생 중 system audio 가 silent (RMS < -60dBFS) 인지 10-20s 동안 측정해서 DRM-blocked 상태 detect. UI 에 "Bartleby would prefer not to. (DRM blocked)" 표시. 작은 슬라이스.
+PRINCIPLES + design-system-extensions/overlay.md 의 spec — drag (Day 7) + tray (Day 8) 까지 verified.
 
 ### Step 4: Lane B 인프라 (사용자 직접, ~1시간)
 
@@ -201,7 +204,8 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | Mic 실 캡처 | ⏳ Apple Dev ID 후 | Info.plist + code path 다 들어감, signing 만 남음 |
 | nspanel fullScreenAuxiliary | ✅ Day 6 통과 | Accessory + nspanel collection behavior, YouTube fullscreen 위 floating live 검증 |
 | Overlay drag | ✅ Day 7 통과 | capabilities + acceptFirstMouse + nonactivating_panel triad. inactive 첫 클릭부터 drag, focus stealing 없음 live verified. |
-| Main 윈도우 호출 (Accessory tradeoff) | ⏳ Day 8 | menu bar item (NSStatusItem) 우선, hot key 후속 |
+| Main 윈도우 호출 (Accessory tradeoff) | ✅ Day 8 통과 | TrayIconBuilder + on_window_event hide. main close 시 hide → tray 의 Show 로 즉시 re-summon. Live verified. |
+| DRM detection (Apple TV+ / Netflix) | ⏳ Day 9 | RMS 모니터링 + Tauri event 로 overlay placeholder 변경 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
 | Solar Pro 3 요약 품질 | OpenRouter 즉시 swap 가능 | Claude / Gemini fallback |
 | Apple Developer 승인 지연 | Lane B 큐, ~1주 | 다음 세션 사용자 신청 권장 |
@@ -246,4 +250,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats and now moves. Bartleby would prefer a menu bar."
+> "Bartleby floats, moves, and lives in the menu bar. Bartleby would prefer not to (when DRM-blocked)."
