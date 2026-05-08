@@ -14,6 +14,25 @@ interface DrmStatusPayload {
   peak_dbfs: number;
 }
 
+interface SttPartialPayload {
+  text: string;
+  language: string | null;
+}
+
+interface SttFinalPayload {
+  text: string;
+  language: string | null;
+}
+
+interface SttErrorPayload {
+  code: string | null;
+  message: string;
+}
+
+// Overlay caption window — keep last N chars of running final transcript so
+// the surface doesn't grow unbounded. §11 LiveCaption gallery will tune this.
+const FINAL_WINDOW_CHARS = 220;
+
 function Overlay() {
   // Drag wiring requires three pieces working together (any one missing →
   // silent no-op): (1) `data-tauri-drag-region` attribute below, (2)
@@ -21,24 +40,62 @@ function Overlay() {
   // capabilities/default.json, (3) `acceptFirstMouse: true` on the overlay
   // window in tauri.conf.json so inactive-state first click reaches drag.js.
   const [drmBlocked, setDrmBlocked] = useState(false);
+  const [finalText, setFinalText] = useState("");
+  const [partialText, setPartialText] = useState("");
+  const [sttError, setSttError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unlistenPromise = listen<DrmStatusPayload>("drm_status", (event) => {
-      setDrmBlocked(event.payload.drm_blocked);
-    });
+    const subs = [
+      listen<DrmStatusPayload>("drm_status", (event) => {
+        setDrmBlocked(event.payload.drm_blocked);
+      }),
+      listen<SttFinalPayload>("stt_final", (event) => {
+        setFinalText((prev) => {
+          const joined = (prev + event.payload.text).replace(/\s+/g, " ").trimStart();
+          return joined.length > FINAL_WINDOW_CHARS
+            ? joined.slice(-FINAL_WINDOW_CHARS)
+            : joined;
+        });
+        setPartialText("");
+        setSttError(null);
+      }),
+      listen<SttPartialPayload>("stt_partial", (event) => {
+        setPartialText(event.payload.text);
+        setSttError(null);
+      }),
+      listen<SttErrorPayload>("stt_error", (event) => {
+        setSttError(event.payload.message);
+      }),
+    ];
     return () => {
-      unlistenPromise.then((fn) => fn());
+      subs.forEach((p) => p.then((fn) => fn()));
     };
   }, []);
 
-  // The detector flags any sustained silence — could be DRM, mute, paused
-  // playback, or wrong audio routing. Without mic cross-check (Phase 1+,
-  // gated on signed builds) we can't tell which, so the message stays
-  // neutral. Bartleby's signature refusal line is reserved for confirmed
-  // DRM cases later.
-  const text = drmBlocked
-    ? "No audio detected."
-    : "Awaiting English audio.";
+  // Priority: STT error > caption stream > DRM placeholder > default.
+  // Once captions are flowing, drm_status is by definition false; suppress
+  // the placeholder so it doesn't flicker between caption tokens.
+  const hasCaption = finalText.length > 0 || partialText.length > 0;
+  let body: React.ReactNode;
+  if (sttError) {
+    body = `STT: ${sttError}`;
+  } else if (hasCaption) {
+    body = (
+      <span>
+        {finalText}
+        {partialText && (
+          <span style={{ opacity: 0.55 }}>
+            {finalText ? " " : ""}
+            {partialText}
+          </span>
+        )}
+      </span>
+    );
+  } else if (drmBlocked) {
+    body = "No audio detected.";
+  } else {
+    body = "Awaiting English audio.";
+  }
 
   return (
     <div
@@ -57,14 +114,16 @@ function Overlay() {
         justifyContent: "center",
         fontFamily: "system-ui, -apple-system, sans-serif",
         fontSize: 13,
-        fontStyle: "italic",
-        color: "rgba(40, 40, 40, 0.6)",
+        fontStyle: hasCaption ? "normal" : "italic",
+        color: hasCaption ? "rgba(20, 20, 20, 0.85)" : "rgba(40, 40, 40, 0.6)",
         WebkitUserSelect: "none",
-        padding: "0 16px",
+        padding: "8px 14px",
         textAlign: "center",
+        lineHeight: 1.45,
+        overflow: "hidden",
       } as CSSProperties}
     >
-      {text}
+      {body}
     </div>
   );
 }

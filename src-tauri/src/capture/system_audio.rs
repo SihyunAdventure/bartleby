@@ -140,6 +140,9 @@ struct SystemAudioSink {
     sample_tx: std::sync::mpsc::Sender<Vec<f32>>,
     /// DRM silence detector — only system audio is silenced by DRM.
     drm_detector: Arc<Mutex<DrmDetector>>,
+    /// Optional fan-out for STT (cloned interleaved samples). Mic is excluded
+    /// — Phase 3+ meeting mode will revisit mic→STT pairing.
+    stt_sender: Option<std::sync::mpsc::Sender<Vec<f32>>>,
 }
 
 impl SCStreamOutputTrait for SystemAudioSink {
@@ -150,6 +153,7 @@ impl SCStreamOutputTrait for SystemAudioSink {
         route_audio_buffer(
             &self.accumulator,
             &self.sample_tx,
+            self.stt_sender.as_ref(),
             Some(&self.drm_detector),
             sample,
             "sys",
@@ -167,7 +171,7 @@ impl SCStreamOutputTrait for MicrophoneSink {
         if output_type != SCStreamOutputType::Microphone {
             return;
         }
-        route_audio_buffer(&self.accumulator, &self.sample_tx, None, sample, "mic");
+        route_audio_buffer(&self.accumulator, &self.sample_tx, None, None, sample, "mic");
     }
 }
 
@@ -178,6 +182,7 @@ impl SCStreamOutputTrait for MicrophoneSink {
 fn route_audio_buffer(
     accumulator: &Arc<Mutex<AudioAccumulator>>,
     sample_tx: &std::sync::mpsc::Sender<Vec<f32>>,
+    stt_sender: Option<&std::sync::mpsc::Sender<Vec<f32>>>,
     drm_detector: Option<&Arc<Mutex<DrmDetector>>>,
     sample: CMSampleBuffer,
     label: &str,
@@ -207,6 +212,12 @@ fn route_audio_buffer(
 
     if let Some(detector) = drm_detector {
         detector.lock().unwrap().observe(&interleaved);
+    }
+
+    if let Some(stt) = stt_sender {
+        // Clone for STT — keeps the original Vec available for the encoder
+        // path. Buffer is ~960 stereo frames so the alloc is bounded.
+        let _ = stt.send(interleaved.clone());
     }
 
     // Send samples to worker — unbounded channel, non-blocking.
@@ -246,6 +257,7 @@ pub fn capture_dual_to_opus(
     system_base_path: &Path,
     mic_base_path: &Path,
     rss_log_path: &Path,
+    stt_sender: Option<std::sync::mpsc::Sender<Vec<f32>>>,
     app: &AppHandle,
 ) -> Result<CaptureStats> {
     const SAMPLE_RATE: u32 = 48_000;
@@ -287,6 +299,7 @@ pub fn capture_dual_to_opus(
         accumulator: Arc::clone(&sys_accumulator),
         sample_tx: sys_tx,
         drm_detector: Arc::clone(&drm_detector),
+        stt_sender,
     };
     let mic_sink = MicrophoneSink {
         accumulator: Arc::clone(&mic_accumulator),

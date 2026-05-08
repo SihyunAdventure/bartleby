@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-08 — **Day 1-14 ✅** (capture infra 12 days + Phase 0 디자인 시스템 entry + Soniox STT wedge 1차 검증)
+> 마지막 세션: 2026-05-08 — **Day 1-15a ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 라이브 영어 자막)
 
 ---
 
-## 현재 상태 (Day 14 ✅ 종료, 2026-05-08)
+## 현재 상태 (Day 15a ✅ 종료, 2026-05-08)
 
 ### 누적 commits (main branch)
 
@@ -43,7 +43,9 @@
 | `6572a76` | **Day 12 slice** ✅ Auto-capture lifecycle — capture_dual_to_opus 가 (stop, max_seconds) 받아 signal-driven loop. `CaptureSession` + AppState Mutex. start_capture/stop_capture/capture_system_audio 3개 Tauri command. Live verified: Start → ~45s indefinite → Stop, -4.9 dBFS peak / 9 segments. |
 | `958e921` | NEXT.md sync (Day 12 ✅ + Day 13 entry) |
 | `60121f2` | **Day 13 slice + cleanup** ✅ Phase 0 entry — tokens.css copy + Section §00 Manifesto + §01 Color (gallery `?gallery` 분기). 3-lens review (CEO/Design/Eng) 후 큰 cleanup: CSS Modules + sections 분할 + lazy Gallery + theme-cascade + 6 폰트 embedding + production capture UI dress + PRINCIPLES.md §2.2 ship/polish gate split + spec drift fix. |
-| *(uncommitted)* | **Day 14 spike — wedge 1차 검증** ✅ Soniox STT spike (`~/Dev/_inbox/bartleby-stt-spike/`, throwaway, Day 1 capture spike pattern mirror) — `stt-rt-v4` WebSocket 한국어/영어 wedge 1차 검증 통과. bartleby repo 에 코드 미반영 (Phase 2 시점에 from-scratch 재구현). Phase 2 STT critical risk retired. |
+| *(external — spike repo only)* | **Day 14 wedge 검증** ✅ Soniox STT spike (`~/Dev/_inbox/bartleby-stt-spike/`, throwaway, Day 1 capture spike pattern mirror) — `stt-rt-v4` WebSocket 한국어/영어 wedge 1차 검증 통과. bartleby repo 에 코드 미반영, Phase 2 시점에 from-scratch 재구현. Phase 2 STT critical risk retired. 결과 문서화는 `4b744c2` 의 NEXT.md sync. |
+| `4b744c2` | NEXT.md sync (Day 14 ✅ + Day 15 entry) |
+| *(uncommitted)* | **Day 15a slice** ✅ Tauri STT 통합 — `src-tauri/src/stt/{mod,soniox,resample}.rs` + capture fan-out + lib.rs wire + Overlay caption listener. Live: 영어 YouTube 30s → 라이브 자막 자연 흐름. drift 0.00ms / peak RSS 128MB / 27 tests pass. Day 15b (reconnect + ring buffer + 1h RSS) 다음 슬라이스. |
 
 ### 작동 검증된 것
 
@@ -230,6 +232,39 @@ Phase 2 STT entry. spike binary `~/Dev/_inbox/bartleby-stt-spike/` (throwaway, D
 - Mid-stream 끊김 reconnect (PLAN.md L329-389 spec) 미구현 — Phase 2 본진
 - TLS choice (rustls vs native-tls) production 결정 — Phase 2 dep audit 시점
 
+### Day 15a 결과 (Tauri STT 통합 — 라이브 영어 자막 ✅)
+
+Phase 2 본진 진입 — spike 패턴을 bartleby repo 안에 from-scratch 재구현 (memory rule: 외부 reference 코드 복사 금지). System audio → Soniox → Overlay 라이브 자막 happy-path 작동.
+
+**구조 (5 파일 신규/수정)**:
+- `src-tauri/src/stt/mod.rs` — `SttSession` (stop flag + join handle), `start(api_key, app)` 가 `(Sender<Vec<f32>>, SttSession)` 튜플 반환. dedicated std::thread 가 current_thread tokio runtime 소유. Bridge: sync mpsc → resampler → tokio mpsc → ws sender.
+- `src-tauri/src/stt/resample.rs` — `Resampler` 가 48kHz interleaved stereo f32 → 16kHz mono PCM s16le streaming 변환. 채널 평균 + linear interpolation + 120ms (1920 samples) 단위 chunk 누적. 4 unit tests.
+- `src-tauri/src/stt/soniox.rs` — `run_session(api_key, app, chunk_rx, stop)` async. `wss://stt-rt.soniox.com/transcribe-websocket` + `model:"stt-rt-v4"` + lang_hints `[en, ko]` + endpoint detection on. Reader task 가 token 파싱해서 `stt_partial` / `stt_final` / `stt_error` Tauri event emit. Per-message partial reset (live debug 에서 발견한 핵심 버그 — Soniox 는 매 message 마다 *current* partial slate replace, 우리가 그걸 append 하면 끝없이 길어짐).
+- `src-tauri/src/capture/system_audio.rs` — `SystemAudioSink` 에 `stt_sender: Option<Sender<Vec<f32>>>` 추가, `route_audio_buffer` 가 Opus encoder 와 STT 양쪽 fan-out (`interleaved.clone()` — 버퍼 한 chunk ~7.5KB, alloc bounded). `capture_dual_to_opus` signature 에 `stt_sender` 파라미터 추가.
+- `src-tauri/src/lib.rs` — `spawn_capture` 가 `SONIOX_API_KEY` env var present 시 `stt::start` 호출, 반환된 sender 를 capture 에 move. `CaptureSession` 에 `stt: Option<SttSession>` 저장. `stop_capture` / `capture_system_audio` 가 `join_stt` 로 stop flag + thread join.
+- `src/App.tsx` Overlay — `stt_partial` / `stt_final` / `stt_error` 3개 listener. final 은 누적 (220 char rolling window), partial 은 replace, partial→empty transition 도 한 번 emit. partial 0.55 opacity (흐릿) → final 진해짐 (visual cue, 디자인 §11 LiveCaption 시점에 token migration).
+- `src-tauri/Cargo.toml` — `tokio` (macros+rt-multi-thread+time+sync) + `tokio-tungstenite` (connect+handshake+native-tls) + `futures-util` 추가.
+
+**Live verification (30s YouTube 영어 강연)**:
+- ✅ Overlay placeholder ("Awaiting English audio.") → 실시간 영어 자막 자연 흐름
+- ✅ Partial → final 전환 자연 (Soniox endpoint detection 의 1-3초 단위 commit cadence — 의미 보존 우선, default 유지)
+- ✅ Capture stats: peak -29.3 dBFS / 1395b sys / 6 segments / 104.3KB / **drift 0.00ms** / **peak RSS 128MB** (Day 5 capture-only 1h 의 135MB 와 동등 — STT 통합으로 메모리 폭증 X, budget 200MB 의 64%)
+- ✅ Mic 0 (예상대로 deferred)
+- ✅ Stop capture → STT thread + bridge thread 깔끔 join, "session ended" log
+- ✅ 27 unit tests pass (23 기존 + 4 신규 resample)
+
+**Day 15a scope (의도적 제외 — Day 15b 행)**:
+- Reconnect 로직 (1→2→4→8→max 30s exponential backoff)
+- 30s ring buffer audio for reconnect resume (네트워크 blip 시 audio 누락 없이 재개)
+- 1h dogfooding RSS verification (peak < 200MB budget 긴 시청 검증)
+- Wi-Fi 토글 simulate 후 자동 복구 verify
+- Settings UI BYOK key surface (§16, Phase 2 polish)
+- Production-grade resampler (rubato/samplerate anti-aliased, Phase 2 dep audit)
+
+**Spike → repo 재구현 시 발견**:
+- Partial 누적 버그가 spike 에서는 안 드러남 (raw stdout 만 출력) — Tauri 통합 후 Overlay 가 visible 해지면서 즉시 드러남 (사용자: "엄청나게 많은 글이 쓰이는 문제"). Per-message reset 으로 수정.
+- Soniox v4 의 commit cadence (~1-3초 endpoint boundary) 가 watch mode 의 follow-along reader 경험에 적합 — 빠른 commit 보다 의미 단위 우선 (사용자 결정).
+
 ### 환경 (재현용)
 
 - Bartleby repo: `~/Dev/side/bartleby/`
@@ -263,33 +298,31 @@ git log --oneline -10  # 마지막 commit 확인
 
 자세한 결과는 위 "Day 14 결과" 섹션 참조. Lane B (Soniox + OpenRouter key) 완료, spike binary 통과, 한국어 + 영어 conversational lecture production-quality 검증. Phase 2 STT critical risk retired.
 
-### Step 3: Day 15 — Tauri 통합 (capture → STT → overlay caption) ← *다음 슬라이스*
+### Step 3: Day 15a — Tauri 통합 (capture → STT → overlay caption) ✅ *완료*
 
-bartleby repo 안에서 from-scratch 재구현 (spike 코드 복사 금지, 패턴만). drm_status event pattern mirror.
+자세한 결과는 위 "Day 15a 결과" 섹션 참조. happy-path 작동 (영어 YouTube → 라이브 자막), drift 0.00ms / peak RSS 128MB / 27 tests pass. Reconnect + ring buffer + 1h RSS 는 Day 15b.
 
-#### A. STT module 추가 (Rust side)
-- [ ] `src-tauri/src/stt/` 모듈 — Soniox client (websocket + config + binary frame send + token parse)
-- [ ] `tokio-tungstenite` + `native-tls` (또는 rustls + ring 으로 production 최종 결정 시점) feature 추가
-- [ ] 16kHz mono PCM s16le 로 SystemAudioSink 의 f32 buffer 변환 helper (Phase 2 시점엔 rubato 등 proper resampler 검토. spike 의 linear interpolation 은 wedge 검증 용이었음)
-- [ ] `STT_API_KEY` env var 또는 settings.json (BYOK) 로딩 — Phase 2 후반 §16 Settings UI 에 정식 입력 surface
-- [ ] Token unit tests (config JSON shape, server message parse, error_code as integer)
+### Step 3b: Day 15b — Reconnect + ring buffer + 1h RSS ← *다음 슬라이스*
 
-#### B. Capture pipeline 연결
-- [ ] `capture_dual_to_opus` 가 system audio f32 stream 을 STT module 에 mpsc 로 fan-out (기존 Opus encoder 와 병렬, 둘 다 같은 source consume)
-- [ ] STT thread 가 16kHz mono s16le 로 변환 + 120ms chunk 로 Soniox 에 stream
-- [ ] `stt_partial` / `stt_final` Tauri event emit (`drm_status` pattern 그대로 — `&AppHandle` 받아 `app.emit(...)`)
-- [ ] Server close / error 시 `stt_error` event + auto-reconnect (PLAN.md L329-389 spec — 1→2→4→8→max 30s exponential backoff, 30s ring buffer audio)
+Day 15a 의 happy-path 위에 resilience + scale verification.
 
-#### C. Overlay caption surface
-- [ ] App.tsx Overlay 의 listener 추가 (`listen<SttPartialPayload>("stt_partial", ...)` + final). drm_status 와 동일 패턴.
-- [ ] partial 은 italic / final 은 plain 같은 visual cue (디자인 시스템 §11 LiveCaption gallery 시 정식)
-- [ ] 영어 자막 1차 (한국어 번역은 Day 16+ Solar Pro 3 통합 시점)
-- [ ] Empty state (capture stopped / DRM detected / no audio) 메시지 기존 drm_status 와 통합
+#### A. Reconnect 로직 (PLAN.md L329-389)
+- [ ] `soniox::run_session` 의 connect/recv error 를 reconnect loop 안에 wrap. 1→2→4→8→max 30s exponential backoff
+- [ ] 30s ring buffer 도입 (`stt::ring.rs` 신규?) — 가장 최근 30초의 16kHz s16le bytes 보관, reconnect 후 즉시 replay 후 live 재개
+- [ ] State machine: `Connected` / `Reconnecting(attempt)` / `Aborted` — `stt_error` event 에 state 포함, Overlay 가 "Reconnecting…" UI surface
+- [ ] 재연결 실패 cap (~5분?) 후 give up + persistent error
 
-#### D. Acceptance (Day 15 결정 gate)
-- [ ] YouTube 영어 강연 1분 시청 → overlay 에 자연스러운 라이브 자막 (latency 1-2초 내, partial→final 흐름 자연)
-- [ ] 끊김 한 번 simulate (Wi-Fi 잠깐 토글) → 자동 reconnect, 30s 분량 audio 누락 없이 재개
-- [ ] Peak RSS 1h 시청 시 < 200MB (capture-only 1h 가 135MB 였으니 STT thread 추가 여유 60MB 정도 budget)
+#### B. Live edge cases
+- [ ] Wi-Fi 짧은 토글 (~5s 끊김) → ring buffer replay 로 audio 누락 없이 재개
+- [ ] Soniox 서버 측 disconnect (예: 30분 idle 후) → 자동 재연결 후 자막 흐름 복구
+- [ ] `SONIOX_API_KEY` 잘못된 값 → 첫 connect error → 한 번 retry 후 give up + Overlay 가 명확한 error 표시
+
+#### C. 1h dogfood RSS verification
+- [ ] 본인 영어 YouTube 1시간 시청 → peak RSS < 200MB (Day 5 capture-only 135MB + STT 추가 여유)
+- [ ] capture stats 정상 (drift, segments, peak dBFS)
+- [ ] STT 가 내내 안정 (reconnect 발생 횟수 / 자막 누락 시점 / 평균 latency 측정)
+
+### Step 4: Day 16+ — Solar Pro 3 KO translation pipeline
 
 ### Step 4: Day 16+ — Solar Pro 3 KO translation pipeline
 
@@ -386,6 +419,8 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 | Auto-capture lifecycle | ✅ Day 12 통과 | signal-driven loop + AppState session + start/stop Tauri command. ~45s indefinite capture live verified. |
 | Phase 0 디자인 시스템 entry | ✅ Day 13 통과 | tokens.css byte-exact + Section §00/§01 gallery + 6 폰트 embedding + production capture UI dressed + ship/polish gate split. Lazy chunk (Gallery 6.80 kB) 분리. |
 | Soniox STT 정확도 (한/영) | ✅ Day 14 통과 | spike binary (~/Dev/_inbox/bartleby-stt-spike/) — 한국어 AI 강연 60s + 영어 Claude 강연 60s 모두 conversational lecture 사실상 완벽, LID 99%+. Phase 2 통합 안전. Whisper/Clova 비교는 Phase 2 acceptance 후 optional. |
+| Tauri STT 통합 (capture → 자막) | ✅ Day 15a 통과 | src-tauri/src/stt/ + capture fan-out + Overlay listener. 영어 YouTube 30s 라이브 자막 흐름, drift 0.00ms / peak RSS 128MB (capture-only 와 동등), 27 tests pass. Reconnect + 1h RSS 는 Day 15b. |
+| STT reconnect / ring buffer | ⏳ Day 15b | exponential backoff (1→2→4→8→max 30s) + 30s 16kHz s16le ring buffer. Wi-Fi 토글 simulate 시 audio 누락 없이 재개. PLAN.md L329-389 spec. |
 | Watch mode toggle (overlay + capture) | ⏳ Phase 2 후 | overlay 와 capture 가 STT pipeline 으로 연결되면 mode toggle 자연스럽게 reify. CEO reframe 에서 Day 14 단독 슬라이스 X. |
 | Mic / Speaker cross-check (DRM 확신) | ⏳ Phase 1+ | Apple Dev ID 후 mic 풀리면 system 무음 + mic 정상 → DRM 확정 |
 | Soniox 한국어 정확도 | Phase 2 시 | Naver Clova / Whisper 비교 |
@@ -439,4 +474,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens until told to stop, surfaces silence, answers to ⌘⇧B, wears his own colors, **and now hears Korean and English at production quality**. Day 15: capture → Soniox → overlay caption (Tauri 통합), 라이브 영어 자막 1차."
+> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, **and now displays live English captions on top of any video**. Day 15b: resilience (reconnect + 30s ring buffer + 1h RSS verification). Day 16+: Solar Pro 3 한국어 번역 위에 부착."

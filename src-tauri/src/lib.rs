@@ -1,4 +1,5 @@
 pub mod capture;
+pub mod stt;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -33,9 +34,12 @@ fn greet(name: &str) -> String {
 
 /// In-progress capture session — stop flag drives the capture thread out of
 /// its polling loop, the join handle returns final stats once it's done.
+/// `stt` is `Some` iff `SONIOX_API_KEY` was set when the session started; it
+/// runs in parallel and is joined on stop_capture.
 struct CaptureSession {
     stop: Arc<AtomicBool>,
     handle: std::thread::JoinHandle<Result<CaptureStats, String>>,
+    stt: Option<stt::SttSession>,
 }
 
 #[derive(Default)]
@@ -49,6 +53,20 @@ fn spawn_capture(
 ) -> CaptureSession {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_for_thread = Arc::clone(&stop);
+
+    // BYOK: SONIOX_API_KEY env var (set via `source ~/.config/secrets/soniox.env`
+    // before launching `pnpm tauri dev`). Settings UI surface comes in §16.
+    let (stt_sender, stt_session) = match std::env::var("SONIOX_API_KEY") {
+        Ok(key) if !key.is_empty() => {
+            let (tx, sess) = stt::start(key, app.clone());
+            (Some(tx), Some(sess))
+        }
+        _ => {
+            println!("[capture] SONIOX_API_KEY not set — STT disabled (overlay caption unavailable)");
+            (None, None)
+        }
+    };
+
     let handle = std::thread::spawn(move || {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -68,11 +86,26 @@ fn spawn_capture(
             &system_base,
             &mic_base,
             &rss_log,
+            stt_sender,
             &app,
         )
         .map_err(|e| e.to_string())
     });
-    CaptureSession { stop, handle }
+    CaptureSession {
+        stop,
+        handle,
+        stt: stt_session,
+    }
+}
+
+/// Wait for an STT session to wind down. Capture-thread teardown drops the
+/// only fan-out `Sender`, which closes the bridge thread; this just joins
+/// the runtime thread.
+fn join_stt(stt: stt::SttSession) {
+    stt.stop.store(true, Ordering::SeqCst);
+    if let Err(e) = stt.join.join() {
+        eprintln!("[stt] thread panicked: {e:?}");
+    }
 }
 
 /// Fixed-duration capture (legacy command kept for the Day 4-9 button flow).
@@ -84,10 +117,14 @@ async fn capture_system_audio(
 ) -> Result<CaptureStats, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let session = spawn_capture(app, Some(seconds));
-        session
+        let stats = session
             .handle
             .join()
-            .map_err(|_| "Capture thread panicked".to_string())?
+            .map_err(|_| "Capture thread panicked".to_string())?;
+        if let Some(stt) = session.stt {
+            join_stt(stt);
+        }
+        stats
     })
     .await
     .map_err(|e| e.to_string())?
@@ -121,10 +158,14 @@ async fn stop_capture(
         .ok_or_else(|| "No capture in progress".to_string())?;
     session.stop.store(true, Ordering::Relaxed);
     tauri::async_runtime::spawn_blocking(move || {
-        session
+        let stats = session
             .handle
             .join()
-            .map_err(|_| "Capture thread panicked".to_string())?
+            .map_err(|_| "Capture thread panicked".to_string())?;
+        if let Some(stt) = session.stt {
+            join_stt(stt);
+        }
+        stats
     })
     .await
     .map_err(|e| e.to_string())?
