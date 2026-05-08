@@ -241,7 +241,8 @@ fn route_audio_buffer(
 /// the encoder workers never fall behind the SCStream callbacks.  A bounded
 /// channel would only introduce unnecessary drop risk.
 pub fn capture_dual_to_opus(
-    duration_secs: u64,
+    stop: Arc<AtomicBool>,
+    max_seconds: Option<u64>,
     system_base_path: &Path,
     mic_base_path: &Path,
     rss_log_path: &Path,
@@ -350,9 +351,24 @@ pub fn capture_dual_to_opus(
         .start_capture()
         .context("Failed to start SCStream capture")?;
 
-    println!("Bartleby is listening for {} seconds...", duration_secs);
+    match max_seconds {
+        Some(s) => println!("Bartleby is listening for up to {} seconds...", s),
+        None => println!("Bartleby is listening until stopped..."),
+    }
 
-    std::thread::sleep(Duration::from_secs(duration_secs));
+    // Signal-driven loop — poll the stop flag on a tight cadence and bail out
+    // when set. `max_seconds` is an optional safety cap so a misbehaving
+    // frontend can't leave the capture running forever.
+    let start = std::time::Instant::now();
+    let max = max_seconds.map(Duration::from_secs);
+    while !stop.load(Ordering::Relaxed) {
+        std::thread::sleep(Duration::from_millis(100));
+        if let Some(cap) = max {
+            if start.elapsed() >= cap {
+                break;
+            }
+        }
+    }
 
     stream
         .stop_capture()

@@ -1,10 +1,13 @@
 pub mod capture;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
 use capture::CaptureStats;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, WindowEvent,
+    Manager, State, WindowEvent,
 };
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, PanelLevel, StyleMask, WebviewWindowExt,
@@ -28,17 +31,25 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-/// Capture system audio and microphone for `seconds` seconds and return statistics.
-///
-/// Encodes each source to rolling 5-second Ogg Opus segment files at 32 kbps
-/// and returns combined stats including drift analysis. Runs blocking SCStream
-/// capture on a dedicated thread so the Tauri async runtime stays responsive.
-#[tauri::command]
-async fn capture_system_audio(
+/// In-progress capture session — stop flag drives the capture thread out of
+/// its polling loop, the join handle returns final stats once it's done.
+struct CaptureSession {
+    stop: Arc<AtomicBool>,
+    handle: std::thread::JoinHandle<Result<CaptureStats, String>>,
+}
+
+#[derive(Default)]
+struct AppState {
+    capture: Mutex<Option<CaptureSession>>,
+}
+
+fn spawn_capture(
     app: tauri::AppHandle,
-    seconds: u64,
-) -> Result<CaptureStats, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    max_seconds: Option<u64>,
+) -> CaptureSession {
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_for_thread = Arc::clone(&stop);
+    let handle = std::thread::spawn(move || {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -52,13 +63,68 @@ async fn capture_system_audio(
             .join(format!("bartleby-rss-{}.log", timestamp));
 
         capture::system_audio::capture_dual_to_opus(
-            seconds,
+            stop_for_thread,
+            max_seconds,
             &system_base,
             &mic_base,
             &rss_log,
             &app,
         )
         .map_err(|e| e.to_string())
+    });
+    CaptureSession { stop, handle }
+}
+
+/// Fixed-duration capture (legacy command kept for the Day 4-9 button flow).
+/// Spawns the same signal-driven capture and waits for `seconds` to elapse.
+#[tauri::command]
+async fn capture_system_audio(
+    app: tauri::AppHandle,
+    seconds: u64,
+) -> Result<CaptureStats, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = spawn_capture(app, Some(seconds));
+        session
+            .handle
+            .join()
+            .map_err(|_| "Capture thread panicked".to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Start an indefinite capture. The session lives in app state until
+/// `stop_capture` is called. Errors if a capture is already in progress.
+#[tauri::command]
+async fn start_capture(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut guard = state.capture.lock().unwrap();
+    if guard.is_some() {
+        return Err("Capture already in progress".into());
+    }
+    *guard = Some(spawn_capture(app, None));
+    Ok(())
+}
+
+/// Signal the running capture to stop and join the thread, returning stats.
+#[tauri::command]
+async fn stop_capture(
+    state: State<'_, AppState>,
+) -> Result<CaptureStats, String> {
+    let session = state
+        .capture
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or_else(|| "No capture in progress".to_string())?;
+    session.stop.store(true, Ordering::Relaxed);
+    tauri::async_runtime::spawn_blocking(move || {
+        session
+            .handle
+            .join()
+            .map_err(|_| "Capture thread panicked".to_string())?
     })
     .await
     .map_err(|e| e.to_string())?
@@ -70,6 +136,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .manage(AppState::default())
         .setup(|app| {
             // fullScreenAuxiliary collection behavior requires Accessory or
             // Prohibited activation policy. Bartleby is overlay-first (watch
@@ -152,7 +219,12 @@ pub fn run() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![greet, capture_system_audio])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            capture_system_audio,
+            start_capture,
+            stop_capture
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

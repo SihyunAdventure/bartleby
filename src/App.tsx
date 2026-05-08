@@ -98,6 +98,20 @@ function App() {
   const [name, setName] = useState("");
   const [captureStatus, setCaptureStatus] = useState("");
   const [seconds, setSeconds] = useState(10);
+  const [captureRunning, setCaptureRunning] = useState(false);
+
+  const formatStats = (stats: CaptureStats): string => {
+    const drmTag = stats.drm_detected
+      ? `silent (peak ${stats.peak_system_dbfs.toFixed(1)} dBFS — muted/paused/DRM?) | `
+      : `level peak ${stats.peak_system_dbfs.toFixed(1)} dBFS | `;
+    return (
+      drmTag +
+      `sys: ${stats.buffers_received}b / ${stats.system_segments_written}seg / ${(stats.system_bytes_written / 1024).toFixed(1)}KB | ` +
+      `mic: ${stats.mic_buffers_received}b / ${stats.mic_segments_written}seg / ${(stats.mic_bytes_written / 1024).toFixed(1)}KB | ` +
+      `drift: max ${stats.drift.max_drift_ms.toFixed(2)}ms | ` +
+      `peak ${stats.rss.peak_rss_mb.toFixed(0)}MB / ${stats.rss.samples} rss samples`
+    );
+  };
 
   async function greet() {
     // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -151,26 +165,50 @@ function App() {
           onChange={(e) => setSeconds(Number(e.currentTarget.value))}
         />
         <button
+          disabled={captureRunning}
           onClick={async () => {
             setCaptureStatus("Capturing...");
             try {
               const stats = await invoke<CaptureStats>("capture_system_audio", { seconds });
-              const drmTag = stats.drm_detected
-                ? `silent (peak ${stats.peak_system_dbfs.toFixed(1)} dBFS — muted/paused/DRM?) | `
-                : `level peak ${stats.peak_system_dbfs.toFixed(1)} dBFS | `;
-              setCaptureStatus(
-                drmTag +
-                `sys: ${stats.buffers_received}b / ${stats.system_segments_written}seg / ${(stats.system_bytes_written / 1024).toFixed(1)}KB | ` +
-                `mic: ${stats.mic_buffers_received}b / ${stats.mic_segments_written}seg / ${(stats.mic_bytes_written / 1024).toFixed(1)}KB | ` +
-                `drift: max ${stats.drift.max_drift_ms.toFixed(2)}ms | ` +
-                `peak ${stats.rss.peak_rss_mb.toFixed(0)}MB / ${stats.rss.samples} rss samples`
-              );
+              setCaptureStatus(formatStats(stats));
             } catch (err) {
               setCaptureStatus(`Error: ${String(err)}`);
             }
           }}
         >
           Capture {seconds}s
+        </button>
+      </div>
+
+      <div className="row">
+        <button
+          disabled={captureRunning}
+          onClick={async () => {
+            try {
+              await invoke("start_capture");
+              setCaptureRunning(true);
+              setCaptureStatus("Listening...");
+            } catch (err) {
+              setCaptureStatus(`Error: ${String(err)}`);
+            }
+          }}
+        >
+          Start capture
+        </button>
+        <button
+          disabled={!captureRunning}
+          onClick={async () => {
+            try {
+              const stats = await invoke<CaptureStats>("stop_capture");
+              setCaptureRunning(false);
+              setCaptureStatus(formatStats(stats));
+            } catch (err) {
+              setCaptureRunning(false);
+              setCaptureStatus(`Error: ${String(err)}`);
+            }
+          }}
+        >
+          Stop capture
         </button>
       </div>
       <p>{captureStatus}</p>
