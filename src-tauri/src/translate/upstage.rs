@@ -1,16 +1,26 @@
 //! Upstage Solar Pro 3 EN → KO translation call (direct API, not OpenRouter).
 //!
-//! Single non-streaming POST; emits a `translation_final` Tauri event on
-//! success, `translation_error` on any HTTP/parse failure. Day 16a uses
-//! sequential calls (one in-flight at a time) — Day 16b will add streaming
-//! + concurrent depth-8 queue with seq ordering (PLAN.md L329-389 spec).
+//! Streaming SSE POST: emits `translation_partial` per delta chunk so the
+//! Korean caption types out token-by-token in the overlay (live caption feel),
+//! then `translation_final` on `[DONE]`. Replaces Day 16a's wait-then-emit
+//! pattern — same depth=1 sequential ordering, just with intermediate states.
 //!
-//! Direct Upstage API (api.upstage.ai/v1/chat/completions) instead of
-//! OpenRouter routing — OpenRouter's pooled Upstage account exhausted credits
-//! 2026-05-08, indefinite outage. BYOK with Upstage key bypasses that.
-//! Pricing identical ($0.15/M in, $0.60/M out, $0.015/M cached input — system
-//! prompt is reused so caching kicks in after first call).
+//! SSE shape (OpenAI-compatible):
+//!   data: {"choices":[{"delta":{"content":"빠른"}}]}\n\n
+//!   ...
+//!   data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n
+//!   data: [DONE]\n\n
+//!
+//! UTF-8 boundary safety: bytes_stream() chunks land mid-character (Korean is
+//! 3 bytes/char). We accumulate into a byte buffer and only decode complete
+//! `\n\n`-delimited events, so each parsed line is guaranteed to end on an
+//! event boundary (the JSON itself can't split a UTF-8 codepoint).
+//!
+//! Direct Upstage API (api.upstage.ai/v1/chat/completions). $0.15/M in,
+//! $0.60/M out, $0.015/M cached input — system prompt reuse means caching
+//! kicks in after first call.
 
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
@@ -22,6 +32,12 @@ const SYSTEM_PROMPT: &str = "You translate English speech to natural Korean. \
 Output ONLY the Korean translation — no explanation, no quotes, no English, \
 no romanization. Match the conversational register and tone of the source. \
 Preserve technical terms when no clean Korean equivalent exists.";
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TranslationPartial {
+    pub original: String,
+    pub translation: String,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TranslationFinal {
@@ -36,18 +52,19 @@ pub struct TranslationError {
 }
 
 #[derive(Deserialize)]
-struct Choice {
-    message: ChatMessage,
+struct StreamChoice {
+    delta: StreamDelta,
 }
 
 #[derive(Deserialize)]
-struct ChatMessage {
+struct StreamDelta {
+    #[serde(default)]
     content: Option<String>,
 }
 
 #[derive(Deserialize)]
-struct ChatResponse {
-    choices: Vec<Choice>,
+struct StreamChunk {
+    choices: Vec<StreamChoice>,
 }
 
 pub async fn translate_and_emit(
@@ -67,7 +84,7 @@ pub async fn translate_and_emit(
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": trimmed},
         ],
-        "stream": false,
+        "stream": true,
         "temperature": 0.3,
     });
 
@@ -104,42 +121,104 @@ pub async fn translate_and_emit(
         return;
     }
 
-    match resp.json::<ChatResponse>().await {
-        Ok(parsed) => {
-            let ko = parsed
-                .choices
-                .into_iter()
-                .next()
-                .and_then(|c| c.message.content)
-                .unwrap_or_default()
-                .trim()
-                .to_string();
-            if ko.is_empty() {
+    let mut stream = resp.bytes_stream();
+    let mut buf: Vec<u8> = Vec::with_capacity(2048);
+    let mut accumulated = String::new();
+    let mut got_done = false;
+
+    while let Some(chunk) = stream.next().await {
+        let bytes = match chunk {
+            Ok(b) => b,
+            Err(e) => {
                 let _ = app.emit(
                     "translation_error",
                     TranslationError {
-                        message: "empty response from model".into(),
-                        original: en,
+                        message: format!("stream chunk error: {e}"),
+                        original: en.clone(),
                     },
                 );
                 return;
             }
-            let _ = app.emit(
-                "translation_final",
-                TranslationFinal {
-                    original: en,
-                    translation: ko,
-                },
-            );
-        }
-        Err(e) => {
-            let _ = app.emit(
-                "translation_error",
-                TranslationError {
-                    message: format!("response parse: {e}"),
-                    original: en,
-                },
-            );
+        };
+        buf.extend_from_slice(&bytes);
+
+        // Drain complete events (\n\n-delimited). Each event is one or more
+        // `data:` lines; we only care about single-line data per OpenAI spec.
+        while let Some(boundary) = find_event_boundary(&buf) {
+            let event_bytes: Vec<u8> = buf.drain(..boundary + 2).collect();
+            // Strip trailing \n\n then split into lines.
+            let event = String::from_utf8_lossy(&event_bytes[..event_bytes.len() - 2]);
+            for line in event.lines() {
+                let Some(payload) = line.strip_prefix("data:") else {
+                    continue;
+                };
+                let payload = payload.trim();
+                if payload.is_empty() {
+                    continue;
+                }
+                if payload == "[DONE]" {
+                    got_done = true;
+                    continue;
+                }
+                let parsed: StreamChunk = match serde_json::from_str(payload) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("[translate] sse parse: {e} | payload={payload}");
+                        continue;
+                    }
+                };
+                let Some(delta) = parsed.choices.into_iter().next() else {
+                    continue;
+                };
+                let Some(piece) = delta.delta.content else {
+                    continue;
+                };
+                if piece.is_empty() {
+                    continue;
+                }
+                accumulated.push_str(&piece);
+                let _ = app.emit(
+                    "translation_partial",
+                    TranslationPartial {
+                        original: en.clone(),
+                        translation: accumulated.clone(),
+                    },
+                );
+            }
         }
     }
+
+    let final_ko = accumulated.trim().to_string();
+    if !got_done && final_ko.is_empty() {
+        let _ = app.emit(
+            "translation_error",
+            TranslationError {
+                message: "stream ended without [DONE] or content".into(),
+                original: en,
+            },
+        );
+        return;
+    }
+    if final_ko.is_empty() {
+        let _ = app.emit(
+            "translation_error",
+            TranslationError {
+                message: "empty translation from model".into(),
+                original: en,
+            },
+        );
+        return;
+    }
+    let _ = app.emit(
+        "translation_final",
+        TranslationFinal {
+            original: en,
+            translation: final_ko,
+        },
+    );
+}
+
+/// Returns the index of the first byte of `\n\n` in `buf`, if present.
+fn find_event_boundary(buf: &[u8]) -> Option<usize> {
+    buf.windows(2).position(|w| w == b"\n\n")
 }

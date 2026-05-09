@@ -1,13 +1,13 @@
-//! Upstage Solar Pro 3 Korean translation pipeline (Day 16a).
+//! Upstage Solar Pro 3 Korean translation pipeline (Day 16b: streaming).
 //!
 //! Sequential consumer: pulls English finals from a tokio mpsc channel,
-//! translates each via Upstage Solar Pro 3 (direct API), emits
-//! `translation_final` / `translation_error` Tauri events.
+//! translates each via Upstage Solar Pro 3 (direct API, SSE streaming),
+//! emits `translation_partial` per delta chunk + `translation_final` on
+//! `[DONE]`. `translation_error` on any HTTP/parse/stream failure.
 //!
-//! Day 16a is depth-1 (one translation in flight at a time). Order is
-//! preserved by design — no seq/queue machinery yet. Day 16b will add the
-//! concurrent depth-8 + seq + contiguous prefix render per PLAN.md
-//! L329-389.
+//! Depth-1 sequential by design — order preserved without seq/queue
+//! machinery. Day 16b's concurrent depth-8 + contiguous prefix render
+//! (PLAN.md L329-389) deferred until live caption flow is validated.
 
 pub mod upstage;
 
@@ -44,7 +44,7 @@ pub fn start(api_key: String, app: AppHandle) -> (UnboundedSender<String>, Trans
                 }
             };
 
-            println!("[translate] ready (model=solar-pro3, sequential depth=1)");
+            println!("[translate] ready (model=solar-pro3, streaming, sequential depth=1)");
             while let Some(en) = final_rx.recv().await {
                 upstage::translate_and_emit(&client, &api_key, &app, en).await;
             }

@@ -29,6 +29,11 @@ interface SttErrorPayload {
   message: string;
 }
 
+interface TranslationPartialPayload {
+  original: string;
+  translation: string;
+}
+
 interface TranslationFinalPayload {
   original: string;
   translation: string;
@@ -54,6 +59,7 @@ function Overlay() {
   const [partialText, setPartialText] = useState("");
   const [sttError, setSttError] = useState<string | null>(null);
   const [koText, setKoText] = useState("");
+  const [koPartial, setKoPartial] = useState("");
   const [translationError, setTranslationError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,6 +84,10 @@ function Overlay() {
       listen<SttErrorPayload>("stt_error", (event) => {
         setSttError(event.payload.message);
       }),
+      listen<TranslationPartialPayload>("translation_partial", (event) => {
+        setKoPartial(event.payload.translation);
+        setTranslationError(null);
+      }),
       listen<TranslationFinalPayload>("translation_final", (event) => {
         setKoText((prev) => {
           const joined = (prev + " " + event.payload.translation).trim();
@@ -85,10 +95,12 @@ function Overlay() {
             ? joined.slice(-FINAL_WINDOW_CHARS)
             : joined;
         });
+        setKoPartial("");
         setTranslationError(null);
       }),
       listen<TranslationErrorPayload>("translation_error", (event) => {
         setTranslationError(event.payload.message);
+        setKoPartial("");
       }),
     ];
     return () => {
@@ -100,7 +112,7 @@ function Overlay() {
   // Once captions are flowing, drm_status is by definition false; suppress
   // the placeholder so it doesn't flicker between caption tokens.
   const hasEnCaption = finalText.length > 0 || partialText.length > 0;
-  const hasKoCaption = koText.length > 0;
+  const hasKoCaption = koText.length > 0 || koPartial.length > 0;
   const hasAnyCaption = hasEnCaption || hasKoCaption;
 
   let body: React.ReactNode;
@@ -126,7 +138,9 @@ function Overlay() {
             </span>
           )}
         </div>
-        {/* Korean (translation) — primary value layer */}
+        {/* Korean (translation) — primary value layer. Partial streams in
+            token-by-token via translation_partial; commits to koText on
+            translation_final and partial clears. */}
         <div
           style={{
             fontSize: 14,
@@ -137,7 +151,13 @@ function Overlay() {
           }}
         >
           {koText}
-          {translationError && !koText && (
+          {koPartial && (
+            <span style={{ opacity: 0.65 }}>
+              {koText ? " " : ""}
+              {koPartial}
+            </span>
+          )}
+          {translationError && !koText && !koPartial && (
             <span style={{ fontSize: 11, fontStyle: "italic", color: "rgba(40, 40, 40, 0.55)" }}>
               번역 대기 중… ({translationError})
             </span>
