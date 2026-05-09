@@ -1,9 +1,14 @@
 //! Soniox real-time STT WebSocket client (v4 model).
 //!
 //! Drives a single transcription session: opens the websocket, sends initial
-//! config, forwards 120ms s16le chunks coming in over a tokio mpsc, and
-//! emits `stt_partial` / `stt_final` / `stt_error` Tauri events as tokens
-//! arrive. Mirrors the `drm_status` emit pattern.
+//! config, replays any buffered audio from the ring, then forwards 120ms
+//! s16le chunks coming in over the live tokio mpsc. Tokens fan out as
+//! `stt_partial` / `stt_final` / `stt_error` Tauri events.
+//!
+//! `run_session` is reconnect-aware (Day 15b) — returns `SessionEnd` so the
+//! caller can decide between a clean exit and a backoff retry. The chunk
+//! receiver and the ring are passed by reference so they survive across
+//! reconnect attempts.
 
 use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
@@ -11,12 +16,27 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
+use super::ring::AudioRing;
+
 const SONIOX_WS_URL: &str = "wss://stt-rt.soniox.com/transcribe-websocket";
 const TARGET_SAMPLE_RATE: u32 = 16_000;
+
+/// How a single websocket session ended. The reconnect loop treats `Stopped`
+/// and `Finished` as terminal, `Dropped` as retryable.
+#[derive(Debug)]
+pub enum SessionEnd {
+    /// Stop signal flipped or chunk channel closed cleanly.
+    Stopped,
+    /// Server reported `finished:true` (clean EOS).
+    Finished,
+    /// Server-side close, recv error, or send error mid-session.
+    Dropped(String),
+}
 
 /// Payload emitted to the frontend on a partial token batch — replaces the
 /// current "in-progress" caption line.
@@ -35,7 +55,8 @@ pub struct SttFinal {
 }
 
 /// Payload emitted on a session error so the overlay can surface it instead
-/// of a stale caption.
+/// of a stale caption. `code` carries `reconnecting` / `aborted` for the
+/// reconnect state machine; specific error codes for fatal cases.
 #[derive(Debug, Clone, Serialize)]
 pub struct SttError {
     pub code: Option<String>,
@@ -64,20 +85,24 @@ struct ServerMessage {
     error_message: Option<String>,
 }
 
-/// Run the websocket session until `stop` flips, the chunk channel closes, or
-/// the server reports `finished`/error. Intended to be `block_on`'d from a
-/// dedicated thread that owns its tokio runtime.
+/// Run one websocket session. Returns when the stream ends (cleanly or with
+/// a drop). Caller is responsible for reconnect / backoff decisions.
+///
+/// Pre-replay: all chunks currently in `ring` are sent as binary frames
+/// before consuming new chunks from `chunk_rx`. This lets a reconnect resume
+/// without losing the last ~30s of speech.
 ///
 /// `final_tx` is an optional sink the translator pipeline subscribes to —
-/// for each emitted `stt_final` we also push the same text into this
-/// channel so a downstream Solar Pro 3 worker can translate it.
+/// each finalized English text is forwarded into it before the `stt_final`
+/// emit, so a downstream Solar Pro 3 worker can translate it.
 pub async fn run_session(
-    api_key: String,
-    app: AppHandle,
-    mut chunk_rx: UnboundedReceiver<Vec<u8>>,
-    stop: Arc<AtomicBool>,
+    api_key: &str,
+    app: &AppHandle,
+    chunk_rx: &mut UnboundedReceiver<Vec<u8>>,
+    stop: &Arc<AtomicBool>,
     final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
-) -> Result<()> {
+    ring: &Arc<Mutex<AudioRing>>,
+) -> Result<SessionEnd> {
     let (ws, _resp) = connect_async(SONIOX_WS_URL)
         .await
         .context("Soniox WebSocket connect failed")?;
@@ -94,9 +119,35 @@ pub async fn run_session(
         "enable_language_identification": true,
     });
     sink.send(Message::Text(config.to_string())).await?;
-    println!("[stt] Connected to Soniox stt-rt-v4");
+    println!("[stt] connected to Soniox stt-rt-v4");
+
+    // Ring replay — drain whatever the bridge has already buffered. On the
+    // first session this is whatever audio arrived before the websocket was
+    // ready (rare, near-empty); on reconnect it's up to ~30s of speech we'd
+    // otherwise lose to the gap.
+    {
+        let snapshot = ring
+            .lock()
+            .expect("ring mutex poisoned")
+            .snapshot();
+        if !snapshot.is_empty() {
+            let total_bytes: usize = snapshot.iter().map(|c| c.len()).sum();
+            println!(
+                "[stt] replaying {} chunks / {} bytes from ring",
+                snapshot.len(),
+                total_bytes
+            );
+            for chunk in snapshot {
+                if let Err(e) = sink.send(Message::Binary(chunk)).await {
+                    return Ok(SessionEnd::Dropped(format!("ring replay send: {e}")));
+                }
+            }
+        }
+    }
 
     let aborted = Arc::new(AtomicBool::new(false));
+    let finished = Arc::new(AtomicBool::new(false));
+    let drop_reason: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 
     // Reader task — server messages → Tauri events.
     //
@@ -108,6 +159,8 @@ pub async fn run_session(
     // frontend should add to its running transcript.
     let app_for_reader = app.clone();
     let aborted_reader = aborted.clone();
+    let finished_reader = finished.clone();
+    let drop_reason_reader = drop_reason.clone();
     let final_tx_for_reader = final_tx.clone();
     let reader = tokio::spawn(async move {
         let mut last_partial_was_empty = true;
@@ -119,7 +172,9 @@ pub async fn run_session(
                         if let Some(err) = m.error_message {
                             let code = m.error_code.map(|v| v.to_string());
                             let _ = app_for_reader
-                                .emit("stt_error", SttError { code, message: err });
+                                .emit("stt_error", SttError { code, message: err.clone() });
+                            *drop_reason_reader.lock().unwrap() =
+                                Some(format!("server error: {err}"));
                             aborted_reader.store(true, Ordering::SeqCst);
                             return;
                         }
@@ -183,28 +238,31 @@ pub async fn run_session(
                         }
                         last_partial_was_empty = partial_is_empty;
                         if m.finished {
+                            finished_reader.store(true, Ordering::SeqCst);
+                            aborted_reader.store(true, Ordering::SeqCst);
                             return;
                         }
                     }
                     Err(e) => eprintln!("[stt] parse err: {e}; raw: {t}"),
                 },
                 Ok(Message::Close(_)) => {
+                    *drop_reason_reader.lock().unwrap() =
+                        Some("server closed websocket".into());
                     aborted_reader.store(true, Ordering::SeqCst);
                     return;
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    let _ = app_for_reader.emit(
-                        "stt_error",
-                        SttError {
-                            code: None,
-                            message: format!("ws recv: {e}"),
-                        },
-                    );
+                    *drop_reason_reader.lock().unwrap() = Some(format!("ws recv: {e}"));
                     aborted_reader.store(true, Ordering::SeqCst);
                     return;
                 }
             }
+        }
+        // Stream ended without explicit close/error. Treat as drop.
+        if !finished_reader.load(Ordering::SeqCst) {
+            *drop_reason_reader.lock().unwrap() = Some("stream ended".into());
+            aborted_reader.store(true, Ordering::SeqCst);
         }
     });
 
@@ -215,13 +273,28 @@ pub async fn run_session(
             break;
         }
         if let Err(e) = sink.send(Message::Binary(bytes)).await {
-            eprintln!("[stt] send err: {e}");
+            *drop_reason.lock().unwrap() = Some(format!("ws send: {e}"));
             break;
         }
     }
     // Soniox EOS = empty text frame. Best-effort; ignore errors after stop.
     let _ = sink.send(Message::Text(String::new())).await;
     let _ = reader.await;
-    println!("[stt] session ended");
-    Ok(())
+
+    if stop.load(Ordering::SeqCst) {
+        println!("[stt] session ended (stop)");
+        return Ok(SessionEnd::Stopped);
+    }
+    if finished.load(Ordering::SeqCst) {
+        println!("[stt] session ended (finished)");
+        return Ok(SessionEnd::Finished);
+    }
+    if let Some(reason) = drop_reason.lock().unwrap().take() {
+        println!("[stt] session ended (dropped: {reason})");
+        return Ok(SessionEnd::Dropped(reason));
+    }
+    // chunk_rx closed without error and no abort signal — capture stopped
+    // naturally (sender dropped on capture-thread teardown).
+    println!("[stt] session ended (chunk channel closed)");
+    Ok(SessionEnd::Stopped)
 }
