@@ -15,6 +15,9 @@ dist-ssr
 # OMC orchestration state (per-machine)
 .omc/
 
+# Claude Code local config (per-machine)
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
