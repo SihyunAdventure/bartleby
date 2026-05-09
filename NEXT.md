@@ -469,25 +469,129 @@ git log --oneline -10  # 마지막 commit 확인
 
 자세한 결과는 위 "Day 15b 결과" 섹션 참조. `stt/ring.rs` 신규 + `soniox::run_session` reconnect-friendly signature + `stt::run_with_reconnect` 의 exponential backoff loop. 33 tests pass. **1h dogfood 검증은 Day 17** (사용자 직접 — Wi-Fi 토글 simulate + lecture 1h 시청 + RSS budget 측정).
 
-### Step 3e: Day 17 — Phase 2 acceptance (empirical) ← *다음 슬라이스*
+### Step 3e: Day 17 — Phase 2 acceptance (empirical) ← *현재 슬라이스 (사용자 직접 dogfood)*
 
-Day 15a 의 happy-path 위에 resilience + scale verification.
+Day 15a happy-path + Day 15b 의 resilience layer 를 1h 영어 YouTube 시청으로 검증. **코드는 이미 모두 ready** (Day 15b 의 reconnect + ring buffer + Day 5 의 RSS sampler + capture stats). 이번 단계는 **사용자가 직접 dogfood + 측정값 기록** 만 남음.
 
-#### A. Reconnect 로직 (PLAN.md L329-389)
-- [ ] `soniox::run_session` 의 connect/recv error 를 reconnect loop 안에 wrap. 1→2→4→8→max 30s exponential backoff
-- [ ] 30s ring buffer 도입 (`stt::ring.rs` 신규?) — 가장 최근 30초의 16kHz s16le bytes 보관, reconnect 후 즉시 replay 후 live 재개
-- [ ] State machine: `Connected` / `Reconnecting(attempt)` / `Aborted` — `stt_error` event 에 state 포함, Overlay 가 "Reconnecting…" UI surface
-- [ ] 재연결 실패 cap (~5분?) 후 give up + persistent error
+#### A. 코드 상태 (recap — 추가 구현 필요 X)
 
-#### B. Live edge cases
-- [ ] Wi-Fi 짧은 토글 (~5s 끊김) → ring buffer replay 로 audio 누락 없이 재개
-- [ ] Soniox 서버 측 disconnect (예: 30분 idle 후) → 자동 재연결 후 자막 흐름 복구
-- [ ] `SONIOX_API_KEY` 잘못된 값 → 첫 connect error → 한 번 retry 후 give up + Overlay 가 명확한 error 표시
+| 컴포넌트 | 상태 | 위치 |
+|---|---|---|
+| Reconnect loop (1→2→4→8→16→30s, cap 10) | ✅ Day 15b | `stt/mod.rs::run_with_reconnect` |
+| 30s ring buffer (960KB cap, replay on connect) | ✅ Day 15b | `stt/ring.rs::AudioRing` |
+| State surface (`stt_error { code: "reconnecting" \| "aborted" }`) | ✅ Day 15b | `stt/mod.rs` emit + `App.tsx` listener |
+| RSS sampler (5s 간격 CSV → `$TMPDIR/bartleby-rss-{ts}.log`) | ✅ Day 5 | `capture/rss.rs` |
+| CaptureStats (peak_rss_mb, mean_rss_mb, drift_ms, segments, peak_dbfs) | ✅ Day 5/9 | `capture/system_audio.rs` |
+| 33 unit tests (ring 6 + backoff 1 + 기존 27) | ✅ Day 15b | `cargo test --lib` |
 
-#### C. 1h dogfood RSS verification
-- [ ] 본인 영어 YouTube 1시간 시청 → peak RSS < 200MB (Day 5 capture-only 135MB + STT 추가 여유)
-- [ ] capture stats 정상 (drift, segments, peak dBFS)
-- [ ] STT 가 내내 안정 (reconnect 발생 횟수 / 자막 누락 시점 / 평균 latency 측정)
+#### B. Pre-flight checklist (dogfood 시작 전)
+
+```bash
+# 1. 환경변수 (current shell 또는 .envrc)
+source ~/.config/secrets/soniox.env       # SONIOX_API_KEY
+source ~/.config/secrets/upstage.env       # UPSTAGE_API_KEY
+
+# 2. dev build 시작 (warm-up ~10s)
+cd ~/Dev/side/bartleby
+pnpm tauri dev
+
+# 3. 별도 터미널에서 RSS log 실시간 tail (선택)
+ls -t $TMPDIR/bartleby-rss-*.log | head -1 | xargs tail -f
+```
+
+체크리스트:
+- [ ] `SONIOX_API_KEY` / `UPSTAGE_API_KEY` 로드 확인 (앱 시작 시 콘솔에 `[stt] ready` / `[translate] ready` 출력)
+- [ ] Bartleby 앱 윈도우 떴고 overlay 도 fullScreenAuxiliary 위에 floating
+- [ ] 영어 YouTube 영상 선택 (~60min 강연 — TED, MIT OCW, Lex Fridman 등 권장)
+- [ ] 노트북 power adapter 연결 (1h sleep 방지)
+- [ ] Bluetooth 헤드셋 미사용 (system audio capture 안정성 위해 내장 스피커)
+
+#### C. Run-time monitoring (1h 동안 봐야 할 것)
+
+**콘솔 로그 (정상 케이스)**:
+- `[capture] sys: Nb / Nf / X.Xs` — 5s 마다 segment 통계
+- `[stt] partial: …` / `[stt] final: …` — 자막 token 흐름
+- `[translate] partial: …` / `[translate] final: …` — 한국어 번역 token 흐름
+- `[rss] elapsed=Xs rss=YMB` — 5s 마다 RSS 샘플
+
+**경고 신호 (관찰값 기록)**:
+- `[stt] dropped (reason). reconnect attempt N in Xs` — reconnect 발생 (Wi-Fi blip 또는 서버 close). attempt 번호 + 사유 기록.
+- `[stt] aborted: reconnect cap reached` — 10번 실패 후 give up (실제 dogfood 에선 안 일어나야 함)
+- Overlay 의 italic "STT: Reconnecting…" 표시 — 그 동안 자막 끊김. 복구 시간 측정.
+- RSS 가 200MB 초과 — capture 즉시 종료 후 leak 분석
+
+#### D. Edge case simulate 절차 (선택 — 1h dogfood 와 별도 세션 권장)
+
+**D1. Wi-Fi 짧은 토글 (~5s)**
+1. dogfood 중간 (예: 30분 시점) Wi-Fi 끄기 (메뉴바 → off)
+2. 5초 대기 (Soniox WS 가 send/recv error 로 drop 감지)
+3. Wi-Fi 다시 on
+4. **기대**: ring buffer 의 30s replay 후 live 자막 재개. attempt=1 → 1s backoff → connect 성공.
+5. 기록: `reconnect_count`, 자막 끊긴 시간 (체감 / 콘솔 timestamps)
+
+**D2. 잘못된 SONIOX_API_KEY**
+1. `SONIOX_API_KEY=invalid_key pnpm tauri dev` 로 시작
+2. capture 시작 → 첫 connect 시 401 / auth fail
+3. **기대**: 10 attempts 모두 실패 (1+2+4+8+16+30+30+30+30+30 = 181s 후 abort) → overlay 가 "STT: Reconnect cap reached…" 표시
+4. 실제 측정: 첫 attempt 까지 latency, 마지막 abort 까지 시간
+
+**D3. 30분 idle disconnect (선택, 별도 세션)**
+- Soniox 의 server-side idle timeout 빈도 미상. 1h dogfood 중 자연스럽게 일어나면 D1 와 동일한 복구 거동 확인. 별도 simulate 어렵움.
+
+#### E. Post-run 측정 form (1h dogfood 종료 후 채우기)
+
+```
+실시 일시:           YYYY-MM-DD HH:MM ~ HH:MM
+영상:                <URL or 제목>
+실제 capture 시간:   {seconds}s (목표 3600±10s)
+
+[Capture stats]
+- drift_ms (final):  ___ms (목표 < 100ms)
+- system segments:   ___개 (목표 ~720, 5s × 720)
+- system total:      ___MB (목표 ~14MB compressed)
+- peak_dbfs:         ___dBFS (영어 음성이면 -10 ~ -30 범위)
+- mic segments:      ___개 (deferred 이므로 0 예상)
+
+[RSS 측정]
+- peak_rss_mb:       ___MB (목표 < 200MB, Day 5 capture-only baseline 135MB + STT/translate 여유)
+- mean_rss_mb:       ___MB
+- 1h 동안 trajectory: 시작 ___MB → 30분 ___MB → 종료 ___MB (leak 검증, 1h 증가량 < 10MB 권장)
+
+[STT 안정성]
+- reconnect 발생 횟수:    ___번 (자연 발생, 0 = 안정)
+- reconnect 평균 복구:    ___초 (감지 → live 재개)
+- 자막 누락 구간 timestamps: [hh:mm:ss ~ hh:mm:ss, ...]
+- 체감 평균 latency:      audio → 영어 final caption ___초 / 영어 → 한국어 partial 첫 토큰 ___초
+
+[번역 품질 (sample 5문장)]
+1. EN: "..."
+   KO: "..."
+   판정: ✅/⚠️ (의미 정확 / 자연스러움)
+2. ...
+
+[Edge case simulate]
+- D1 Wi-Fi 5s 토글:   ✅/❌ — ring replay 작동, 자막 _____ 초만에 재개
+- D2 invalid key:     ✅/❌ — 10 attempts 후 ___초 만에 abort, overlay error 표시 명확
+- D3 30분 idle:       (관찰 안됨 / 자연 발생 → 동일 거동)
+
+[GO/NO-GO]
+- peak_rss < 200MB:                      ✅/❌
+- drift < 100ms:                         ✅/❌
+- 1h 자막 끊김 < 10s 누적:                ✅/❌
+- Wi-Fi blip 자동 복구:                   ✅/❌
+- bad-key abort surface:                 ✅/❌
+
+→ 5/5 → Phase 2 acceptance ✅. wedge 1차 검증 완료. Phase 3 polish 진입.
+→ 4/5 이하 → 어느 항목 fail 인지 + 다음 슬라이스 정의 (예: leak 발견 시 heap profiling).
+```
+
+#### F. 측정 후 commit 절차
+
+1. 측정 form 채워서 NEXT.md 의 "Day 17 결과" 섹션 신규 작성 (Day 15b/16b 결과 섹션 패턴 따라)
+2. 누적 commits 표에 `Day 17 acceptance ✅ — 1h dogfood (peak RSS XXX MB, reconnect N, ...)` row 추가
+3. Risk Watch 의 "STT reconnect / ring buffer" row 를 ✅ empirical 로 업그레이드
+4. PRINCIPLES / VISION 의 "wedge 1차 검증" 마일스톤 (있다면) 갱신
+5. `git add -p NEXT.md && git commit` (코드 변경 없음, NEXT.md 만)
 
 ### Step 4: Day 16+ — Solar Pro 3 KO translation pipeline
 
@@ -609,8 +713,11 @@ source ~/.cargo/env
 # Dev (~1-2분 incremental, 첫 빌드는 5-10분)
 pnpm tauri dev
 
-# 단위 테스트 (23개 — planar 3 + drift 4 + opus 4 + rss 1 + silence 11)
+# 단위 테스트 (33개 — planar 3 + drift 4 + opus 4 + rss 1 + silence 11 + STT 4 + ring 5 + backoff 1)
 cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+# Day 17 dogfood: RSS log 실시간 tail (가장 최근 capture 세션)
+ls -t $TMPDIR/bartleby-rss-*.log | head -1 | xargs tail -f
 
 # Frontend build + type check
 pnpm build
