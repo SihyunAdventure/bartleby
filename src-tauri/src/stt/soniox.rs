@@ -298,3 +298,68 @@ pub async fn run_session(
     println!("[stt] session ended (chunk channel closed)");
     Ok(SessionEnd::Stopped)
 }
+
+/// Probe a Soniox API key by opening a WebSocket session, sending the same
+/// config we'd use for transcription, and waiting briefly for a response.
+///
+/// Soniox sends an `error_message` frame (with `error_code` like
+/// `"INVALID_API_KEY"`) before closing when auth fails. A valid key stays
+/// silent until audio arrives, so a short timeout with no rejection is
+/// treated as success.
+///
+/// No audio is sent. Connection is closed after the verdict.
+pub async fn verify_key(api_key: &str) -> Result<(), String> {
+    let (ws, _) = connect_async(SONIOX_WS_URL)
+        .await
+        .map_err(|e| format!("Connect failed: {e}"))?;
+    let (mut sink, mut stream) = ws.split();
+
+    let config = json!({
+        "api_key": api_key,
+        "model": "stt-rt-v4",
+        "audio_format": "pcm_s16le",
+        "sample_rate": TARGET_SAMPLE_RATE,
+        "num_channels": 1,
+    });
+    sink.send(Message::Text(config.to_string()))
+        .await
+        .map_err(|e| format!("Send config failed: {e}"))?;
+
+    let verdict = tokio::time::timeout(
+        std::time::Duration::from_millis(1_500),
+        async {
+            while let Some(msg) = stream.next().await {
+                match msg {
+                    Ok(Message::Text(t)) => {
+                        if let Ok(parsed) = serde_json::from_str::<ServerMessage>(&t) {
+                            if let Some(err) = parsed.error_message {
+                                return Err(err);
+                            }
+                            // Any non-error message means handshake succeeded.
+                            return Ok(());
+                        }
+                    }
+                    Ok(Message::Close(frame)) => {
+                        let reason = frame
+                            .map(|f| f.reason.to_string())
+                            .unwrap_or_else(|| "server closed".into());
+                        return Err(reason);
+                    }
+                    Err(e) => return Err(format!("recv: {e}")),
+                    _ => {}
+                }
+            }
+            Err("stream ended without verdict".into())
+        },
+    )
+    .await;
+
+    let _ = sink.send(Message::Text(String::new())).await;
+
+    match verdict {
+        // No rejection within 1.5s → server accepted the key.
+        Err(_) => Ok(()),
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(msg)) => Err(msg),
+    }
+}

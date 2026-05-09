@@ -1,4 +1,5 @@
 pub mod capture;
+pub mod secrets;
 pub mod stt;
 pub mod translate;
 
@@ -51,6 +52,26 @@ struct AppState {
     capture: Mutex<Option<CaptureSession>>,
 }
 
+/// Resolve a BYOK key by name. Tries macOS Keychain first (Settings UI
+/// surface, §16), then ENV (dev convenience). Returns `None` if neither
+/// source has a non-empty value. Logs which source resolved so a curious
+/// developer can see precedence at a glance.
+fn resolve_key(name: &str) -> Option<String> {
+    if let Ok(Some(v)) = secrets::load(name) {
+        if !v.is_empty() {
+            println!("[secrets] {name} resolved from Keychain");
+            return Some(v);
+        }
+    }
+    if let Ok(v) = std::env::var(name) {
+        if !v.is_empty() {
+            println!("[secrets] {name} resolved from ENV");
+            return Some(v);
+        }
+    }
+    None
+}
+
 fn spawn_capture(
     app: tauri::AppHandle,
     max_seconds: Option<u64>,
@@ -58,19 +79,16 @@ fn spawn_capture(
     let stop = Arc::new(AtomicBool::new(false));
     let stop_for_thread = Arc::clone(&stop);
 
-    // BYOK: SONIOX_API_KEY + UPSTAGE_API_KEY env vars
-    // (`source ~/.config/secrets/{soniox,upstage}.env` before
-    // `pnpm tauri dev`). Settings UI surface comes in §16.
+    // BYOK key resolution — Keychain first (Settings UI from Day 18a), ENV
+    // fallback (dev convenience: `source ~/.config/secrets/{soniox,upstage}.env`).
+    // Both keys log their resolved source so the dev console makes the
+    // precedence visible.
     //
     // Upstage direct (not OpenRouter) — OpenRouter's pooled Upstage account
     // ran out of credit 2026-05-08, indefinite outage. Direct API has same
     // pricing and avoids the routing dependency.
-    let stt_key = std::env::var("SONIOX_API_KEY")
-        .ok()
-        .filter(|k| !k.is_empty());
-    let upstage_key = std::env::var("UPSTAGE_API_KEY")
-        .ok()
-        .filter(|k| !k.is_empty());
+    let stt_key = resolve_key("SONIOX_API_KEY");
+    let upstage_key = resolve_key("UPSTAGE_API_KEY");
 
     // Translator is the upstream consumer of STT finals — start it first so
     // STT can hand it the final-text sender at construction.
@@ -217,6 +235,55 @@ async fn stop_capture(
     .map_err(|e| e.to_string())?
 }
 
+/// Status row for an API key surfaced to the Settings UI.
+#[derive(serde::Serialize)]
+struct KeyStatus {
+    /// True when *some* source (Keychain or ENV) holds a non-empty value.
+    present: bool,
+    /// Which source resolved — `"keychain"` / `"env"` / `null`.
+    source: Option<&'static str>,
+}
+
+#[tauri::command]
+fn api_key_status(name: String) -> Result<KeyStatus, String> {
+    if let Ok(Some(v)) = secrets::load(&name) {
+        if !v.is_empty() {
+            return Ok(KeyStatus { present: true, source: Some("keychain") });
+        }
+    }
+    if let Ok(v) = std::env::var(&name) {
+        if !v.is_empty() {
+            return Ok(KeyStatus { present: true, source: Some("env") });
+        }
+    }
+    Ok(KeyStatus { present: false, source: None })
+}
+
+#[tauri::command]
+fn save_api_key(name: String, value: String) -> Result<(), String> {
+    secrets::save(&name, &value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_api_key(name: String) -> Result<(), String> {
+    secrets::clear(&name).map_err(|e| e.to_string())
+}
+
+/// Probe a candidate key against the matching upstream service so the user
+/// gets a verified ✓ / invalid ✗ verdict before committing it to Keychain.
+/// Soniox = WebSocket handshake (no audio). Upstage = `max_tokens: 1` ping.
+#[tauri::command]
+async fn verify_api_key(name: String, value: String) -> Result<(), String> {
+    if value.is_empty() {
+        return Err("Empty key".into());
+    }
+    match name.as_str() {
+        "SONIOX_API_KEY" => stt::soniox::verify_key(&value).await,
+        "UPSTAGE_API_KEY" => translate::upstage::verify_key(&value).await,
+        other => Err(format!("Unknown key: {other}")),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -310,7 +377,11 @@ pub fn run() {
             greet,
             capture_system_audio,
             start_capture,
-            stop_capture
+            stop_capture,
+            api_key_status,
+            save_api_key,
+            clear_api_key,
+            verify_api_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

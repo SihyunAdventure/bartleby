@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import Settings from "./Settings";
 import "./App.css";
 
 const Gallery = lazy(() => import("./gallery/Gallery"));
@@ -232,10 +233,34 @@ interface CaptureStats {
   drm_detected: boolean;
 }
 
+interface KeyStatus {
+  present: boolean;
+  source: "keychain" | "env" | null;
+}
+
 function App() {
   const [captureStatus, setCaptureStatus] = useState("");
   const [seconds, setSeconds] = useState(10);
   const [captureRunning, setCaptureRunning] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [keysMissing, setKeysMissing] = useState(false);
+
+  const refreshKeyStatus = async () => {
+    try {
+      const [s, u] = await Promise.all([
+        invoke<KeyStatus>("api_key_status", { name: "SONIOX_API_KEY" }),
+        invoke<KeyStatus>("api_key_status", { name: "UPSTAGE_API_KEY" }),
+      ]);
+      setKeysMissing(!s.present || !u.present);
+    } catch {
+      // Backend down or command unavailable — leave banner hidden so we
+      // don't pester the user about a transient issue.
+    }
+  };
+
+  useEffect(() => {
+    refreshKeyStatus();
+  }, []);
 
   const formatStats = (stats: CaptureStats): string => {
     const drmTag = stats.drm_detected
@@ -264,12 +289,30 @@ function App() {
 
   return (
     <main className="container">
+      <button
+        className="settings-gear"
+        onClick={() => setSettingsOpen(true)}
+        aria-label="Settings"
+        title="Settings"
+      >
+        ⚙
+      </button>
+
       <header className="capture-hero">
         <h1 className="display">bartleby</h1>
         <div className="serif-quote capture-epigraph">
           "I would prefer not to take notes."
         </div>
       </header>
+
+      {keysMissing && !settingsOpen && (
+        <button
+          className="key-banner"
+          onClick={() => setSettingsOpen(true)}
+        >
+          Add API keys to start →
+        </button>
+      )}
 
       <section className="capture-panel">
         <div className="capture-row">
@@ -336,6 +379,13 @@ function App() {
           <p className="capture-status mono">{captureStatus}</p>
         )}
       </section>
+
+      {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+          onChange={refreshKeyStatus}
+        />
+      )}
     </main>
   );
 }
