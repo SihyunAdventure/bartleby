@@ -13,6 +13,7 @@ import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 const STORAGE_KEY = "bartleby.prefs.v1";
 const EVENT_NAME = "prefs_changed";
 
+export type AppMode = "watch" | "meeting";
 export type CaptionMode = "ko" | "ko_en" | "en";
 export type OverlayPosition = "bottom-left" | "bottom-right" | "top-left" | "top-right";
 export type BilingualLayout = "side_by_side" | "ko_above_en" | "single_auto";
@@ -20,6 +21,8 @@ export type SummaryLanguage = "ko" | "en";
 export type UpdateChannel = "stable" | "beta";
 
 export interface Prefs {
+  app_mode: AppMode;             // 'watch' | 'meeting' — top-level mode toggle
+
   // Watch mode
   caption_mode: CaptionMode;
   overlay_opacity: number;          // 60-100 (%)
@@ -43,6 +46,7 @@ export interface Prefs {
 }
 
 export const DEFAULT_PREFS: Prefs = {
+  app_mode: "watch",
   caption_mode: "ko",
   overlay_opacity: 85,
   caption_font_size: 16,

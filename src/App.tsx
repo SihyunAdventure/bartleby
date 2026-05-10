@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Settings from "./settings/Settings";
-import { loadPrefs, listenToPrefs, type CaptionMode } from "./settings/prefs";
+import Segmented from "./components/Segmented";
+import { loadPrefs, listenToPrefs, setPref, type AppMode, type CaptionMode } from "./settings/prefs";
 import "./App.css";
 
 const Gallery = lazy(() => import("./gallery/Gallery"));
@@ -274,6 +275,16 @@ function App() {
   const [captureRunning, setCaptureRunning] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [keysMissing, setKeysMissing] = useState(false);
+  const [appMode, setAppMode] = useState<AppMode>(() => loadPrefs().app_mode);
+
+  useEffect(() => {
+    const unlistenPromise = listenToPrefs((p) => {
+      setAppMode(p.app_mode);
+    });
+    return () => {
+      unlistenPromise.then((fn) => fn());
+    };
+  }, []);
 
   const refreshKeyStatus = async () => {
     try {
@@ -318,7 +329,7 @@ function App() {
   }
 
   return (
-    <main className="container">
+    <main className="container" data-mode={appMode}>
       <button
         className="settings-gear"
         onClick={() => setSettingsOpen(true)}
@@ -334,6 +345,26 @@ function App() {
           "I would prefer not to take notes."
         </div>
       </header>
+
+      <div className="mode-switch-row">
+        <Segmented
+          options={[
+            { value: "watch", label: "Watch" },
+            { value: "meeting", label: "Meeting" },
+          ]}
+          value={appMode}
+          onChange={(m) => {
+            setAppMode(m);
+            setPref("app_mode", m);
+          }}
+        />
+      </div>
+
+      {appMode === "meeting" && (
+        <aside className="meeting-sidebar-placeholder">
+          Meeting mode — sidebar UI next slice.
+        </aside>
+      )}
 
       {keysMissing && !settingsOpen && (
         <button
