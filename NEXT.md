@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-10 — **Day 1-19c ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + STT reconnect + §16 Settings UI + §02 Typography gallery + §11 LiveCaption gallery + overlay voice polish + **§17 Permission Lifecycle gallery**)
+> 마지막 세션: 2026-05-10 — **Day 1-19d ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + STT reconnect + §16 Settings UI + §02 Typography gallery + §11 LiveCaption gallery + overlay voice polish + §17 Permission Lifecycle gallery + **§15 Mode Switch UI — Watch ↔ Meeting 토글 + data-mode cascade**)
 
 ---
 
-## 현재 상태 (Day 19c ✅ 종료, 2026-05-10)
+## 현재 상태 (Day 19d ✅ 종료, 2026-05-10)
 
 ### 누적 commits (main branch)
 
@@ -60,6 +60,7 @@
 | `cc300b0` | **Day 19a slice** ✅ §02 Typography gallery — `src/gallery/sections/02-Typography.tsx` (신규) + Gallery.tsx import/render + Gallery.module.css §02 CSS block. 4 font specimens (Pretendard 4w / Gowun Batang 2w / Cormorant Garamond regular+italic / JetBrains Mono 2w), type scale table (--t-xs ~ --t-5xl), tracking comparison (4 token × BARTLEBY), font role grid. Design tokens only. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 | `8101398` | **Day 19b slice** ✅ §11 LiveCaption gallery + overlay voice polish — `src/gallery/sections/11-LiveCaption.tsx` (신규, ~460 lines): caption_mode 3 모드 비교 (KO/KO+EN/EN) + overlay_opacity 4 frame (60/75/85/100%) + caption_font_size 5 frame (14–18px) + caption state matrix 7 mock (awaiting/drm-blocked/stt-error/partial/final+KO partial/translation-error/all-flowing) + spec mapping memo (12 rows, all ✓). Gallery.tsx + Gallery.module.css §11 등록. App.tsx Overlay polish 3종: translation_error → "번역 대기 중…" italic Cormorant 12px (error string hidden), stt_error → "Bartleby would prefer not to. (..)" italic Cormorant, KO partial span transition 200ms ease 추가. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 | `9126d92` | **Day 19c slice** ✅ §17 Permission Lifecycle gallery — `src/gallery/sections/17-Permission.tsx` (신규): 4-state diagram (NotRequested/Granted/Denied/Restricted) + permission types 표 (Screen Recording/Microphone, plist key/mode/denied behavior) + Settings.app deeplink table (macOS x-apple.systempreferences URLs) + state machine flow ASCII + mode-specific behavior 매핑 (5 scenarios) + voice copy matrix 4종 (italic Cormorant 톤). Gallery.tsx + Gallery.module.css §17 등록. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
+| `284a070` | **Day 19d slice** ✅ §15 Mode Switch UI — Watch ↔ Meeting 토글 + data-mode cascade. `src/settings/prefs.ts` AppMode type + app_mode field (DEFAULT 'watch'). `src/App.tsx` useState<AppMode> + listenToPrefs sync + Segmented control (Watch/Meeting) + `<main data-mode={appMode}>`. `src/App.css` .mode-switch-row + .container[data-mode] cascade stubs + .meeting-sidebar-placeholder. `src/gallery/sections/15-ModeSwitch.tsx` (신규): DSSection toggle preview + Watch/Meeting layout mocks + cascade rules 표 + transition memo. Gallery.tsx + Gallery.module.css §15 등록 (§11 다음, §17 앞). Overlay 정책=옵션A (storage-only). 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 
 ### 작동 검증된 것
 
@@ -646,6 +647,51 @@ A1 chunk 진행. §17 Permission Lifecycle gallery section. from-scratch (memory
 - §03~§10, §12~§16, §18 gallery sections — Phase 0 lazy fill.
 - Permission states 실제 macOS probe 함수 구현 — Phase 2 후속 (Tauri `recheck_permissions()` command).
 - Settings.app deeplink 실제 `open::that()` Tauri command 연동 — denied 시 graceful UI 구현 시점.
+
+---
+
+### Day 19d 결과 (§15 Mode Switch UI ✅ — code path)
+
+A1 chunk 본격 — mode 자체 토글 + cascade infra. Phase 4 미팅 모드 본진의 진입 layer. from-scratch (memory rule: external reference 코드 복사 금지, 패턴만 학습).
+
+**구조 (6 파일 수정/신규)**:
+- `src/settings/prefs.ts` — `AppMode = 'watch' | 'meeting'` type 신규. `Prefs.app_mode` 필드 추가. `DEFAULT_PREFS.app_mode = "watch"`. `emit("prefs_changed")` 자동 broadcast 유지.
+- `src/App.tsx` — `App()` 의 `useState<AppMode>(() => loadPrefs().app_mode)` + `useEffect` → `listenToPrefs` 동기화. capture-hero 와 capture-panel 사이 `.mode-switch-row` Segmented control (Watch / Meeting). `onChange` 시 `setAppMode(m)` + `setPref("app_mode", m)` 양쪽 호출. `<main className="container" data-mode={appMode}>` cascade attribute. Meeting 시 `.meeting-sidebar-placeholder` (chunk B 에서 real sidebar 로 교체).
+- `src/App.css` — `.mode-switch-row` (center flex, gap 없음 — Segmented 자체 padding 활용). `.container[data-mode="watch"]` / `.container[data-mode="meeting"]` stub (본격 차이는 chunk B). `.meeting-sidebar-placeholder` (mono, dashed border, muted ink).
+- `src/gallery/sections/15-ModeSwitch.tsx` (신규, ~160 lines) — `ModeSwitch` 컴포넌트:
+  - **a. toggle preview** — inline mock Segmented (`.mode-switch-toggle-preview`): Watch tab active + Meeting tab inactive. prefs.app_mode 연동 + setPref 패턴 텍스트로 설명.
+  - **b. Watch layout mock** — `WatchLayoutMock` 정적 rectangle: hero (logo + epigraph) 상단 + capture buttons 중앙 + overlay floating bottom-left (`rgba(248,247,244,0.85)` backdrop). 사이드바 없음.
+  - **c. Meeting layout mock** — `MeetingLayoutMock` 정적 rectangle: sidebar 80px (rec status/mode switch/⚙) + main (transcript + recording controls) grid layout. overlay 없음.
+  - **d. cascade rules 표** — 4 행: data-mode attr→.container (wire ✅) / capture target Watch=system·Meeting=mic+system (chunk B) / overlay visibility Option A storage-only (wire ✅) / shortcuts N/A.
+  - **e. transition memo** — monospace block: `opacity 200ms ease` 아이디어 + 이번 슬라이스 미적용 이유 (chunk B 의 sidebar mount/unmount 와 함께). Overlay 정책=옵션A 명시.
+- `src/gallery/Gallery.tsx` — `ModeSwitch` import + `<ModeSwitch />` render (§11 `<LiveCaption />` 다음, §17 `<Permission />` 앞 — reading order 자연스럽게).
+- `src/gallery/Gallery.module.css` — §15 CSS 블록 (~150 lines):
+  - `.mode-switch-toggle-preview`, `.mode-toggle-tab`, `.mode-toggle-tab--active` (Segmented mock)
+  - `.mode-layout-pair` (2-col grid), `.mode-layout-mock`, `.mode-layout-inner`, `.mode-layout-label`, `.mode-layout-note`
+  - `.mode-layout-watch` (flex col, min-height 160px), `.mock-watch-hero`, `.mock-watch-capture`, `.mock-watch-overlay` (absolute bottom-left, rgba backdrop)
+  - `.mode-layout-meeting` (grid 80px+1fr), `.mock-meeting-sidebar`, `.mock-meeting-main`
+  - `.mock-label` (10px mono), `.mock-label-sm` (9px), `.mock-sublabel` (9px muted)
+  - `.mode-cascade-table`, `.mode-cascade-head`, `.mode-cascade-row` (220px / 1fr / 180px)
+  - `.mode-voice-memo` (border, paper-2 bg, padding)
+
+**설계 결정**:
+- Overlay 정책 = **옵션 A (storage-only)**: overlay 자기 hide X this slice. capture target 변화 (Watch=system, Meeting=mic+system)는 chunk B (US-005) 에서.
+- Fade transition (`opacity 200ms`) — 이번 슬라이스 미적용. chunk B sidebar mount/unmount 와 함께 적용 예정.
+- layout mock inline rgba — `rgba(248,247,244,0.85)` 만 사용 (overlay mock 이 실 톤 재현 필요). §11 패턴 일관.
+- meeting sidebar mock — 80px (실제 sidebar 240px 는 chunk B에서). gallery 는 비율만 시각화.
+
+**검증**:
+- ✅ `pnpm build` (tsc + vite) — 0 TypeScript errors. 65 modules transformed.
+- ✅ `cargo build --manifest-path src-tauri/Cargo.toml` — Finished dev (0.13s, no Rust changes)
+- ✅ `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 33 passed; 0 failed; 1 ignored (0.41s)
+- ✅ Linear SIH-1189 "A5 §15 Mode Switch UI — Watch ↔ Meeting 토글 + data-mode cascade" — created + Done (https://linear.app/sihyun-dev/issue/SIH-1189/a5-15-mode-switch-ui-watch-meeting-토글-data-mode-cascade)
+- ✅ Commit `284a070`
+
+**Day 19d scope (의도적 제외 — 후속)**:
+- §03~§10, §12~§14, §16, §18 gallery sections — Phase 0 lazy fill.
+- Meeting mode sidebar 실제 UI (240px, rec status panel, transcript view) — chunk B (US-005).
+- Capture target 분기 (Watch=system only, Meeting=mic+system) — chunk B.
+- Fade transition `opacity 200ms` — chunk B.
 
 ---
 
