@@ -3,6 +3,7 @@ import { Manifesto } from "./sections/00-Manifesto";
 import { ColorTokens } from "./sections/01-Color";
 import { Typography } from "./sections/02-Typography";
 import { LiveCaption } from "./sections/11-LiveCaption";
+import { Permission } from "./sections/17-Permission";
 
 /* ── Hero (chrome — lives in switchboard) ── */
 function Hero() {
@@ -43,6 +44,7 @@ export default function Gallery() {
       <ColorTokens />
       <Typography />
       <LiveCaption />
+      <Permission />
     </div>
   );
 }

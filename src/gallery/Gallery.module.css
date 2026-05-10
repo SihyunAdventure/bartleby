@@ -256,10 +256,201 @@
   align-items: baseline;
 }
 
+/* ── §17 Permission Lifecycle ── */
+
+/* a. 4-state diagram — 4-column grid */
+.perm-state-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+}
+
+.perm-state-box {
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  padding: var(--s-4) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.perm-state-label {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.perm-state-indicator {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  color: var(--ink);
+}
+
+.perm-state-indicator--muted {
+  color: var(--ink-5);
+}
+
+.perm-state-indicator--ok {
+  color: var(--ok);
+}
+
+.perm-state-voice {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+  line-height: 1.5;
+  margin-top: var(--s-1);
+}
+
+/* b. permission types table */
+.perm-type-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.perm-type-head {
+  display: grid;
+  grid-template-columns: 160px 220px 120px 1fr;
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-5);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+}
+
+.perm-type-row {
+  display: grid;
+  grid-template-columns: 160px 220px 120px 1fr;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+
+/* c. deeplink table */
+.perm-deeplink-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.perm-deeplink-head {
+  display: grid;
+  grid-template-columns: 160px 1fr 80px;
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-5);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+}
+
+.perm-deeplink-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 80px;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+
+/* d. state machine flow */
+.perm-flow-block {
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  padding: var(--s-5) var(--s-6);
+  background: var(--paper-2);
+}
+
+.perm-flow-pre {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* e. mode-behavior matrix */
+.perm-mode-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.perm-mode-head {
+  display: grid;
+  grid-template-columns: 180px 200px 1fr;
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-5);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+}
+
+.perm-mode-row {
+  display: grid;
+  grid-template-columns: 180px 200px 1fr;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+
+.perm-mode-row--ok .perm-mode-action {
+  color: var(--ok);
+}
+
+/* f. voice copy matrix */
+.perm-voice-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.perm-voice-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--s-6);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+
+.perm-voice-copy {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-md);
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
 /* ── Responsive ── */
 @media (max-width: 1100px) {
   .hero-grid { grid-template-columns: 1fr; }
   .ds-section-h { grid-template-columns: 1fr; }
   .manifesto-grid { grid-template-columns: 1fr; }
   .swatch-grid { grid-template-columns: repeat(3, 1fr); }
+  .perm-state-grid { grid-template-columns: repeat(2, 1fr); }
+  .perm-type-head,
+  .perm-type-row { grid-template-columns: 140px 180px 1fr; }
+  .perm-mode-head,
+  .perm-mode-row { grid-template-columns: 1fr; }
 }
