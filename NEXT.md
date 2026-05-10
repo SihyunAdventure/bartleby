@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-10 — **Day 1-19b ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + STT reconnect + §16 Settings UI + §02 Typography gallery + **§11 LiveCaption gallery + overlay voice polish**)
+> 마지막 세션: 2026-05-10 — **Day 1-19c ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + STT reconnect + §16 Settings UI + §02 Typography gallery + §11 LiveCaption gallery + overlay voice polish + **§17 Permission Lifecycle gallery**)
 
 ---
 
-## 현재 상태 (Day 19b ✅ 종료, 2026-05-10)
+## 현재 상태 (Day 19c ✅ 종료, 2026-05-10)
 
 ### 누적 commits (main branch)
 
@@ -59,6 +59,7 @@
 | `3b0bf78` | **Day 18b slice** ✅ §16 Settings UI Tabs 2-5 + Overlay wire — Settings 분할 (`src/settings/{Settings,KeysTab,ModesTab,StorageTab,ShortcutsTab,AboutTab}`) + 공통 form primitives (`src/components/{Toggle,Segmented,Slider}` from-scratch, design tokens only). Overlay listen `prefs_changed` → caption_mode (KO/KO+EN/EN 분기), overlay_opacity (background alpha), caption_font_size (KO layer px) 즉시 반영. Storage-only: overlay_position / pause / click-through / bilingual / auto_summarize / summary_lang / retention (consumer infra 추후). Tab 3 Choose.../Finder/Clean up disabled (tauri-plugin-fs/dialog), Tab 4 Customize... disabled (global-shortcut dynamic re-register). Tab 5 About v0.1.0 hardcoded. 21 files +1245 lines. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 | `cc300b0` | **Day 19a slice** ✅ §02 Typography gallery — `src/gallery/sections/02-Typography.tsx` (신규) + Gallery.tsx import/render + Gallery.module.css §02 CSS block. 4 font specimens (Pretendard 4w / Gowun Batang 2w / Cormorant Garamond regular+italic / JetBrains Mono 2w), type scale table (--t-xs ~ --t-5xl), tracking comparison (4 token × BARTLEBY), font role grid. Design tokens only. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 | `8101398` | **Day 19b slice** ✅ §11 LiveCaption gallery + overlay voice polish — `src/gallery/sections/11-LiveCaption.tsx` (신규, ~460 lines): caption_mode 3 모드 비교 (KO/KO+EN/EN) + overlay_opacity 4 frame (60/75/85/100%) + caption_font_size 5 frame (14–18px) + caption state matrix 7 mock (awaiting/drm-blocked/stt-error/partial/final+KO partial/translation-error/all-flowing) + spec mapping memo (12 rows, all ✓). Gallery.tsx + Gallery.module.css §11 등록. App.tsx Overlay polish 3종: translation_error → "번역 대기 중…" italic Cormorant 12px (error string hidden), stt_error → "Bartleby would prefer not to. (..)" italic Cormorant, KO partial span transition 200ms ease 추가. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
+| `9126d92` | **Day 19c slice** ✅ §17 Permission Lifecycle gallery — `src/gallery/sections/17-Permission.tsx` (신규): 4-state diagram (NotRequested/Granted/Denied/Restricted) + permission types 표 (Screen Recording/Microphone, plist key/mode/denied behavior) + Settings.app deeplink table (macOS x-apple.systempreferences URLs) + state machine flow ASCII + mode-specific behavior 매핑 (5 scenarios) + voice copy matrix 4종 (italic Cormorant 톤). Gallery.tsx + Gallery.module.css §17 등록. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 
 ### 작동 검증된 것
 
@@ -606,6 +607,48 @@ A1 chunk 잔여. §11 LiveCaption gallery section + App.tsx Overlay voice copy/t
 
 ---
 
+### Day 19c 결과 (§17 Permission Lifecycle gallery ✅ — code path)
+
+A1 chunk 진행. §17 Permission Lifecycle gallery section. from-scratch (memory rule: external reference 코드 복사 금지, 패턴만 학습).
+
+**구조 (3 파일 수정/신규)**:
+- `src/gallery/sections/17-Permission.tsx` (신규, ~290 lines) — `Permission` 컴포넌트:
+  - **DSSection wrapper** — `id="permission"`, `kicker="17 · Permission Lifecycle"`, `title="Permission Lifecycle"`, lede `"권한 — 거부도 graceful, 모드별로 다르게."`
+  - **a. 4-state diagram** — `perm-state-grid` 4-col: NotRequested (muted indicator, not-asked-yet) / Granted (ok indicator, ✓) / Denied (default, "Bartleby would prefer not to." italic Cormorant) / Restricted (muted, "Permission is held elsewhere." italic Cormorant). 각 box: state label + indicator + voice copy + note.
+  - **b. Permission types 표** — 4-col table: Screen Recording (NSScreenCaptureUsageDescription, Watch+Meeting 필수) / Microphone (NSMicrophoneUsageDescription, Meeting 전용). 각 행: 권한명, plist key, 필수 모드, 거부 시 행동.
+  - **c. Settings.app deeplink 표** — 3-col: Screen Recording / Microphone (inUse ✓) + Camera (inUse —, reference only). URL 은 `<code>` mono `var(--t-xs)`, 클릭 없음.
+  - **d. State machine flow** — ASCII art (`perm-flow-pre` monospace block): App start → probe_permissions() → NotRequested/Granted/Denied/Restricted 분기, graceful path 포함.
+  - **e. Mode-specific behavior 매핑** — 5 row: Watch+Screen Recording 거부 / Watch+Mic 거부 (무관, ✓) / Meeting+Screen Recording 거부 / Meeting+Mic 거부 / 모두 Granted (✓).
+  - **f. Voice copy matrix** — 4 row (italic Cormorant `perm-voice-copy`): Generic denied / Mic denied / Screen Recording denied / Restricted.
+- `src/gallery/Gallery.tsx` — `Permission` import + `<Permission />` render (LiveCaption 다음)
+- `src/gallery/Gallery.module.css` — §17 CSS 블록:
+  - `.perm-state-grid` (4-col grid), `.perm-state-box` (border, r-sm, padding), `.perm-state-label`, `.perm-state-indicator` / `--muted` / `--ok`, `.perm-state-voice` (font-serif italic)
+  - `.perm-type-table`, `.perm-type-head`, `.perm-type-row` (160px / 220px / 120px / 1fr)
+  - `.perm-deeplink-table`, `.perm-deeplink-head`, `.perm-deeplink-row` (160px / 1fr / 80px)
+  - `.perm-flow-block`, `.perm-flow-pre` (font-mono, white-space: pre)
+  - `.perm-mode-table`, `.perm-mode-head`, `.perm-mode-row`, `.perm-mode-row--ok`, `.perm-mode-action`
+  - `.perm-voice-matrix`, `.perm-voice-row`, `.perm-voice-copy` (font-serif italic, t-md)
+
+**설계 결정**:
+- deeplink URL — `<code>` mono 표시 (클릭 없음). task 명시대로 gallery 는 launcher 아님.
+- Open Settings mock button — visual text "⚙ Open Settings" 를 flow ASCII + behavior 텍스트에서 명시. 실제 `<button>` 미생성 (gallery showcase, live launcher 아님).
+- inline hex/rgba 없음 — design tokens only. §11 의 rgba 는 live Overlay 스펙 미러링 목적이었으나 §17 은 순수 spec showcase.
+- voice copy CSS class (`perm-voice-copy`) — 4개 matrix row 전부 일관 적용 (§11 stt-error 의 inline serif 와 달리 class 사용).
+
+**검증**:
+- ✅ `pnpm build` (tsc + vite) — 0 TypeScript errors. 64 modules transformed, 443ms.
+- ✅ `cargo build --manifest-path src-tauri/Cargo.toml` — Finished dev (0.13s, no Rust changes)
+- ✅ `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 33 passed; 0 failed; 1 ignored (0.42s)
+- ✅ Linear SIH-1188 "A4 §17 Permission Lifecycle gallery" — created + Done (https://linear.app/sihyun-dev/issue/SIH-1188/a4-17-permission-lifecycle-gallery)
+- ✅ Commit `9126d92`
+
+**Day 19c scope (의도적 제외 — 후속)**:
+- §03~§10, §12~§16, §18 gallery sections — Phase 0 lazy fill.
+- Permission states 실제 macOS probe 함수 구현 — Phase 2 후속 (Tauri `recheck_permissions()` command).
+- Settings.app deeplink 실제 `open::that()` Tauri command 연동 — denied 시 graceful UI 구현 시점.
+
+---
+
 ## 다음 세션 진입점
 
 ### Step 0: 컨텍스트 빠른 로드
@@ -942,4 +985,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, **and now has a gallery that shows Typography (§02) + LiveCaption (§11) spec surfaces — caption modes, opacity ramp, font-size scale, state matrix, and spec mapping memo all in one scroll**. dogfood 는 chunk B (미팅 모드 UI 본진) 후 한 번에 통합."
+> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, **and now has a gallery that shows Typography (§02) + LiveCaption (§11) + Permission Lifecycle (§17) — caption surfaces, opacity ramp, state matrix, permission states, deeplinks, state machine flow, mode-specific behavior, and voice copy matrix all in one scroll**. dogfood 는 chunk B (미팅 모드 UI 본진) 후 한 번에 통합."
