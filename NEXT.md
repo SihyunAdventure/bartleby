@@ -5,7 +5,9 @@
 
 ---
 
-## 현재 상태 (Day 20a ✅ 종료, 2026-05-10)
+## 현재 상태 (Day 20a + followup + deslop ✅ 종료, ralph 루프 완료, 2026-05-10)
+
+> 다음 세션 진입점: **Step 3h (Visual polish chunk)**. `/design-review` 또는 §03~§09 gallery polish 부터.
 
 ### 누적 commits (main branch)
 
@@ -812,9 +814,44 @@ git log --oneline -10  # 마지막 commit 확인
 
 ### Step 3f: Day 18a + 18b — §16 Settings UI 5 tabs + Overlay wire ✅ *완료 (코드)*
 
-자세한 결과는 위 "Day 18a 결과" / "Day 18b 결과" 섹션 참조. **Day 18a** = Tab 1 Keys (Keychain + verify probe). **Day 18b** = Tabs 2-5 (Modes / Storage / Shortcuts / About) + 공통 form primitives (Toggle/Segmented/Slider) + Overlay listen `prefs_changed` (caption_mode KO/KO+EN/EN, overlay_opacity, caption_font_size 즉시 반영). Storage-only / Disabled 항목 명시. 33 tests pass + 1 ignored, pnpm/cargo build clean. **다음 chunk 추천**: A2 §02 Typography gallery 또는 A5 §15 Mode Switch UI (Watch ↔ Meeting 토글). 통합 dogfood 는 chunk B (미팅 모드 UI) 후 한 번에.
+자세한 결과는 위 "Day 18a 결과" / "Day 18b 결과" 섹션 참조. **Day 18a** = Tab 1 Keys (Keychain + verify probe). **Day 18b** = Tabs 2-5 (Modes / Storage / Shortcuts / About) + 공통 form primitives (Toggle/Segmented/Slider) + Overlay listen `prefs_changed` (caption_mode KO/KO+EN/EN, overlay_opacity, caption_font_size 즉시 반영). Storage-only / Disabled 항목 명시. 33 tests pass + 1 ignored, pnpm/cargo build clean.
 
-### Step 3e: Day 17 — Phase 2 acceptance (empirical) ← *현재 슬라이스 (사용자 직접 dogfood)*
+### Step 3g: Day 19a/b/c/d + 20a — ralph 루프 (Phase 0 잔여 + Phase 4 미팅 모드) ✅ *완료 (2026-05-10)*
+
+ralph 5 user stories — US-001 §02 Typography (cc300b0+2351cd2 / SIH-1186) → US-002 §11 LiveCaption + overlay polish (8101398+2435a39 / SIH-1187) → US-003 §17 Permission Lifecycle (9126d92+3edad39 / SIH-1188) → US-004 §15 Mode Switch UI (284a070+2778f2c / SIH-1189) → US-005 chunk B 미팅 모드 UI 본진 (4502d03+0171666 / SIH-1190). code-reviewer verdict APPROVED_WITH_FOLLOWUP → HIGH (translation_error voice copy) fix (a4c6c50) + deslop pass (84f7a42, Medium 1/2/3 + Low 4/5 처리: cross-mode capture state lift / pendingTranslation FIFO eviction / dead transition cleanup / auto-scroll guard / duplicate font-family) → SIH-1191 followup → NEXT.md sync (17f7722). Memory rules 신규 2개: dogfood cadence (큰 chunk 끝난 후 한 번에) + 호외요 별도 프로젝트 분리.
+
+**남은 risk** (다음 chunk / 통합 dogfood 시 검증):
+- watchShell 의 one-shot capture path 가 lifted `captureRunning` read 만 + setCaptureRunning 호출 X (pre-lift 와 동일).
+- Tauri backend concurrent `start_capture` guard 미구현 (현재 single-shell render 라 risk 0).
+- `lastStats` mode switch 시 reset 안 됨 (직접 영향 X).
+
+### Step 3h: Day 21+ — Visual polish chunk ← *다음 세션 진입점 (사용자 의도: dogfood 전 앱 더 예쁘고 완성되게)*
+
+ralph 루프로 Phase 0 + Phase 4 UI shell 모두 들어감. 이제 *시각/UX 디테일* 본진. 통합 dogfood 는 polish chunk 끝난 후.
+
+**진입 후보 (택 1 또는 묶음)**:
+
+1. **`/design-review` (gstack live audit)** — `pnpm tauri dev` 띄운 상태에서 designer-eye QA. 실제 윈도우 screenshot 비교 → 시각 inconsistency / spacing / hierarchy / AI slop pattern / slow interaction 발견 + 자동 fix loop. 가장 ROI 높음.
+
+2. **§03 Spacing / §04 Buttons / §05 Form controls / §06 Recording state / §09 Sidebar gallery sections** — Phase 0 polish gate 의 7-row 잔여. 시각 검증 row 채우기 + 실 UI 대비 spec drift 확인.
+
+3. **Watch 모드 capture-panel UI 완성도** — 현재 minimal (`Capture Ns` button + `Start/Stop`). hero 의 capture status / live caption preview / mode hint 등 polish.
+
+4. **Meeting 모드 디테일** — Sidebar 의 motion (recording dot pulse / scroll edge fade), TranscriptView 의 empty state Cormorant, RecordingControls 의 button hover/active state, sidebar status block typography.
+
+5. **Settings UI 디테일** — KeyInput verifying spinner, Toggle/Segmented/Slider 의 hover/active/disabled state polish, modal backdrop transition.
+
+6. **Overlay 미세 polish** — caption font hierarchy (영어 작게 vs 한국어 크게 비율), partial→final smoothing 실효 처리 (Day 20a deslop 의 transition 제거 결정 reconsider — single-span 으로 rearchitect 시 가능).
+
+7. **Empty / loading / error state** 들 일관 — italic Cormorant 톤 통일, voice copy matrix 적용.
+
+8. **Tray menu polish** — 현재 Show / Quit. Pause / Resume / Mode switch / Settings 추가 옵션.
+
+권장 순서: **(1) `/design-review` 부터 → 발견된 issue 우선순위 따라 (3)~(8) 중 선택**. (2) Phase 0 잔여 sections 은 design-review 결과에 따라 자연스럽게 채울 가능성.
+
+진입 즉시 NEXT.md 의 어느 섹션도 읽을 필요 없음 (이 Step 3h + 마지막 한 줄로 컨텍스트 충분). 특정 chunk 결정 후 해당 영역만 깊게.
+
+### Step 3e: Day 17 — Phase 2 acceptance (empirical) ← *Visual polish chunk 끝난 후 사용자 직접 dogfood*
 
 Day 15a happy-path + Day 15b 의 resilience layer 를 1h 영어 YouTube 시청으로 검증. **코드는 이미 모두 ready** (Day 15b 의 reconnect + ring buffer + Day 5 의 RSS sampler + capture stats). 이번 단계는 **사용자가 직접 dogfood + 측정값 기록** 만 남음.
 
@@ -1107,4 +1144,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, has a gallery showing Typography + LiveCaption + Permission Lifecycle + Mode Switch, **and now opens in Meeting mode with a 240px sidebar (logo + mode switch + settings + status block) + scrolling transcript view (stt_final + translation_final, speaker mock, Gowun Batang KO line) + recording controls (Start/Stop + CaptureStats display) — Phase 4 본진 진입. mic 실작동은 Apple Dev ID 후**. ralph 루프 완료 (US-001 ~ US-005 ✅) + code-reviewer verdict APPROVED_WITH_FOLLOWUP 처리 + deslop pass — 통합 dogfood 만 남음."
+> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, has a gallery showing Typography + LiveCaption + Permission Lifecycle + Mode Switch, opens in Meeting mode with a 240px sidebar + scrolling transcript view + recording controls — Phase 4 본진 진입. ralph 루프 완료 + code-reviewer 처리 + deslop. **다음 세션: Visual polish chunk (Step 3h) — `/design-review` 또는 §03~§09 gallery polish 부터. 통합 dogfood 는 polish 후 사용자 명시 시점.**"
