@@ -2,6 +2,7 @@ import styles from "./Gallery.module.css";
 import { Manifesto } from "./sections/00-Manifesto";
 import { ColorTokens } from "./sections/01-Color";
 import { Typography } from "./sections/02-Typography";
+import { LiveCaption } from "./sections/11-LiveCaption";
 
 /* ── Hero (chrome — lives in switchboard) ── */
 function Hero() {
@@ -41,6 +42,7 @@ export default function Gallery() {
       <Manifesto />
       <ColorTokens />
       <Typography />
+      <LiveCaption />
     </div>
   );
 }

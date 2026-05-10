@@ -139,7 +139,11 @@ function Overlay() {
 
   let body: React.ReactNode;
   if (sttError) {
-    body = <span style={{ fontStyle: "italic" }}>STT: {sttError}</span>;
+    body = (
+      <span style={{ fontStyle: "italic", fontFamily: "var(--font-serif)" }}>
+        Bartleby would prefer not to. ({sttError.slice(0, 100)})
+      </span>
+    );
   } else if (hasAnyCaption) {
     body = (
       <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
@@ -179,14 +183,14 @@ function Overlay() {
           >
             {koText}
             {koPartial && (
-              <span style={{ opacity: 0.65 }}>
+              <span style={{ opacity: 0.65, transition: "opacity 200ms ease" }}>
                 {koText ? " " : ""}
                 {koPartial}
               </span>
             )}
             {translationError && !koText && !koPartial && (
-              <span style={{ fontSize: 11, fontStyle: "italic", color: "rgba(40, 40, 40, 0.55)" }}>
-                번역 대기 중… ({translationError})
+              <span style={{ fontSize: 12, fontStyle: "italic", fontFamily: "var(--font-serif)", color: "rgba(40, 40, 40, 0.55)" }}>
+                번역 대기 중…
               </span>
             )}
           </div>

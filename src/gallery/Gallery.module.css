@@ -165,6 +165,97 @@
 }
 .font-role-item {}
 
+/* ── §11 LiveCaption ── */
+
+/* Caption mock frame — paper-tone container that mimics the overlay surface */
+.caption-mock-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.caption-mock-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.caption-mock-note {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-5);
+}
+
+.caption-mock-frame {
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  padding: 10px 14px;
+  min-height: 52px;
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* a. mode row — 3 columns side by side */
+.caption-mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--s-4);
+}
+
+/* b. opacity row — 4 columns */
+.caption-opacity-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+}
+
+/* c. font size column — stacked */
+.caption-fontsize-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+/* d. state matrix — 2-column grid */
+.caption-state-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-6);
+}
+
+/* e. spec table */
+.spec-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.spec-table-head {
+  display: grid;
+  grid-template-columns: 140px 180px 1fr 1fr 60px;
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-5);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+}
+
+.spec-table-row {
+  display: grid;
+  grid-template-columns: 140px 180px 1fr 1fr 60px;
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+
 /* ── Responsive ── */
 @media (max-width: 1100px) {
   .hero-grid { grid-template-columns: 1fr; }
