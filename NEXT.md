@@ -1,11 +1,11 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-09 — **Day 1-16b + 15b ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + **STT reconnect: 30s ring buffer + exponential backoff**)
+> 마지막 세션: 2026-05-10 — **Day 1-19a ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + STT reconnect + §16 Settings UI + **§02 Typography gallery**)
 
 ---
 
-## 현재 상태 (Day 16b + 15b ✅ 종료, 2026-05-09)
+## 현재 상태 (Day 19a ✅ 종료, 2026-05-10)
 
 ### 누적 commits (main branch)
 
@@ -57,6 +57,7 @@
 | `0b5d7b5` | Day 18a fix: `.container { position: relative }` so `.settings-gear` anchors to hero, not viewport. |
 | `1644eb2` | NEXT.md: autopreso inspiration 기록 (Phase 4 미팅 모드 본진 spike 시점). |
 | `3b0bf78` | **Day 18b slice** ✅ §16 Settings UI Tabs 2-5 + Overlay wire — Settings 분할 (`src/settings/{Settings,KeysTab,ModesTab,StorageTab,ShortcutsTab,AboutTab}`) + 공통 form primitives (`src/components/{Toggle,Segmented,Slider}` from-scratch, design tokens only). Overlay listen `prefs_changed` → caption_mode (KO/KO+EN/EN 분기), overlay_opacity (background alpha), caption_font_size (KO layer px) 즉시 반영. Storage-only: overlay_position / pause / click-through / bilingual / auto_summarize / summary_lang / retention (consumer infra 추후). Tab 3 Choose.../Finder/Clean up disabled (tauri-plugin-fs/dialog), Tab 4 Customize... disabled (global-shortcut dynamic re-register). Tab 5 About v0.1.0 hardcoded. 21 files +1245 lines. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
+| `cc300b0` | **Day 19a slice** ✅ §02 Typography gallery — `src/gallery/sections/02-Typography.tsx` (신규) + Gallery.tsx import/render + Gallery.module.css §02 CSS block. 4 font specimens (Pretendard 4w / Gowun Batang 2w / Cormorant Garamond regular+italic / JetBrains Mono 2w), type scale table (--t-xs ~ --t-5xl), tracking comparison (4 token × BARTLEBY), font role grid. Design tokens only. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 
 ### 작동 검증된 것
 
@@ -523,6 +524,43 @@ A1 chunk (큰 단위 묶음 — 사용자 cadence rule). 4 신규 tab + Settings
 - $TMPDIR walker Tauri command — Tab 3 disk usage 실수치 + Clean up confirm dialog.
 - global-shortcut dynamic re-register — Tab 4 Customize... infra. lib.rs 의 setup hook 의 `on_shortcut` closure stable handler 필요.
 - AboutTab version Vite env inject — `import.meta.env.PACKAGE_VERSION` 또는 build-time generation. 현재는 hardcode (사용자 cadence: 자잘 X).
+
+### Day 19a 결과 (§02 Typography gallery ✅ — code path)
+
+A2 chunk. Phase 0 gallery 의 두 번째 section. §00 Manifesto + §01 Color 다음. from-scratch (memory rule: external reference 코드 복사 금지, 패턴만 학습).
+
+**구조 (3 파일 수정/신규)**:
+- `src/gallery/sections/02-Typography.tsx` (신규, ~200 lines) — `Typography` 컴포넌트:
+  - **DSSection wrapper** — `id="typography"`, `kicker="02 · Typography"`, `title="Four voices, one manuscript."`, lede (한국어+영어 mix tone, 4 폰트 요약)
+  - **Font family specimens 4 row**: Pretendard (400/500/600/700), Gowun Batang (400/700), Cormorant Garamond (400 regular / 400 italic / 500 medium italic), JetBrains Mono / D2Coding (400/500). 각 row: 폰트명 + role 메타 왼쪽, weight variant stack 오른쪽.
+  - **Type scale table** — `--t-xs` ~ `--t-5xl` 10 step. 3-col: token name / px + lh / 실제 "Bartleby" sample text. `.tabular` numeric, hairline rule 구분.
+  - **Tracking comparison** — `--tracking-tight / -normal / -wide / -wider` 4종. "BARTLEBY" `.display` 28px × 4 rows. 토큰 label 왼쪽, sample 오른쪽.
+  - **Font role grid** — 2-col grid. 4 cell (eyebrow + 한 줄 role 설명). `kr-leading` 적용.
+  - TypeScript 인터페이스: `WeightSpec` (`italic?: boolean`) + `FontFamily`. 타입 안전 heterogeneous weight 배열.
+- `src/gallery/Gallery.tsx` — `Typography` import + `<Typography />` render (ColorTokens 다음)
+- `src/gallery/Gallery.module.css` — `/* ── Typography section ── */` 블록 추가:
+  - `.type-families`, `.type-family-row` (grid 180px + 1fr), `.type-family-meta`, `.type-family-specimens`, `.type-specimen-item`
+  - `.type-scale-table`, `.type-scale-row` (grid 120px + 100px + 1fr, hairline border)
+  - `.type-tracking-rows`, `.type-tracking-item` (flex + align-items: baseline)
+  - `.font-role-grid` (2-col grid), `.font-role-item`
+
+**설계 결정**:
+- kicker 포맷 = 기존 §00 / §01 패턴 (`"02 · Typography"`) 유지 — tagline title 로 literary 톤 (`"Four voices, one manuscript."`). spec 의 `"§02"` literal 보다 gallery reel 일관성 우선.
+- CSS 를 `Gallery.module.css` 에 추가 — §00/§01 와 동일 파일. `02-Typography.module.css` 분할 시 첫 split 이므로 일관성 우선.
+- 인라인 `style={{ ... }}` 에 `var(--token)` 사용 — §01 Color 의 기존 패턴과 동일. literal hex/rgba 금지 (design tokens only).
+- Gowun Batang specimen: 한국어 전용 (`specimen_en: ""`). rendering 조건 분기로 빈 span 미생성.
+
+**검증**:
+- ✅ `pnpm build` (tsc + vite) — 0 TypeScript errors, 406ms. Gallery-*.css 3.69 kB.
+- ✅ `cargo build --manifest-path src-tauri/Cargo.toml` — Finished dev (0.15s, no Rust changes)
+- ✅ `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 33 passed; 0 failed; 1 ignored (0.41s)
+- ✅ Linear SIH-1186 "A2 §02 Typography gallery" — created + Done (https://linear.app/sihyun-dev/issue/SIH-1186/a2-02-typography-gallery)
+- ✅ Commit `cc300b0`
+
+**Day 19a scope (의도적 제외 — 후속)**:
+- §03~§18 gallery sections — Phase 0 lazy fill. 각 section 별도 chunk.
+- §02 Gowun Batang 로드 검증: woff2 번들 확인됨 (`gowun-batang-*.woff2` dist 에 포함), 실제 WebView 렌더링은 dogfood 시 visual verify.
+- Cormorant Garamond italic: weight 500 italic + Tauri WebView `font-synthesis` 동작은 실제 렌더 시 verify.
 
 ---
 
