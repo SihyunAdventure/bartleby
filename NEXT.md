@@ -726,6 +726,17 @@ SessionFSM: 12 states (구현 시점은 Phase 1+ 이후)
 
 ---
 
+## Future inspiration (post-wedge, 진입 시점 명시)
+
+- **autopreso** (`kunchenguid/autopreso`, npm) — *"Realtime speech to presentation. Let the whiteboard whiteboard itself."* 발화 → STT → LLM → Excalidraw canvas 위 자동 도형/라벨/배치. 알파, OpenAI BYOK 또는 Moonshine+Ollama 로컬.
+  - **Bartleby 와의 핏**: 미팅 모드 (mic+system, dual stream) 와 평행. "사용자 발화 architecture talk → 자동 다이어그램" 시나리오. text-only 미팅 노트 (Granola/Otter) 대비 차별 layer 후보. Bartleby brand voice ("글 옮겨드립니다 → 도형도") 결 일치.
+  - **진입 시점**: **Phase 2 wedge 검증 (Day 17 dogfood) ✅ + Phase 4 미팅 모드 본진 production 작동 ✅ 후**. wedge 검증 *전* 에 visual layer 얹으면 검증 흐려짐.
+  - **첫 발걸음**: Day 14 STT spike 패턴 — throwaway repo 1주, 한국어 발화 → LLM tool calling → tldraw/Excalidraw 도형 정확도/비용/지연 측정. Pass → Bartleby 미팅 모드 위에 from-scratch 통합. Fail → 회의 후 1회 generation fallback 또는 drop.
+  - **차별점 (autopreso 단순 추종 X)**: Bartleby 의 한국어 + transcript context + 미팅노트 통합 = 다른 wedge.
+  - **Read-only 룰**: Anarlog 와 동일, 패턴만 학습 코드 복사 X.
+
+---
+
 ## Risk Watch
 
 | Risk | 현재 상태 | Mitigation |
