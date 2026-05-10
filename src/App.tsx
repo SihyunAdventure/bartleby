@@ -186,7 +186,7 @@ function Overlay() {
           >
             {koText}
             {koPartial && (
-              <span style={{ opacity: 0.65, transition: "opacity 200ms ease" }}>
+              <span style={{ opacity: 0.65 }}>
                 {koText ? " " : ""}
                 {koPartial}
               </span>
@@ -245,6 +245,7 @@ function App() {
   const [captureStatus, setCaptureStatus] = useState("");
   const [seconds, setSeconds] = useState(10);
   const [captureRunning, setCaptureRunning] = useState(false);
+  const [lastStats, setLastStats] = useState<CaptureStats | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [keysMissing, setKeysMissing] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>(() => loadPrefs().app_mode);
@@ -420,6 +421,10 @@ function App() {
             setAppMode(m);
           }}
           onOpenSettings={() => setSettingsOpen(true)}
+          captureRunning={captureRunning}
+          setCaptureRunning={setCaptureRunning}
+          lastStats={lastStats}
+          setLastStats={setLastStats}
         />
       ) : (
         watchShell

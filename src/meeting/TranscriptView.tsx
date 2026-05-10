@@ -48,18 +48,25 @@ export default function TranscriptView({ clearToken }: Props) {
     }
   }, [clearToken]);
 
-  // Auto-scroll to bottom on new utterances
+  // Auto-scroll to bottom on new utterances, but only when user is near the
+  // bottom (within 40px). If the user has scrolled up to review history,
+  // new utterances do not yank them back down.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) {
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 40) {
       el.scrollTop = el.scrollHeight;
     }
   }, [utterances]);
 
   useEffect(() => {
-    // Map from stt_final original text → utterance id, so translation_final
-    // can attach to the right utterance.
-    const pendingTranslation = new Map<string, number>();
+    // FIFO queue per raw text: handles duplicate-text utterances without
+    // collision. translation_final carries only `original` text (no id), so
+    // we match by dequeuing the oldest pending id for that text string.
+    // Cap at 50 total queued ids to bound memory when translations stall.
+    const pendingTranslation = new Map<string, number[]>();
+
+    const pendingTotal = () =>
+      [...pendingTranslation.values()].reduce((s, q) => s + q.length, 0);
 
     const subs = [
       listen<SttFinalPayload>("stt_final", (event) => {
@@ -69,7 +76,18 @@ export default function TranscriptView({ clearToken }: Props) {
         const id = ++idRef.current;
         const now = formatTime(new Date());
 
-        pendingTranslation.set(text, id);
+        // Evict oldest entry when cap exceeded
+        if (pendingTotal() >= 50) {
+          const firstKey = pendingTranslation.keys().next().value;
+          if (firstKey !== undefined) {
+            const q = pendingTranslation.get(firstKey)!;
+            q.shift();
+            if (q.length === 0) pendingTranslation.delete(firstKey);
+          }
+        }
+        const q = pendingTranslation.get(text) ?? [];
+        q.push(id);
+        pendingTranslation.set(text, q);
 
         setUtterances((prev) => {
           const next = [
@@ -82,9 +100,10 @@ export default function TranscriptView({ clearToken }: Props) {
 
       listen<TranslationFinalPayload>("translation_final", (event) => {
         const { original, translation } = event.payload;
-        const targetId = pendingTranslation.get(original);
-        if (targetId === undefined) return;
-        pendingTranslation.delete(original);
+        const q = pendingTranslation.get(original);
+        if (!q?.length) return;
+        const targetId = q.shift()!;
+        if (q.length === 0) pendingTranslation.delete(original);
 
         setUtterances((prev) =>
           prev.map((u) =>

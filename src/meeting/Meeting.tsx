@@ -10,11 +10,21 @@ interface Props {
   appMode: AppMode;
   onAppModeChange: (m: AppMode) => void;
   onOpenSettings: () => void;
+  captureRunning: boolean;
+  setCaptureRunning: (v: boolean) => void;
+  lastStats: CaptureStats | null;
+  setLastStats: (v: CaptureStats | null) => void;
 }
 
-export default function Meeting({ appMode, onAppModeChange, onOpenSettings }: Props) {
-  const [captureRunning, setCaptureRunning] = useState(false);
-  const [lastStats, setLastStats] = useState<CaptureStats | null>(null);
+export default function Meeting({
+  appMode,
+  onAppModeChange,
+  onOpenSettings,
+  captureRunning,
+  setCaptureRunning,
+  lastStats,
+  setLastStats,
+}: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // clearToken increments each time Start is pressed — signals TranscriptView to clear
   const [clearToken, setClearToken] = useState(0);
