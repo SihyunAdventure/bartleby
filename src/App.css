@@ -169,30 +169,15 @@ input[type="number"]:focus {
   align-items: center;
 }
 
-/* ── Meeting mode placeholder (chunk B will replace with sidebar layout) ── */
-/* Overlay policy = Option A (storage-only): overlay unchanged this slice.
-   Capture target changes deferred to chunk B (US-005). */
-.meeting-sidebar-placeholder {
-  font-family: var(--font-mono);
-  font-size: var(--t-xs, 11px);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-4);
-  border: 1px dashed var(--rule);
-  border-radius: var(--r-sm);
-  padding: 10px 18px;
-  text-align: center;
-  width: 100%;
-  max-width: 560px;
-}
-
 /* ── data-mode cascade ── */
-/* Watch: current layout — no additional overrides needed this slice */
+/* Watch: current layout — no additional overrides needed */
 .container[data-mode="watch"] {}
 
-/* Meeting: same layout reused + placeholder hint.
-   Sidebar 240px + transcript view = chunk B (US-005). */
-.container[data-mode="meeting"] {}
+/* Meeting: padding 0, full-height grid. Real layout handled by
+   Meeting.module.css grid (sidebar 240px + main). */
+.container[data-mode="meeting"] {
+  padding: 0;
+}
 
 /* html/body transparent — preserves Overlay window transparency
    (overrides tokens.css body { background: var(--bg-page) }) */

@@ -3,7 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Settings from "./settings/Settings";
 import Segmented from "./components/Segmented";
+import Meeting from "./meeting/Meeting";
 import { loadPrefs, listenToPrefs, setPref, type AppMode, type CaptionMode } from "./settings/prefs";
+import type { CaptureStats } from "./types/capture";
 import "./App.css";
 
 const Gallery = lazy(() => import("./gallery/Gallery"));
@@ -234,36 +236,6 @@ function Overlay() {
   );
 }
 
-interface DriftStats {
-  max_drift_ms: number;
-  final_drift_ms: number;
-  paired_samples: number;
-}
-
-interface RssStats {
-  samples: number;
-  peak_rss_mb: number;
-  mean_rss_mb: number;
-  log_path: string;
-}
-
-interface CaptureStats {
-  buffers_received: number;
-  frames_written: number;
-  seconds_captured: number;
-  mic_buffers_received: number;
-  mic_frames_written: number;
-  mic_seconds_captured: number;
-  drift: DriftStats;
-  system_segments_written: number;
-  system_bytes_written: number;
-  mic_segments_written: number;
-  mic_bytes_written: number;
-  rss: RssStats;
-  peak_system_dbfs: number;
-  drm_detected: boolean;
-}
-
 interface KeyStatus {
   present: boolean;
   source: "keychain" | "env" | null;
@@ -328,8 +300,10 @@ function App() {
     );
   }
 
-  return (
-    <main className="container" data-mode={appMode}>
+  // watchShell — existing capture UI as JSX variable (avoids component-inside-render
+  // remount issue while keeping the branch clean).
+  const watchShell = (
+    <>
       <button
         className="settings-gear"
         onClick={() => setSettingsOpen(true)}
@@ -359,12 +333,6 @@ function App() {
           }}
         />
       </div>
-
-      {appMode === "meeting" && (
-        <aside className="meeting-sidebar-placeholder">
-          Meeting mode — sidebar UI next slice.
-        </aside>
-      )}
 
       {keysMissing && !settingsOpen && (
         <button
@@ -440,7 +408,22 @@ function App() {
           <p className="capture-status mono">{captureStatus}</p>
         )}
       </section>
+    </>
+  );
 
+  return (
+    <main className="container" data-mode={appMode}>
+      {appMode === "meeting" ? (
+        <Meeting
+          appMode={appMode}
+          onAppModeChange={(m) => {
+            setAppMode(m);
+          }}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      ) : (
+        watchShell
+      )}
       {settingsOpen && (
         <Settings
           onClose={() => setSettingsOpen(false)}

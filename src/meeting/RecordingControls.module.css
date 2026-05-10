@@ -1,0 +1,46 @@
+/* RecordingControls — Start/Stop buttons + status display */
+
+.container {
+  flex-shrink: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  padding: var(--s-4);
+}
+
+.header {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin: 0 0 var(--s-3) 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.statusText {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-4);
+  margin: 0;
+}
+
+.statusText[data-recording="true"] {
+  color: var(--rec);
+}
+
+.recDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rec);
+  margin-right: 4px;
+  vertical-align: middle;
+}
