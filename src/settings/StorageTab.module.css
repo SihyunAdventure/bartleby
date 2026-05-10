@@ -1,0 +1,60 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.rowLeft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  flex: 1;
+}
+
+.rowLabel {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ink-2);
+}
+
+.pathDisplay {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-4);
+  letter-spacing: 0;
+}
+
+.sliderRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.helper {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-4);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.diskValue {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-4);
+  letter-spacing: var(--tracking-wide);
+}
+
+.buttonRow {
+  display: flex;
+  gap: var(--s-2);
+}

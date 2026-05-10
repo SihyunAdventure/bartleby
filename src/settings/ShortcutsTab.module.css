@@ -1,0 +1,49 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.row {
+  border-bottom: 1px solid var(--rule);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.action {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ink-2);
+  padding: var(--s-3) 0;
+  width: 60%;
+}
+
+.keys {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wider);
+  color: var(--ink-3);
+  padding: var(--s-3) var(--s-4);
+  white-space: nowrap;
+}
+
+.ctrl {
+  padding: var(--s-2) 0 var(--s-2) var(--s-2);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-5);
+  letter-spacing: var(--tracking-wide);
+}

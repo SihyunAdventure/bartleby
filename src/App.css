@@ -168,3 +168,9 @@ html, body, #root {
   background: transparent;
   margin: 0;
 }
+
+/* Overlay CSS var fallbacks — Overlay component overrides via inline style */
+:root {
+  --overlay-bg-opacity: 0.85;
+  --caption-size: 16px;
+}

@@ -38,7 +38,7 @@
 }
 
 .epigraph {
-  font-family: var(--font-display);
+  font-family: var(--font-serif);
   font-style: italic;
   font-size: 13px;
   color: var(--ink-3);
@@ -61,18 +61,29 @@
   background: transparent;
   border: none;
   padding: 4px 0;
-  cursor: default;
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.tab:hover {
+  color: var(--ink-2);
 }
 
 .tabActive {
   color: var(--ink);
   border-bottom: 1px solid var(--ink);
+  cursor: default;
+}
+
+.tabActive:hover {
+  color: var(--ink);
 }
 
 .body {
   display: flex;
   flex-direction: column;
   gap: var(--s-6);
+  min-height: 240px;
 }
 
 .footer {
@@ -84,7 +95,7 @@
 }
 
 .footnote {
-  font-family: var(--font-display);
+  font-family: var(--font-serif);
   font-style: italic;
   font-size: 12px;
   color: var(--ink-4);

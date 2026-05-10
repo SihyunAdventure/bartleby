@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import Settings from "./Settings";
+import Settings from "./settings/Settings";
+import { loadPrefs, listenToPrefs, type CaptionMode } from "./settings/prefs";
 import "./App.css";
 
 const Gallery = lazy(() => import("./gallery/Gallery"));
@@ -63,6 +64,22 @@ function Overlay() {
   const [koPartial, setKoPartial] = useState("");
   const [translationError, setTranslationError] = useState<string | null>(null);
 
+  // Prefs — wired: caption_mode, overlay_opacity, caption_font_size.
+  const [captionMode, setCaptionMode] = useState<CaptionMode>(() => loadPrefs().caption_mode);
+  const [overlayOpacity, setOverlayOpacity] = useState(() => loadPrefs().overlay_opacity);
+  const [captionFontSize, setCaptionFontSize] = useState(() => loadPrefs().caption_font_size);
+
+  useEffect(() => {
+    const unlistenPromise = listenToPrefs((p) => {
+      setCaptionMode(p.caption_mode);
+      setOverlayOpacity(p.overlay_opacity);
+      setCaptionFontSize(p.caption_font_size);
+    });
+    return () => {
+      unlistenPromise.then((fn) => fn());
+    };
+  }, []);
+
   useEffect(() => {
     const subs = [
       listen<DrmStatusPayload>("drm_status", (event) => {
@@ -116,54 +133,64 @@ function Overlay() {
   const hasKoCaption = koText.length > 0 || koPartial.length > 0;
   const hasAnyCaption = hasEnCaption || hasKoCaption;
 
+  // caption_mode visibility: ko = KO only, ko_en = both, en = EN only
+  const showKo = captionMode === "ko" || captionMode === "ko_en";
+  const showEn = captionMode === "en" || captionMode === "ko_en";
+
   let body: React.ReactNode;
   if (sttError) {
     body = <span style={{ fontStyle: "italic" }}>STT: {sttError}</span>;
   } else if (hasAnyCaption) {
     body = (
       <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
-        {/* English (source) — smaller / lighter so Korean wins focus */}
-        <div
-          style={{
-            fontSize: 11,
-            color: "rgba(40, 40, 40, 0.55)",
-            lineHeight: 1.35,
-            minHeight: "1.35em",
-          }}
-        >
-          {finalText}
-          {partialText && (
-            <span style={{ opacity: 0.7 }}>
-              {finalText ? " " : ""}
-              {partialText}
-            </span>
-          )}
-        </div>
+        {/* English (source) — smaller / lighter so Korean wins focus.
+            Hidden when caption_mode is "ko". */}
+        {showEn && (
+          <div
+            style={{
+              fontSize: 11,
+              color: "rgba(40, 40, 40, 0.55)",
+              lineHeight: 1.35,
+              minHeight: "1.35em",
+            }}
+          >
+            {finalText}
+            {partialText && (
+              <span style={{ opacity: 0.7 }}>
+                {finalText ? " " : ""}
+                {partialText}
+              </span>
+            )}
+          </div>
+        )}
         {/* Korean (translation) — primary value layer. Partial streams in
             token-by-token via translation_partial; commits to koText on
-            translation_final and partial clears. */}
-        <div
-          style={{
-            fontSize: 14,
-            color: "rgba(15, 15, 15, 0.92)",
-            lineHeight: 1.45,
-            fontWeight: 400,
-            minHeight: "1.45em",
-          }}
-        >
-          {koText}
-          {koPartial && (
-            <span style={{ opacity: 0.65 }}>
-              {koText ? " " : ""}
-              {koPartial}
-            </span>
-          )}
-          {translationError && !koText && !koPartial && (
-            <span style={{ fontSize: 11, fontStyle: "italic", color: "rgba(40, 40, 40, 0.55)" }}>
-              번역 대기 중… ({translationError})
-            </span>
-          )}
-        </div>
+            translation_final and partial clears.
+            Hidden when caption_mode is "en". */}
+        {showKo && (
+          <div
+            style={{
+              fontSize: captionFontSize,
+              color: "rgba(15, 15, 15, 0.92)",
+              lineHeight: 1.45,
+              fontWeight: 400,
+              minHeight: "1.45em",
+            }}
+          >
+            {koText}
+            {koPartial && (
+              <span style={{ opacity: 0.65 }}>
+                {koText ? " " : ""}
+                {koPartial}
+              </span>
+            )}
+            {translationError && !koText && !koPartial && (
+              <span style={{ fontSize: 11, fontStyle: "italic", color: "rgba(40, 40, 40, 0.55)" }}>
+                번역 대기 중… ({translationError})
+              </span>
+            )}
+          </div>
+        )}
       </div>
     );
   } else if (drmBlocked) {
@@ -172,16 +199,15 @@ function Overlay() {
     body = "Awaiting English audio.";
   }
 
+  const bgAlpha = overlayOpacity / 100;
+
   return (
     <div
       data-tauri-drag-region
-      // TODO(Day 20+ §15 Mode Switch): migrate inline rgba() to var(--paper) + opacity
-      //   and var(--ink-3) once data-theme cascade lands. Tokens.css is now imported
-      //   globally so the migration is just CSS, not infra.
       style={{
         width: "100%",
         height: "100vh",
-        background: "rgba(248, 247, 244, 0.85)",
+        background: `rgba(248, 247, 244, ${bgAlpha})`,
         backdropFilter: "blur(12px)",
         borderRadius: 6,
         display: "flex",
