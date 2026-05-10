@@ -3,6 +3,7 @@
    Here: .container / .capture-* / .btn capture-only styling. */
 
 .container {
+  position: relative;
   margin: 0;
   padding: 64px 48px 48px;
   min-height: 100vh;
