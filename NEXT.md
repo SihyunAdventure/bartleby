@@ -52,7 +52,11 @@
 | `3d74e95` | **Day 15b slice** ✅ STT reconnect + 30s ring buffer — `stt/ring.rs` 신규 (VecDeque<Vec<u8>>, 960KB cap, 6 unit tests). `stt/soniox.rs` `run_session` reconnect-aware. `stt/mod.rs::run_with_reconnect` 가 1→2→4→8→16→30s exponential backoff (cap 10 ≈ 3.3min). 33 tests pass. Empirical 1h dogfood 는 Day 17. |
 | `97c2eee` | NEXT.md sync (Day 15b ✅ code + Day 17 entry) |
 | `37ce803` | NEXT.md: Day 17 dogfood guide (pre-flight + monitoring + simulate + post-run measurement form). 코드 변경 X. |
-| *(uncommitted)* | **Day 18a slice** ✅ §16 Settings UI Tab 1 BYOK keys — `secrets.rs` (keyring crate 3, macOS Keychain wrapper) + 4 Tauri commands (`api_key_status` / `save_api_key` / `clear_api_key` / `verify_api_key`) + `resolve_key` helper (Keychain → ENV fallback) + verify probes (`stt::soniox::verify_key` WS handshake + `translate::upstage::verify_key` `max_tokens:1` ping). Frontend `KeyInput` (from-scratch, design-system §05 spec, masked input + Verify/Save/Clear) + `Settings` modal (5 tabs surfaced, 4 disabled — slice 분할) + main toolbar gear icon + first-launch banner ("Add API keys to start →"). 33 tests pass + 1 ignored (Keychain roundtrip). pnpm build clean. Hot-swap 미지원 (capture 재시작 안내). |
+| `a7c62b1` | **Day 18a slice** ✅ §16 Settings UI Tab 1 BYOK keys — `secrets.rs` (keyring crate 3, macOS Keychain wrapper) + 4 Tauri commands + `resolve_key` (Keychain → ENV fallback) + verify probes (Soniox WS handshake / Upstage ping). Frontend `KeyInput` (from-scratch) + `Settings` modal (5 tabs surfaced, 4 disabled) + main toolbar gear + first-launch banner. 33 tests pass + 1 ignored. |
+| `2248229` | NEXT.md sync (Day 18a ✅ + Step 3f) |
+| `0b5d7b5` | Day 18a fix: `.container { position: relative }` so `.settings-gear` anchors to hero, not viewport. |
+| `1644eb2` | NEXT.md: autopreso inspiration 기록 (Phase 4 미팅 모드 본진 spike 시점). |
+| `3b0bf78` | **Day 18b slice** ✅ §16 Settings UI Tabs 2-5 + Overlay wire — Settings 분할 (`src/settings/{Settings,KeysTab,ModesTab,StorageTab,ShortcutsTab,AboutTab}`) + 공통 form primitives (`src/components/{Toggle,Segmented,Slider}` from-scratch, design tokens only). Overlay listen `prefs_changed` → caption_mode (KO/KO+EN/EN 분기), overlay_opacity (background alpha), caption_font_size (KO layer px) 즉시 반영. Storage-only: overlay_position / pause / click-through / bilingual / auto_summarize / summary_lang / retention (consumer infra 추후). Tab 3 Choose.../Finder/Clean up disabled (tauri-plugin-fs/dialog), Tab 4 Customize... disabled (global-shortcut dynamic re-register). Tab 5 About v0.1.0 hardcoded. 21 files +1245 lines. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 
 ### 작동 검증된 것
 
@@ -476,6 +480,50 @@ Day 17 dogfood 진입 전 편의성 layer. ENV var 의존 제거 (유지는 dev 
 - 첫 Save 시 macOS Keychain prompt UX 개선 — unsigned binary 한계, `tauri build` 후 사라짐.
 - Settings 진입을 단축키 (예: ⌘,) 로 — global-shortcut 권한 추가 필요, 별도 slice.
 
+### Day 18b 결과 (§16 Settings UI Tabs 2-5 + Overlay wire ✅ — code path)
+
+A1 chunk (큰 단위 묶음 — 사용자 cadence rule). 4 신규 tab + Settings 분할 + 공통 form primitives + Overlay 의 visible wire. dogfood 진행 X (다음 통합 dogfood 시점까지 보류). executor 위임으로 21 파일 +1245 lines 한 번에.
+
+**구조 (분할 + 신규)**:
+
+`src/settings/` (신규 디렉토리):
+- `prefs.ts` — `Prefs` interface (caption_mode / overlay_opacity / caption_font_size / overlay_position / caption_pause_threshold_s / click_through_default / mic_source / bilingual_layout / auto_summarize / summary_language / save_path / audio_retention_days / update_channel) + `loadPrefs` / `savePrefs` (`localStorage` + `@tauri-apps/api/event::emit("prefs_changed")` 자동 broadcast) + `setPref` / `listenToPrefs`.
+- `Settings.tsx` (이전 `src/Settings.tsx` 에서 이동 + 분할) — frame: backdrop + sheet + header + tab segmented + body + footer. `useState<TabId>` 로 5탭 routing.
+- `KeysTab.tsx` — 이전 Settings.tsx 의 두 KeyInput 부분 추출.
+- `ModesTab.tsx` — Watch (caption display segmented / opacity slider / font size segmented / position segmented / pause threshold input / click-through toggle) + Meeting (mic source disabled "Default" / bilingual layout segmented / auto-summarize toggle / summary language segmented). `setPref` on change.
+- `StorageTab.tsx` — save path display + Choose... disabled / retention slider (1-90 days) wired / disk usage placeholder "—" / Open in Finder + Clean up disabled.
+- `ShortcutsTab.tsx` — read-only 5 row table (⌘⌃B / ⌘⌃M / ⌘⇧V / ⌘⇧4 / ⌘Q) + Customize... disabled.
+- `AboutTab.tsx` — v0.1.0 hardcoded + tagline + heybartleby.com / GitHub 링크 + Auto-update (Check now disabled) + update channel segmented (stored only) + License note + "Design with care from Seoul." Cormorant italic.
+- 각 탭 `.module.css` — design tokens 만 사용.
+
+`src/components/` (form primitives):
+- `Toggle.tsx` + `.module.css` — boolean switch (paper bg, ink thumb, transition).
+- `Segmented.tsx` + `.module.css` — generic `<T extends string>` option group, active = ink underline.
+- `Slider.tsx` + `.module.css` — native `<input type="range">` + CSS `--pct` gradient fill + value display + unit suffix.
+
+**Overlay wire (visible 즉시 반영)**:
+- `App.tsx::Overlay` — `loadPrefs()` 로 mount 시 초기값 + `listenToPrefs(prefs => setStates)` 등록 (cleanup 포함, useEffect 분리).
+- `caption_mode` → `showKo` / `showEn` 분기 (`ko` = 한국어만 / `ko_en` = 양쪽 / `en` = 영어만).
+- `overlay_opacity` → `bgAlpha = opacity / 100` → outer div background `rgba(248, 247, 244, ${bgAlpha})`.
+- `caption_font_size` → 한국어 layer 의 `fontSize` 직접 적용.
+- `App.css :root` — `--overlay-bg-opacity: 0.85; --caption-size: 16px;` fallback CSS var (현재는 inline style 우선이지만 future migration 용).
+
+**Storage-only 항목 (consumer infra 추후)**: overlay_position / caption_pause_threshold_s / click_through_default / bilingual_layout / auto_summarize / summary_language / save_path / audio_retention_days / update_channel.
+
+**Disabled 항목 (다음 chunk)**: Tab 3 Choose... / Open in Finder / Clean up (tauri-plugin-dialog + tauri-plugin-fs 미설치). Tab 4 Customize... (global-shortcut dynamic re-register infra 미구현). Tab 5 Check now (auto-update infra).
+
+**테스트 결과**:
+- ✅ `cargo build` clean (Rust 변경 없음 sanity)
+- ✅ `cargo test --lib` 33 pass + 1 ignored 유지
+- ✅ `pnpm build` clean (TypeScript 통과, 423ms)
+
+**Day 18b scope (의도적 제외 — 후속)**:
+- `tauri-plugin-dialog` / `tauri-plugin-fs` 추가 — Choose... / Open in Finder / Clean up 활성화 chunk.
+- mic enumeration Tauri command — `MicrophoneSink` 의 device 목록 + Tab 2 Meeting select 활성화.
+- $TMPDIR walker Tauri command — Tab 3 disk usage 실수치 + Clean up confirm dialog.
+- global-shortcut dynamic re-register — Tab 4 Customize... infra. lib.rs 의 setup hook 의 `on_shortcut` closure stable handler 필요.
+- AboutTab version Vite env inject — `import.meta.env.PACKAGE_VERSION` 또는 build-time generation. 현재는 hardcode (사용자 cadence: 자잘 X).
+
 ---
 
 ## 다음 세션 진입점
@@ -517,9 +565,9 @@ git log --oneline -10  # 마지막 commit 확인
 
 자세한 결과는 위 "Day 15b 결과" 섹션 참조. `stt/ring.rs` 신규 + `soniox::run_session` reconnect-friendly signature + `stt::run_with_reconnect` 의 exponential backoff loop. 33 tests pass. **1h dogfood 검증은 Day 17** (사용자 직접 — Wi-Fi 토글 simulate + lecture 1h 시청 + RSS budget 측정).
 
-### Step 3f: Day 18a — §16 Settings UI Tab 1 BYOK keys ✅ *완료 (코드)*
+### Step 3f: Day 18a + 18b — §16 Settings UI 5 tabs + Overlay wire ✅ *완료 (코드)*
 
-자세한 결과는 위 "Day 18a 결과" 섹션 참조. macOS Keychain 저장 + ENV fallback + Verify probe (Soniox WS handshake / Upstage ping). Frontend Settings modal + KeyInput + first-launch banner. 33 tests pass + 1 ignored, pnpm build clean. Live Keychain prompt + verify probe 검증은 사용자 dogfood 시점.
+자세한 결과는 위 "Day 18a 결과" / "Day 18b 결과" 섹션 참조. **Day 18a** = Tab 1 Keys (Keychain + verify probe). **Day 18b** = Tabs 2-5 (Modes / Storage / Shortcuts / About) + 공통 form primitives (Toggle/Segmented/Slider) + Overlay listen `prefs_changed` (caption_mode KO/KO+EN/EN, overlay_opacity, caption_font_size 즉시 반영). Storage-only / Disabled 항목 명시. 33 tests pass + 1 ignored, pnpm/cargo build clean. **다음 chunk 추천**: A2 §02 Typography gallery 또는 A5 §15 Mode Switch UI (Watch ↔ Meeting 토글). 통합 dogfood 는 chunk B (미팅 모드 UI) 후 한 번에.
 
 ### Step 3e: Day 17 — Phase 2 acceptance (empirical) ← *현재 슬라이스 (사용자 직접 dogfood)*
 
@@ -814,4 +862,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, **and reconnects through Wi-Fi blips with 30s of replay buffer — the wedge is closed, flowing, and resilient**. Day 17: 1h empirical dogfood (RSS + reconnect verification). Depth-8 ordered queue + Settings UI 는 후속 슬라이스. 1차 dogfood 가능."
+> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, **and now wears all five Settings tabs (Keys/Modes/Storage/Shortcuts/About) with caption mode + overlay opacity + font size that flow live to the overlay**. dogfood 는 chunk B (미팅 모드 UI 본진) 후 한 번에 통합."
