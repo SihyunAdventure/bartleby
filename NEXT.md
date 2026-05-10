@@ -62,6 +62,8 @@
 | `9126d92` | **Day 19c slice** ✅ §17 Permission Lifecycle gallery — `src/gallery/sections/17-Permission.tsx` (신규): 4-state diagram (NotRequested/Granted/Denied/Restricted) + permission types 표 (Screen Recording/Microphone, plist key/mode/denied behavior) + Settings.app deeplink table (macOS x-apple.systempreferences URLs) + state machine flow ASCII + mode-specific behavior 매핑 (5 scenarios) + voice copy matrix 4종 (italic Cormorant 톤). Gallery.tsx + Gallery.module.css §17 등록. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 | `284a070` | **Day 19d slice** ✅ §15 Mode Switch UI — Watch ↔ Meeting 토글 + data-mode cascade. `src/settings/prefs.ts` AppMode type + app_mode field (DEFAULT 'watch'). `src/App.tsx` useState<AppMode> + listenToPrefs sync + Segmented control (Watch/Meeting) + `<main data-mode={appMode}>`. `src/App.css` .mode-switch-row + .container[data-mode] cascade stubs + .meeting-sidebar-placeholder. `src/gallery/sections/15-ModeSwitch.tsx` (신규): DSSection toggle preview + Watch/Meeting layout mocks + cascade rules 표 + transition memo. Gallery.tsx + Gallery.module.css §15 등록 (§11 다음, §17 앞). Overlay 정책=옵션A (storage-only). 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 | `4502d03` | **Day 20a slice** ✅ chunk B Meeting Mode UI 본진 — sidebar 240px + transcript view + recording controls. `src/meeting/` 5파일 신규 (Meeting.tsx/.module.css, Sidebar.tsx/.module.css, TranscriptView.tsx/.module.css, RecordingControls.tsx/.module.css). `src/types/capture.ts` CaptureStats/DriftStats/RssStats 공유 타입 추출. `src/App.tsx` appMode 분기 (Watch=watchShell JSX variable, Meeting=<Meeting/>), .meeting-sidebar-placeholder 제거. `src/App.css` data-mode="meeting" padding 0. capture 인프라 재사용 (start_capture/stop_capture/stt_final/translation_final). transcript final 만 표시. mic 실작동 deferred. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
+| `a4c6c50` | **Day 19b followup** ✅ translation_error voice copy → Bartleby voice. code-reviewer (ralph step 7) verdict APPROVED_WITH_FOLLOWUP 의 HIGH 처리 — US-002 acceptance criterion 6 명시 voice copy 와 일치. App.tsx + 11-LiveCaption.tsx mirror 동기화. |
+| `84f7a42` | **Day 20a deslop** ✅ ai-slop-cleaner pass — cross-mode capture state lift (App-level captureRunning + lastStats), pendingTranslation FIFO eviction (text key collision 해소), dead opacity transition 제거, auto-scroll near-bottom guard, duplicate font-family 통합. Medium 1/2/3 + Low 4/5 처리. Low 6/7 의도적 skip. 33 tests + pnpm build clean. |
 
 ### 작동 검증된 것
 
@@ -731,6 +733,44 @@ Phase 4 진입. Watch 모드 기존 동작 유지. Meeting 모드 진입 시 sid
 
 ---
 
+### Day 19b followup 결과 (translation_error voice copy ✅)
+
+code-reviewer (ralph step 7 / verdict APPROVED_WITH_FOLLOWUP) 의 HIGH 항목 처리. US-002 acceptance criterion 6 의 명시 voice copy 와 일치.
+
+**구조 (2 파일 수정)**:
+- `src/App.tsx:194-198` — translation_error 시 표시 메시지 `"번역 대기 중…"` (neutral) → `"Bartleby would prefer not to translate that."` (voice copy).
+- `src/gallery/sections/11-LiveCaption.tsx:373-376` — gallery mock 미러 동기화.
+
+**voice 일관성**: stt_error 의 `"Bartleby would prefer not to. (...)"` + 새 translation_error 의 `"Bartleby would prefer not to translate that."` 양쪽 italic Cormorant Garamond.
+
+pnpm build clean, cargo test --lib 33 pass + 1 ignored.
+
+---
+
+### Day 20a deslop 결과 (ai-slop-cleaner pass ✅)
+
+ralph step 7.5 mandatory deslop. code-reviewer 의 Medium/Low findings 처리.
+
+**처리 항목**:
+| Item | Status | 변경 |
+|---|---|---|
+| Medium 1 cross-mode capture state desync | ✅ | App-level captureRunning + lastStats lift, Meeting/Sidebar/RecordingControls props receive |
+| Medium 2 pendingTranslation map collision | ✅ | Map<string, number[]> FIFO + cap-50 eviction (TranscriptView.tsx) |
+| Medium 3 dead opacity transition | ✅ | App.tsx:189 transition prop 제거 (span unmount 시 effect 0) |
+| Low 4 auto-scroll hijack | ✅ | near-bottom guard 40px (TranscriptView.tsx) |
+| Low 5 duplicate font-family | ✅ | TranscriptView.module.css:97 consolidate |
+| Low 6 cls value collision | skip | abstraction cost > benefit |
+| Low 7 span in p | skip | semantically valid |
+
+**Remaining risks (다음 슬라이스 / 통합 dogfood 시 검증)**:
+- watchShell one-shot capture path 가 lifted captureRunning 을 read 만 하고 setCaptureRunning 호출 X. pre-lift 와 동일 동작 (별도 fix slice).
+- Tauri backend concurrent start_capture guard 미구현. 현재 single-shell render 라 risk 0, 미래 dual-shell 시점 고려.
+- lastStats 가 mode switch 시 reset 안 됨. Watch captureStatus 표시 직접 영향 X.
+
+pnpm build clean (432ms), cargo build clean, cargo test --lib 33 pass + 1 ignored.
+
+---
+
 ## 다음 세션 진입점
 
 ### Step 0: 컨텍스트 빠른 로드
@@ -1067,4 +1107,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, has a gallery showing Typography + LiveCaption + Permission Lifecycle + Mode Switch, **and now opens in Meeting mode with a 240px sidebar (logo + mode switch + settings + status block) + scrolling transcript view (stt_final + translation_final, speaker mock, Gowun Batang KO line) + recording controls (Start/Stop + CaptureStats display) — Phase 4 본진 진입. mic 실작동은 Apple Dev ID 후**."
+> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, has a gallery showing Typography + LiveCaption + Permission Lifecycle + Mode Switch, **and now opens in Meeting mode with a 240px sidebar (logo + mode switch + settings + status block) + scrolling transcript view (stt_final + translation_final, speaker mock, Gowun Batang KO line) + recording controls (Start/Stop + CaptureStats display) — Phase 4 본진 진입. mic 실작동은 Apple Dev ID 후**. ralph 루프 완료 (US-001 ~ US-005 ✅) + code-reviewer verdict APPROVED_WITH_FOLLOWUP 처리 + deslop pass — 통합 dogfood 만 남음."
