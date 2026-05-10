@@ -119,6 +119,52 @@
   flex-shrink: 0;
 }
 
+/* ── Typography section ── */
+.type-families { display: flex; flex-direction: column; gap: var(--s-10); }
+
+.type-family-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: var(--s-8);
+  align-items: start;
+}
+
+.type-family-meta { padding-top: var(--s-1); }
+
+.type-family-specimens { display: flex; flex-direction: column; gap: var(--s-6); }
+
+.type-specimen-item {}
+
+/* Type scale table */
+.type-scale-block {}
+.type-scale-table { display: flex; flex-direction: column; gap: 0; }
+.type-scale-row {
+  display: grid;
+  grid-template-columns: 120px 100px 1fr;
+  gap: var(--s-6);
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.type-scale-row:first-child { border-top: 1px solid var(--rule); }
+
+/* Tracking */
+.type-tracking-block {}
+.type-tracking-rows { display: flex; flex-direction: column; gap: var(--s-4); }
+.type-tracking-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+}
+
+/* Font role grid */
+.font-role-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-6) var(--s-10);
+}
+.font-role-item {}
+
 /* ── Responsive ── */
 @media (max-width: 1100px) {
   .hero-grid { grid-template-columns: 1fr; }
