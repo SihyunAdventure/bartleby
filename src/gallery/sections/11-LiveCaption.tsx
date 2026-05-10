@@ -371,7 +371,7 @@ export function LiveCaption() {
               </div>
               <div style={{ fontSize: 16, color: "rgba(15, 15, 15, 0.92)", lineHeight: 1.45, minHeight: "1.45em" }}>
                 <span style={{ fontSize: 11, fontStyle: "italic", color: "rgba(40, 40, 40, 0.55)", fontFamily: '"Cormorant Garamond", ui-serif, Georgia, serif' }}>
-                  번역 대기 중…
+                  Bartleby would prefer not to translate that.
                 </span>
               </div>
             </div>

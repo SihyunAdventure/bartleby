@@ -193,7 +193,7 @@ function Overlay() {
             )}
             {translationError && !koText && !koPartial && (
               <span style={{ fontSize: 12, fontStyle: "italic", fontFamily: "var(--font-serif)", color: "rgba(40, 40, 40, 0.55)" }}>
-                번역 대기 중…
+                Bartleby would prefer not to translate that.
               </span>
             )}
           </div>
