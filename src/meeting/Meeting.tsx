@@ -103,16 +103,21 @@ export default function Meeting({
             ? now.getTime() - lastFinalAtRef.current.getTime()
             : Infinity;
 
-          // Fix 3 — Soniox short-final merge: 동일 speaker, 5초 내, 500자 미만.
-          // koText 가 이미 있어도 merge 허용 — translation_final 이 추가 chunk
-          // 번역을 가지고 오면 기존 koText 에 append 하는 방식 (옵션 D).
-          // 사용자가 Day 22a 첫 dogfood 에서 "여전히 문장이 너무 잘려" 보고 →
-          // koText 차단 조건이 너무 strict 했음 (KO 번역이 빨라 거의 항상 차단).
+          // Fix 3 v2 — Sentence-boundary aware merge.
+          // 직전 row 가 punctuation [.?!] 로 끝났으면 sentence 종료 — 새 row.
+          // 그 외엔 동일 speaker + 3s gap + 250자 미만일 때만 merge.
+          // 사용자 Day 22b dogfood: "영어랑 한국어랑 양이 다른데?" — 한 row 가
+          // 너무 길어지면서 KO/EN 누적 length mismatch 시각적 두드러짐.
+          // sentence boundary 가 자연 split point, cap 도 절반으로 (500→250).
+          const endsWithSentence = last
+            ? /[.?!]\s*$/.test(last.enText)
+            : false;
           const shouldMerge =
             last &&
             last.speaker === speaker &&
-            gapMs < 5000 &&
-            last.enText.length + text.length < 500;
+            !endsWithSentence &&
+            gapMs < 3000 &&
+            last.enText.length + text.length < 250;
 
           let next: SavedUtterance[];
           if (shouldMerge) {
