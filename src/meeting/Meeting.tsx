@@ -103,14 +103,16 @@ export default function Meeting({
             ? now.getTime() - lastFinalAtRef.current.getTime()
             : Infinity;
 
-          // Fix 3 — Soniox short-final merge: 동일 speaker, 3초 내, 250자 미만,
-          // koText 아직 null(번역 안 온 상태) 인 경우 직전 row 에 append.
+          // Fix 3 — Soniox short-final merge: 동일 speaker, 5초 내, 500자 미만.
+          // koText 가 이미 있어도 merge 허용 — translation_final 이 추가 chunk
+          // 번역을 가지고 오면 기존 koText 에 append 하는 방식 (옵션 D).
+          // 사용자가 Day 22a 첫 dogfood 에서 "여전히 문장이 너무 잘려" 보고 →
+          // koText 차단 조건이 너무 strict 했음 (KO 번역이 빨라 거의 항상 차단).
           const shouldMerge =
             last &&
             last.speaker === speaker &&
-            gapMs < 3000 &&
-            last.enText.length + text.length < 250 &&
-            last.koText === null;
+            gapMs < 5000 &&
+            last.enText.length + text.length < 500;
 
           let next: SavedUtterance[];
           if (shouldMerge) {
@@ -146,9 +148,18 @@ export default function Meeting({
         const targetId = q.shift()!;
         if (q.length === 0) pendingTranslation.delete(original);
 
+        // 같은 row 에 여러 EN chunk 가 merge 된 상태면, 그에 대한 번역들도
+        // 시간 순서대로 도착하므로 기존 koText 에 append (cumulative).
         setUtterances((prev) =>
           prev.map((u) =>
-            u.id === targetId ? { ...u, koText: translation } : u
+            u.id === targetId
+              ? {
+                  ...u,
+                  koText: u.koText
+                    ? `${u.koText} ${translation}`.trim()
+                    : translation,
+                }
+              : u
           )
         );
       }),
