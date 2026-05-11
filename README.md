@@ -2,8 +2,8 @@
 
 > "I would prefer not to listen in English." — Let Bartleby.
 
-Cloud-powered Mac 앱. 영어가 들리는 모든 곳 (YouTube · 컨퍼런스 · podcast · 미팅) 에서
-실시간 한국어 자막 + 후처리 노트. 봇 없음. 한국어 first.
+단일 dock Mac 앱. 영어 라이브 미팅에서
+**한국어 transcript + 요약 노트**. 봇 없음. 한국어 first. BYOK.
 
 ## 빠른 컨텍스트
 
@@ -40,13 +40,12 @@ LLM:       Solar Pro 3 via OpenRouter (BYOK, 128K context)
 
 ## Wedge
 
-> **"Korean ears for English audio."**
-> 영어가 들리는 모든 곳 — YouTube · 컨퍼런스 · podcast · 미팅.
+> **"Korean ears for English meetings."**
+> 영어 라이브 미팅 — 봇 없이, 로컬에서, 한국어로.
 
-vs Granola/Otter/Anarlog (모두 미팅 only):
-- ⭐ **시청 모드** — 영상 위 floating overlay 로 실시간 한국어 자막 (이 카테고리 안 가는 경쟁자)
-- **미팅 모드** — 표준 미팅 노트 + 라이브 transcript + 후처리 한국어 요약
-- **No-bot** — 봇 없음 (table stakes, 메인 wedge 아님)
+vs Granola/Otter/Anarlog:
+- **No-bot** — 상대방이 봇을 인식하게 만들지 않는다
+- **한국어 first** — 한국어 transcript + 요약 (후처리 조잡 X)
 - **Local data ownership** — 노트는 로컬 plain markdown
 - **BYOK** — vendor lock 회피, control/compliance (cheap claim 아님)
 - **Character brand** — Melville 의 바틀비, 정중하고 절제됨

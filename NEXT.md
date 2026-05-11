@@ -1,15 +1,15 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-11 — **Day 1-21e + Day 22a-e + ⌘⇧B/activation fixes + Phase 4.5 S1-S5 cleanup ✅**.
-> Product 재정의: Watch+Overlay 분기 제거 → 단일 dock Finder-like note taker.
-> 두 기능: (1) Live recording 미팅 노트 [구현됨], (2) YouTube URL → 한글 더빙 [Phase 5 plan].
+> 마지막 세션: 2026-05-12 — **Phase 4.5 S6b + YouTube URL dub 분리 (Rehear sibling repo) ✅**.
+> Product 재정의: Watch+Overlay 분기 제거 → 단일 dock note taker (미팅 노트 only).
+> 단일 기능: Live recording 미팅 노트. YouTube URL dub 은 Rehear 별개 repo (`~/Dev/side/rehear/`) 로 분리됨.
 
 ---
 
-## 현재 상태 (Day 22 + Phase 4.5 cleanup ✅ 종료, 2026-05-11)
+## 현재 상태 (Day 22 + Phase 4.5 cleanup ✅ 종료, 2026-05-12)
 
-> 다음 세션 진입점: **Phase 5 plan + 통합 dogfood**. Bartleby = single dock 앱, 미팅 노트 검증 + YouTube dubbing pipeline 설계.
+> 다음 세션 진입점: **Bartleby Phase 5 — 한국어 미팅 1시간 통합 dogfood + persistence (SQLite). Rehear 의 YouTube dub 은 별개 repo.**
 
 ### 누적 commits (main branch)
 
@@ -1220,31 +1220,19 @@ ls -t $TMPDIR/bartleby-rss-*.log | head -1 | xargs tail -f
 4. PRINCIPLES / VISION 의 "wedge 1차 검증" 마일스톤 (있다면) 갱신
 5. `git add -p NEXT.md && git commit` (코드 변경 없음, NEXT.md 만)
 
-### Step 4 (신설): Phase 5 plan + 통합 dogfood ← *다음 세션 진입점*
+### Step 4 (신설): Phase 5 — 한국어 미팅 dogfood + SQLite persistence ← *다음 세션 진입점*
 
-**Phase 4.5 cleanup 끝**. Bartleby 가 단일 dock 앱, Meeting 노트 가 primary surface.
-다음 두 path 병행 가능:
+**Phase 4.5 cleanup + YouTube dub 분리 끝**. Bartleby = 단일 dock 앱, 미팅 노트 only.
+YouTube URL dub 은 Rehear sibling repo (`~/Dev/side/rehear/`) 로 이관됨.
 
-**Path A — Phase 5 planning (전략 + 설계)**:
-새 기능 "YouTube URL → 한글 더빙" pipeline 의 설계:
-- yt-dlp / 다른 도구로 audio 추출 (legal: 개인용 OK, 공개 service 시 grey area)
-- Batch STT (Soniox file API or OpenAI Whisper) vs streaming 재사용 결정
-- 기존 translate/summary pipeline 재사용
-- **TTS provider 결정** (한국어 자연도 + 비용):
-  · Naver Clova Voice — native KO, 자연도 ★★★★★, 1시간 transcript ~1,500-2,500원
-  · ElevenLabs Pro — multilingual, 자연도 ★★★★, ~$10/h
-  · OpenAI tts-1 — 무난, ~$0.50/h
-- Audio + video sync (영어 1초 vs 한국어 1.2-1.5초 timing 조정)
-- 출력 형태: 새 video 파일 (.mp4 with 한국어 audio) or 원본 영상 + 동기화된 KO audio stream
+**Phase 5 작업**:
+- 한국어 미팅 dogfood (translate off, KO transcript 흐름 — sentence-boundary 자연성 확인)
+- SessionDetail 다시 보기 흐름 검증
+- 1시간 RSS / drift / 비용 측정 (form 채우기)
+- In-memory localStorage → SQLite 마이그레이션 (세션 영구 보관 강화)
+- Library search / filter 기본 구현
 
-**Path B — Live recording 통합 dogfood (검증)**:
-Day 22 fix 들의 실 검증:
-- 한국어 미팅 dogfood (translate off, KO transcript 만 흐름)
-- Sentence-boundary 단위 row 분리 자연성 확인
-- SessionDetail 다시 보기 흐름
-- 1시간 RSS / drift / 비용 측정 (Step 3e 의 form 채우기)
-
-권장 순서: B 먼저 (현재 기능 검증) → A (다음 phase 계획).
+권장 순서: dogfood 먼저 (현재 기능 검증) → SQLite 마이그레이션.
 
 ### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
@@ -1394,4 +1382,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby 는 dock 에 산다. 영어든 한국어든 미팅을 녹음하면 한국어 transcript + summary 가 쌓이고, 한국어 번역도 토글로 켜고 끈다. 한국어 미팅엔 자동으로 KO transcribe, 영어 미팅엔 KO 자막. 세션은 localStorage 에 영구 저장되어 다시 듣고 다시 본다. **다음 세션: Phase 5 — YouTube URL 을 받으면 영어 영상을 한국어 더빙으로 재생성하는 pipeline 설계. 그리고 모든 노트의 옵션 output 으로 한국어 TTS audio 가 들어온다.**"
+> "Bartleby 는 dock 에 산다. 영어든 한국어든 미팅을 녹음하면 한국어 transcript + summary 가 쌓이고, 한국어 번역도 토글로 켜고 끈다. 한국어 미팅엔 자동으로 KO transcribe, 영어 미팅엔 KO 자막. 세션은 localStorage 에 영구 저장되어 다시 듣고 다시 본다. **다음 세션: Phase 5 — 한국어 미팅 1시간 통합 dogfood + sqlite persistence. YouTube URL 더빙은 별개 sibling repo Rehear (`~/Dev/side/rehear/`) 에서 평행 progress.**"

@@ -6,14 +6,22 @@
 
 ---
 
-## 제품 정의 (2026-05-11 기준)
+## 제품 정의 (2026-05-12 기준)
 
-단일 dock Finder-like note taker. 두 기능:
+단일 dock Finder-like note taker. 단일 기능:
 
 1. **Live recording 노트** (구현됨) — mic + system audio → 실시간 KO transcript → 종료 후 한국어 요약 노트. Library 에 영구 보관.
-2. **YouTube URL → 한국어 더빙** (Phase 5+) — URL 입력 → audio 추출 → 배치 STT → 번역 → TTS → 더빙 영상.
 
-통합 framing: "Korean ears for English content." 세 출력 경로 — Read / Skim / Listen.
+framing: "Korean ears for English meetings." 출력 경로 — Read / Skim / Listen (TTS 옵션, Phase 6).
+
+---
+
+## Sibling product — Rehear
+
+YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 분리됐다
+(`~/Dev/side/rehear/`). Rehear 가 Bartleby 의 capture/STT/translate/summary
+코드를 fork 해서 시작했으며, 향후 양방향 evolution. 본 PLAN.md 는 Bartleby
+(미팅 노트) 만 다룬다.
 
 ---
 
@@ -99,39 +107,31 @@
 
 ---
 
-## Phase 5 — YouTube URL → 한국어 더빙 (next)
+## Phase 5 — Polish + Persistence + 한국어 미팅 Dogfood (next)
 
-**목표**: URL 입력 → 한국어 더빙 mp4/audio 출력.
+**목표**: 한국어 미팅 통합 dogfood 1시간 + sqlite persistence + 사용자 측정.
 
 **핵심 컴포넌트**:
-- `yt-dlp` or 직접 extraction — YouTube audio 다운로드
-- 배치 STT (Soniox) — 전체 audio → full transcript
-- 번역 (Solar Pro 3) — 전체 transcript → KO translation
-- TTS — KO text → 한국어 음성 (provider TBD: Google TTS / Naver Clova / ElevenLabs)
-- Audio mux — 원본 영상 + 한국어 음성 합성
-- Library URL note 진입점 — URL 입력 UI + 진행 상태 표시
-- Note detail view — dub output (Listen 경로 primary)
+- 한국어 미팅 dogfood (translate off, KO transcript 흐름 — sentence-boundary 자연성 확인)
+- SessionDetail 다시 보기 흐름 검증
+- 1시간 RSS / drift / 비용 측정 + 사용자 측정 form 채우기
+- In-memory localStorage → SQLite 마이그레이션 (세션 영구 보관 강화)
+- Library search / filter 기본 구현
 
-**Acceptance**: Andrej Karpathy / 3Blue1Brown 강연 URL → 한국어 더빙 mp4 재생 가능.
+**Acceptance**: 한국어 미팅 1시간 dogfood 안정 + 노트 Slack paste 수준.
 
-**Key risks**:
-- TTS 음성 자연스러움 (provider 선정 + 테스트 필요)
-- YouTube extraction 속도 / 정책 변경 대응
-- Long audio batching 비용 모델 (긴 강연 = STT + TTS 둘 다 분량 기반 과금)
-
-**Dependencies**: Phase 1-4 인프라 (STT pipeline, storage schema, Library) 전제.
+**Dependencies**: Phase 1-4 인프라 (STT pipeline, Library, localStorage) 전제.
 
 ---
 
-## Phase 6 — Stabilization + Polish + Ship (later)
+## Phase 6 — Mic 실 캡처 + TTS + Export + Ship (later)
 
 **목표**: 안정화 + 배포 준비.
 
 **포함**:
 - Mic 실 캡처 (signed binary, Apple Developer ID 서명 필요)
-- TTS dub — Live recording 노트도 Listen 경로 옵션
+- TTS dub — Live recording 노트 Listen 경로 옵션 (사용자 요청 시 생성)
 - Export (PDF / MD / SRT)
-- Library search / filter
 - File upload note (로컬 audio/video 파일 → 동일 pipeline)
 - First-launch 온보딩 (3 steps: BYOK 키 입력 → 권한 → 첫 recording)
 - Settings UI refinement
@@ -140,6 +140,18 @@
 - HN + PH launch
 
 **Phase 6 acceptance**: 실제 배포 + waitlist 100명.
+
+---
+
+## Phase 7 — 다국어 + GPT-4o Realtime (future)
+
+**목표**: 영어 사용자 영어 미팅 transcribe + 음성 chat.
+
+**포함**:
+- 다국어 미팅 (영어 사용자 영어 미팅 — EN transcript only)
+- GPT-4o realtime API 으로 음성 chat (meeting Q&A 실시간)
+
+**진입 시점**: PMF (waitlist 100+) 이후.
 
 ---
 
@@ -174,7 +186,6 @@
 
 **note.md frontmatter 타입**:
 - `type: meeting` — live recording 노트 (요약 primary)
-- `type: url` — YouTube URL 노트 (더빙 output primary) — Phase 5+
 - `type: file` — 파일 업로드 노트 — Phase 6+
 
 ---
@@ -185,18 +196,15 @@
 |---|---|---|
 | Soniox 정확도 부족 | 35% | OpenRouter 라 Whisper / 다른 provider swap |
 | Solar Pro 3 번역 품질 | 35% | Claude / Gemini 즉시 swap |
-| TTS 음성 자연스러움 (Phase 5) | 50% | provider 여러 개 테스트 후 결정 |
-| YouTube extraction 정책 변경 | 25% | yt-dlp 유지 전략 + fallback |
 | Apple Developer 승인 지연 | 20% | Day 1 신청, 1주 lead time |
-| Timeline slip | 40% | Phase 5/6 scope cut buffer |
+| Timeline slip | 40% | Phase 6/7 scope cut buffer |
 
 ---
 
 ## Next Decision Points
 
-- TTS provider 선정 (Phase 5 시작 전)
-- YouTube extraction 방식 (yt-dlp vs API)
-- dub output 형식 (mp4 mux vs audio-only mp3)
+- SQLite 마이그레이션 시점 (Phase 5 vs Phase 6)
+- TTS provider 선정 (Phase 6 시작 전 — live recording Listen 경로용)
 - 오픈소스 vs source-available (Phase 6 전)
 - Mac App Store vs 직접 배포 (v1.5+)
-- 한국어 → 영어 외 다국어 (PMF 이후)
+- 한국어 → 영어 외 다국어 (PMF 이후, Phase 7)
