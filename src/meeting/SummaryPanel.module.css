@@ -1,0 +1,47 @@
+.panel {
+  flex: 1;
+  min-width: 0;
+  padding: 20px 24px;
+  overflow-y: auto;
+  background: var(--paper-2);
+  border-left: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 12px;
+}
+
+.titleText {
+  font-family: var(--font-mono);
+  font-size: var(--t-base);
+  color: var(--ink);
+}
+
+.quoteMock {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-md);
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: auto;
+  padding-top: 16px;
+  color: var(--ink-4);
+}
+
+.footerText {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}

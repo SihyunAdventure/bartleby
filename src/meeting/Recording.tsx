@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import TranscriptView from "./TranscriptView";
 import RecordingControls from "./RecordingControls";
+import SummaryPanel from "./SummaryPanel";
 import type { CaptureStats } from "../types/capture";
 import styles from "./Recording.module.css";
 
@@ -63,8 +64,11 @@ export default function Recording({
         </div>
       </div>
       <hr className="hr" />
-      <div className={styles.body}>
-        <TranscriptView clearToken={clearToken} />
+      <div className={styles.bodyGrid}>
+        <div className={styles.transcriptCol}>
+          <TranscriptView clearToken={clearToken} />
+        </div>
+        <SummaryPanel captureRunning={captureRunning} />
       </div>
       <div className={styles.footerControls}>
         <RecordingControls

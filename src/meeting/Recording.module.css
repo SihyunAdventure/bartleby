@@ -53,13 +53,20 @@
   color: var(--rec);
 }
 
-.body {
+.bodyGrid {
   flex: 1;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
   overflow: hidden;
-  padding: 0 var(--s-6);
+  min-height: 0;
+}
+
+.transcriptCol {
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding: 0 var(--s-6) 0 0;
 }
 
 .footerControls {
