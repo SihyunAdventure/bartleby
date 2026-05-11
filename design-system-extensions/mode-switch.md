@@ -1,5 +1,9 @@
 # Mode Switch Widget
 
+> **DEPRECATED 2026-05-11 (Phase 4.5)** — Watch overlay / mode toggle 분기 자체가
+> Bartleby 의 product 재정의로 제거됨. 이 문서는 historical reference 로만 보관.
+> 현재 product shape 는 VISION.md / PLAN.md 참조.
+
 > Sidebar 상단의 Watch / Meeting 모드 전환 widget.
 > design-system 의 Segmented control (`components.css §SEGMENTED CONTROL`) 재사용.
 

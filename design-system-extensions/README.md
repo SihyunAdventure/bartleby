@@ -1,12 +1,27 @@
 # Bartleby — Design System Extensions
 
-> 영구 read-only 인 `design-system/` 의 *연장선*. 
-> Phase 0 designer agent 가 reference 로 사용.
+> 영구 read-only 인 `design-system/` 의 *연장선*.
+
+## 2026-05-11 Product 재정의 이후 상태 (Phase 4.5)
+
+Bartleby 가 Watch overlay + mode toggle 이중 분기에서
+**단일 dock note taker** (live recording 노트 + YouTube URL 더빙) 로 재정의됨.
+이 폴더의 대부분 spec 은 Watch overlay 가정 위에 씌어졌으므로 deprecate 됨.
+
+| 파일 | 상태 |
+|---|---|
+| `overlay.md` | ❌ DEPRECATED — Watch overlay 제거됨 |
+| `mode-switch.md` | ❌ DEPRECATED — Watch/Meeting 모드 전환 제거됨 |
+| `permission.md` | ⚠️ PARTIAL DEPRECATED — Screen Recording/Mic backend 인프라 유지, Watch UX 가정 제거됨 |
+| `marketing-hero.md` | ❌ DEPRECATED — Watch-first hero 구성 제거됨. Phase 6 새 hero 재작성 예정 |
+| `settings.md` | ⚠️ PARTIAL DEPRECATED — Tab 2 Watch Mode 섹션 제거됨. Keys/Storage/Shortcuts/About 유효 |
+
+모든 deprecated 파일은 historical reference 로 보관. 현재 product shape 는 **VISION.md / PLAN.md** 참조.
 
 ## 관계
 
 `design-system/bartleby/project/bartleby/` 는 Claude Design 핸드오프 bundle, **영구 read-only** (PRINCIPLES.md §0).
-이 폴더는 그 source-of-truth *위에* dual-mode reframe (시청 + 미팅) 으로 추가된 surface 의 spec.
+이 폴더는 그 source-of-truth *위에* 추가 surface 의 spec.
 
 **불변 (design-system/ 의 sacred values 그대로 상속)**:
 - OKLCH chroma 0 (accent = ink)
@@ -15,21 +30,12 @@
 - Bartleby literary character voice (75%, italic serif for personality)
 - Korean fallback (`.ko`, `.ko-display`, `.ko-serif`, `.ko-mono`, `--kr-leading-bump`)
 
-**확장된 surface (이 폴더가 채움)**:
-- `overlay.md` — Watch mode 의 floating overlay window (영상 위 라이브 자막)
-- `settings.md` — Settings UI (BYOK key + retention + overlay prefs + shortcut)
-- `mode-switch.md` — Sidebar 상단 Watch/Meeting 전환 widget + active session confirm modal
-- `permission.md` — 권한 요청 / 거부 / 복구 lifecycle (mic / screen recording)
-- `marketing-hero.md` — Phase 6 landing page hero composition (watch mode primary)
-- (TODO v1.5+) `onboarding.md` — 3-step first launch flow
-
-**예외 결정 (이 폴더에서만 새로 박힘)**:
-- 시청 모드 overlay 의 라이브 자막은 **Pretendard sans** (Gowun Batang 아님 — 14-16px live caption rate 에서 serif 가독성 저하).
-- Gowun Batang 은 *static* 표면 (notes, summaries, voice cards, marketing) 에만.
-- 자세히는 PRINCIPLES.md §4.2 의 *Korean typography exception note* 참조.
+**Korean typography exception (여전히 유효)**:
+- Live 표면 (라이브 transcript) → Pretendard sans
+- Static 표면 (notes, summaries, voice cards, marketing) → Gowun Batang
+- 자세히는 PRINCIPLES.md §4.2.1 참조.
 
 ## v2 design-system 핸드오프 트리거
 
-이 폴더에 spec 이 3개 이상 쌓이거나, 새 컴포넌트 패턴이 *기존 design-system 에서 차용 불가능* 한 경우
+새 컴포넌트 패턴이 *기존 design-system 에서 차용 불가능* 한 경우
 정식 Claude Design 새 핸드오프를 받아 `design-system-v2/` 로 격상.
-그 시점까지 본 폴더가 임시 source-of-truth.

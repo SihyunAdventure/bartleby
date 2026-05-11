@@ -126,54 +126,67 @@ design-system/bartleby/
 
 ---
 
-## Brand voice (캐릭터 75% literary)
+## 앱 Surface 구조 (Phase 4.5 기준)
 
-### System messages
-- 정중·절제, italic serif 톤
-- "Bartleby has prepared your notes."
-- "Bartleby would prefer not to. (마이크 권한이 없습니다.)"
+단일 dock 앱. 별도 floating window 없음.
 
-### Recording states (UI 라벨)
-- Idle: "Awaiting words."
-- Listening: "Listening." (with vermillion dot)
-- Processing: "Transcribing..."
-- Complete: "Done."
+```
+┌─────────────────────────────────────────────────────────┐
+│ [macOS titlebar]                                        │
+├──────────────┬──────────────────────────────────────────┤
+│              │                                          │
+│  Sidebar     │  Main area                               │
+│  (240px)     │                                          │
+│              │  - Library (note list, default)          │
+│  Bartleby    │  - Recording session (live)              │
+│  wordmark    │  - Note detail (after session)           │
+│              │  - Settings (/settings)                  │
+│  Library nav │                                          │
+│  (note list) │                                          │
+│              │                                          │
+└──────────────┴──────────────────────────────────────────┘
+```
 
-### Empty / Loading
-- 광기 유발 스피너 X
-- 캐릭터 톤 placeholder
+### Library
 
----
-
-## 적용 화면 (예시)
-
-`screens.jsx` 에서 두 가지 화면 정의:
-
-### Library 화면
 - macOS titlebar (traffic lights)
-- 사이드바 (paper-2 bg)
-- Main: meeting card list
-- 카드: 제목 (mono), 날짜 (caption), 1줄 preview (serif italic 인용 가능)
+- 사이드바 (paper-2 bg) — 날짜 그룹별 note list
+- Note card: 제목 (mono), 날짜 (caption), 1줄 preview (serif italic)
+- source 별 badge: `meeting` / `url` / `file`
 
-### Recording session 화면
-- 라이브 transcript (좌우 split: 한국어 / 영어 또는 단일 stream)
+### Recording session (live)
+
+- 실시간 transcript (KO|EN split 또는 KO-only)
 - Status strip 상단 (vermillion dot + timer)
 - Audio meter
 - 하단 control: pause / stop
 
-→ 정확한 layout 은 `screens.jsx` + `macos-window.jsx` 참조.
+### Note detail
+
+source 에 따라 default output 분기:
+- `meeting` → Summary (TL;DR + Decisions + Action Items + Key Quotes) primary
+- `url` → Dub output (Listen 경로, Phase 5+) primary, transcript secondary
+- 모든 타입: Read (transcript + 번역), Skim (요약) 탭 가능
 
 ---
 
-## Tweaks panel (`tweaks-panel.jsx`)
+## Brand voice (캐릭터 75% literary)
 
-디자인 시스템 페이지에 *interactive tweaks panel* 이 포함됨:
+### System messages
+- 정중·절제, italic serif 톤
+- *"Bartleby has prepared your notes."* (recording 후)
+- *"Bartleby has prepared your translation."* (URL dub 후)
+- *"Bartleby would prefer not to. (마이크 권한이 없습니다.)"* (error)
 
-- **Type pairing**: Mono / Serif / Sans display 전환
-- **Accent color**: 4가지 큐레이션 옵션 (default = ink)
-- **Bartleby intensity slider**: terse → literary (브랜드 voice 강도)
+### Recording states (UI 라벨)
+- Idle: *"Awaiting words."*
+- Listening: *"Listening."* (with vermillion dot)
+- Processing: *"Transcribing..."*
+- Complete: *"Done."*
 
-→ 이 panel 은 *디자인 시스템 페이지 전용*. 실제 앱에는 들어가지 X (Settings 에 단순화된 일부만).
+### Empty / Loading
+- 광기 유발 스피너 X
+- 캐릭터 톤 placeholder: *"Bartleby has not yet taken notes. Record something."*
 
 ---
 
@@ -203,7 +216,7 @@ design-system/bartleby/
 3. **시각 회귀 테스트** — production 코드가 디자인 의도에서 벗어났는지 정기 비교.
 4. **새 팀원 온보딩** — 디자인 의도와 컨텍스트가 한 페이지에 있는 *살아있는 spec*.
 
-### 시각 비교 워크플로우 (검증 시 사용)
+### 시각 비교 워크플로우
 
 ```bash
 # 원본 design system 페이지
@@ -216,8 +229,6 @@ cd ~/Dev/side/bartleby && pnpm tauri dev
 # → 앱 내 ?gallery URL 분기
 ```
 
-좌우 모니터에 띄우고 14 섹션 1:1 비교. 자세한 검증 절차는 [NEXT.md](./NEXT.md) Step 5b/5c 참조.
-
 ---
 
 ## 변경 이력
@@ -228,7 +239,9 @@ cd ~/Dev/side/bartleby && pnpm tauri dev
   - OKLCH chroma 0 (accent ZERO)
   - 19c manuscript 방향
   - Korean 4쌍 페어링 시스템 (Pretendard / Gowun Batang / D2Coding / Apple SD Gothic Neo)
-- **2026-05-07 autoplan Phase 2/3**: dual-mode reframe (시청 + 미팅) 으로 design-system-extensions/ 생성. Sacred values 그대로 유지, *추가 surface* 만 spec.
+- **2026-05-07 autoplan Phase 2**: design-system-extensions/ 생성 (Watch overlay + Settings + Mode switch)
+- **2026-05-11 Phase 4.5**: Watch overlay / mode toggle 제거 → single-surface redesign.
+  Applied screens 을 Library + Recording session + Note detail 로 재정의.
 
 ## Design system 노트
 
@@ -236,6 +249,6 @@ cd ~/Dev/side/bartleby && pnpm tauri dev
 
 [tokens.css L15](./design-system/bartleby/project/bartleby/tokens.css#L15) 의 Korean serif companion 주석은 "Nanum Myeongjo" 로 적혀 있음. 하지만 *실제 font-family fallback chain* (L23) 은 Cormorant → **Gowun Batang** → Nanum Myeongjo → ... 순서로 Gowun Batang 이 한국어 우선.
 
-DESIGN.md L49 의 ⭐ Gowun Batang 결정이 source-of-truth. tokens.css L15 주석은 *historical* — design-system 폴더는 영구 read-only 라 주석 fix 안 함. 이 노트가 명확화 함.
+DESIGN.md 의 ⭐ Gowun Batang 결정이 source-of-truth. tokens.css L15 주석은 *historical* — design-system 폴더는 영구 read-only 라 주석 fix 안 함. 이 노트가 명확화 함.
 
 → 한 줄: **한국어 serif = Gowun Batang.** 다른 폰트로 substitute 금지 (PRINCIPLES §4.2 Sacred Values).

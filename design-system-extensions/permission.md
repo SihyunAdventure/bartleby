@@ -1,5 +1,11 @@
 # Permission Lifecycle UI
 
+> **PARTIAL DEPRECATION 2026-05-11 (Phase 4.5)** — Watch overlay 의 permission lifecycle UX
+> 가정 부분은 deprecate. Screen Recording / Mic permission 자체는 Meeting 의
+> system audio capture 에 여전히 필요하므로 backend 인프라 보존.
+> Watch-mode-specific 분기 (`Watch mode 는 mic 거부돼도 작동`, State C 화면) 는
+> 현재 product 에서 의미 없어짐. 현재 product shape 는 VISION.md / PLAN.md 참조.
+
 > Microphone / Screen Recording 권한 요청, 거부, 복구 flow.
 > design-system 의 Modal / Toast / Button / EmptyState 패턴 재사용.
 

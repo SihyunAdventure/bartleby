@@ -1,5 +1,9 @@
 # WatchOverlay — Floating Caption Window
 
+> **DEPRECATED 2026-05-11 (Phase 4.5)** — Watch overlay / mode toggle 분기 자체가
+> Bartleby 의 product 재정의로 제거됨. 이 문서는 historical reference 로만 보관.
+> 현재 product shape 는 VISION.md / PLAN.md 참조.
+
 > 시청 모드 (YouTube · podcast · 컨퍼런스) 의 *영상 위 floating caption window*.
 > design-system 의 Recording session 이 아니라 *별개* 의 surface.
 > Recording session = full app window. WatchOverlay = always-on-top instrument over someone else's UI.

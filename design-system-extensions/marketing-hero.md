@@ -1,5 +1,10 @@
 # Marketing Hero — Watch Mode First
 
+> **DEPRECATED 2026-05-11 (Phase 4.5)** — Watch overlay / mode toggle 분기 자체가
+> Bartleby 의 product 재정의로 제거됨. 이 문서는 historical reference 로만 보관.
+> 현재 product shape 는 VISION.md / PLAN.md 참조.
+> Phase 6 마케팅 hero 는 새 product shape (live recording note + YouTube URL dub) 기준으로 재작성 예정.
+
 > Landing page (`heybartleby.com`) 의 hero composition.
 > 원래 design-system §14 Marketing 은 미팅 노트 기준. *"Korean ears for English audio"* reframe 후 hero 재구성 필요.
 > Phase 6 Marketing prep 시 사용.

@@ -1,5 +1,11 @@
 # Settings UI
 
+> **PARTIAL DEPRECATION 2026-05-11 (Phase 4.5)** — Tab 2 (Modes) 의 Watch Mode 섹션
+> (overlay opacity / position / caption font size / click-through) 과 Modes 탭 전반의
+> Watch / Meeting 이중 분기 가정은 product 재정의로 제거됨.
+> Tab 1 Keys, Tab 3 Storage, Tab 4 Shortcuts (⌘⌃M recording), Tab 5 About 은 여전히 유효.
+> 현재 product shape 는 VISION.md / PLAN.md 참조.
+
 > 사용자 preferences 화면. Phase 0 의 `/settings` 라우트.
 > design-system 의 KeyInput / Toggle / Segmented / Field 재사용. 신규 컴포넌트 없음.
 
