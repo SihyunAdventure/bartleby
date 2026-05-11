@@ -410,7 +410,8 @@ function App() {
             onClick={async () => {
               setCaptureStatus("Capturing...");
               try {
-                const stats = await invoke<CaptureStats>("capture_system_audio", { seconds });
+                const { translate_enabled } = loadPrefs();
+                const stats = await invoke<CaptureStats>("capture_system_audio", { seconds, translateEnabled: translate_enabled });
                 setCaptureStatus(formatStats(stats));
               } catch (err) {
                 setCaptureStatus(`Error: ${String(err)}`);
@@ -427,7 +428,8 @@ function App() {
             disabled={captureRunning}
             onClick={async () => {
               try {
-                await invoke("start_capture");
+                const { translate_enabled } = loadPrefs();
+                await invoke("start_capture", { translateEnabled: translate_enabled });
                 setCaptureRunning(true);
                 setCaptureStatus("Listening...");
               } catch (err) {

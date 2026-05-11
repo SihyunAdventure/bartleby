@@ -22,6 +22,7 @@ export default function ModesTab() {
   const [bilingualLayout, setBilingualLayout] = useState<BilingualLayout>("side_by_side");
   const [autoSummarize, setAutoSummarize] = useState(true);
   const [summaryLanguage, setSummaryLanguage] = useState<SummaryLanguage>("ko");
+  const [translateEnabled, setTranslateEnabled] = useState(true);
 
   useEffect(() => {
     const p = loadPrefs();
@@ -34,6 +35,7 @@ export default function ModesTab() {
     setBilingualLayout(p.bilingual_layout);
     setAutoSummarize(p.auto_summarize);
     setSummaryLanguage(p.summary_language);
+    setTranslateEnabled(p.translate_enabled);
   }, []);
 
   return (
@@ -141,6 +143,17 @@ export default function ModesTab() {
       {/* ── Meeting Mode ── */}
       <section className={styles.section}>
         <h3 className={styles.sectionLabel}>Meeting Mode</h3>
+
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>EN → KO 번역</span>
+          <Toggle
+            checked={translateEnabled}
+            onChange={(v) => {
+              setTranslateEnabled(v);
+              setPref("translate_enabled", v);
+            }}
+          />
+        </div>
 
         <div className={styles.row}>
           <span className={styles.rowLabel}>Microphone source</span>

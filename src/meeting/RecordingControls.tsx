@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CaptureStats } from "../types/capture";
+import { loadPrefs } from "../settings/prefs";
 import styles from "./RecordingControls.module.css";
 
 interface Props {
@@ -17,7 +18,10 @@ export default function RecordingControls({
 }: Props) {
   const handleStart = async () => {
     try {
-      await invoke("start_capture");
+      // pref 를 매 start 시점에 읽음 — 사용자가 Settings 에서 토글한 뒤 바로
+      // Start 누르면 그 값으로 capture 가 시작됨.
+      const { translate_enabled } = loadPrefs();
+      await invoke("start_capture", { translateEnabled: translate_enabled });
       onStart();
     } catch (err) {
       onError(`Error: ${String(err)}`);

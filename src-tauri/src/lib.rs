@@ -77,6 +77,7 @@ fn resolve_key(name: &str) -> Option<String> {
 fn spawn_capture(
     app: tauri::AppHandle,
     max_seconds: Option<u64>,
+    translate_enabled: bool,
 ) -> CaptureSession {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_for_thread = Arc::clone(&stop);
@@ -94,12 +95,18 @@ fn spawn_capture(
 
     // Translator is the upstream consumer of STT finals — start it first so
     // STT can hand it the final-text sender at construction.
-    let (final_tx, translator_session) = match (&stt_key, &upstage_key) {
-        (Some(_), Some(up_key)) => {
+    // translate_enabled=false 이면 사용자가 Settings 에서 토글 끔 (한국어 미팅 등) →
+    // translator session 안 띄움 + final_tx None → STT 가 finals 만 event 로 emit.
+    let (final_tx, translator_session) = match (&stt_key, &upstage_key, translate_enabled) {
+        (Some(_), Some(up_key), true) => {
             let (tx, sess) = translate::start(up_key.clone(), app.clone());
             (Some(tx), Some(sess))
         }
-        (Some(_), None) => {
+        (Some(_), Some(_), false) => {
+            println!("[translate] translate_enabled=false — Korean translation disabled by user pref");
+            (None, None)
+        }
+        (Some(_), None, _) => {
             println!("[translate] UPSTAGE_API_KEY not set — Korean translation disabled (English-only captions)");
             (None, None)
         }
@@ -190,9 +197,10 @@ fn join_translator(translator: translate::TranslatorSession) {
 async fn capture_system_audio(
     app: tauri::AppHandle,
     seconds: u64,
+    translate_enabled: bool,
 ) -> Result<CaptureStats, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let session = spawn_capture(app, Some(seconds));
+        let session = spawn_capture(app, Some(seconds), translate_enabled);
         let stats = session
             .handle
             .join()
@@ -218,12 +226,13 @@ async fn capture_system_audio(
 async fn start_capture(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
+    translate_enabled: bool,
 ) -> Result<(), String> {
     let mut guard = state.capture.lock().unwrap();
     if guard.is_some() {
         return Err("Capture already in progress".into());
     }
-    *guard = Some(spawn_capture(app, None));
+    *guard = Some(spawn_capture(app, None, translate_enabled));
     Ok(())
 }
 

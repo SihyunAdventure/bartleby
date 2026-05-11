@@ -36,6 +36,9 @@ export interface Prefs {
   bilingual_layout: BilingualLayout;
   auto_summarize: boolean;
   summary_language: SummaryLanguage;
+  // 영어 → 한국어 번역 가동 여부. false 면 translator session 안 띄움 (네트워크/비용 절약).
+  // 한국어 미팅 (모두 한국어 발화) 에서 KO line 이 EN 의 자가 번역 같아 어색할 때 끄기.
+  translate_enabled: boolean;
 
   // Storage
   save_path: string;                // ~/Documents/Bartleby/ display only
@@ -58,6 +61,7 @@ export const DEFAULT_PREFS: Prefs = {
   bilingual_layout: "side_by_side",
   auto_summarize: true,
   summary_language: "ko",
+  translate_enabled: true,
 
   save_path: "~/Documents/Bartleby/",
   audio_retention_days: 30,
