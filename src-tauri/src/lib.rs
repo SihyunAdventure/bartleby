@@ -13,21 +13,9 @@ use tauri::{
     tray::TrayIconBuilder,
     Manager, State, WindowEvent,
 };
-use tauri_nspanel::{
-    tauri_panel, CollectionBehavior, PanelLevel, StyleMask, WebviewWindowExt,
-};
 use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
 };
-
-tauri_panel! {
-    panel!(OverlayPanel {
-        config: {
-            can_become_key_window: true,
-            is_floating_panel: true
-        }
-    })
-}
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -321,7 +309,6 @@ async fn verify_api_key(name: String, value: String) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::default())
         .setup(|app| {
@@ -333,28 +320,6 @@ pub fn run() {
             // the earlier "requires Accessory" comment was a misread. Menu bar
             // tray + ⌘⇧B remain as alt re-summon paths.
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
-
-            let overlay = app.get_webview_window("overlay").expect("overlay window");
-            let panel = overlay.to_panel::<OverlayPanel>().expect("to_panel failed");
-            panel.set_level(PanelLevel::Floating.value());
-            // nonactivating_panel: 비활성 상태에서 클릭해도 backing app
-            // (Bartleby) 을 활성화하지 않음. 즉시 drag 가능 + YouTube 등 다른
-            // app focus 를 빼앗지 않음 (overlay는 passive caption display).
-            panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
-            // becomesKeyOnlyIfNeeded: 비활성 panel 첫 클릭이 panel 을 key 로
-            // 만들기만 하고 swallow 되는 문제 (click-then-drag) 회피. 클릭이
-            // underlying view 로 그대로 전달돼서 첫 클릭부터 drag 처리됨.
-            panel.set_becomes_key_only_if_needed(true);
-            panel.set_collection_behavior(
-                CollectionBehavior::new()
-                    .full_screen_auxiliary()
-                    .can_join_all_spaces()
-                    .into(),
-            );
-            // Drag is wired via `data-tauri-drag-region` attribute on the
-            // overlay div (App.tsx). Tauri 2 injects a native mousedown handler
-            // that calls plugin:window|start_dragging — capability granted in
-            // capabilities/default.json (core:window:allow-start-dragging).
 
             // Menu bar tray: Accessory policy hides dock icon, so this is the
             // only way to re-summon main window after it's closed.

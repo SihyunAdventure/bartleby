@@ -18,22 +18,6 @@
         "width": 800,
         "height": 600,
         "acceptFirstMouse": true
-      },
-      {
-        "label": "overlay",
-        "url": "index.html?overlay=1",
-        "title": "Bartleby Overlay",
-        "width": 480,
-        "height": 200,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "acceptFirstMouse": true,
-        "resizable": true,
-        "minWidth": 320,
-        "minHeight": 120,
-        "maxWidth": 800,
-        "maxHeight": 400
       }
     ],
     "security": {
