@@ -117,7 +117,7 @@ export default function KeyInput({
           autoComplete="off"
         />
         <button className="btn" onClick={verify} disabled={status === "verifying" || !value.trim()}>
-          Verify
+          {status === "verifying" ? <span className="rec-spinner" aria-label="verifying" /> : "Verify"}
         </button>
         <button
           className="btn btn-primary"

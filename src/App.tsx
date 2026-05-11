@@ -156,6 +156,7 @@ function Overlay() {
         {showEn && (
           <div
             style={{
+              fontFamily: "var(--font-body)",
               fontSize: 11,
               color: "rgba(40, 40, 40, 0.55)",
               lineHeight: 1.35,
@@ -178,6 +179,7 @@ function Overlay() {
         {showKo && (
           <div
             style={{
+              fontFamily: "var(--font-body-kr)",
               fontSize: captionFontSize,
               color: "rgba(15, 15, 15, 0.92)",
               lineHeight: 1.45,
@@ -202,9 +204,17 @@ function Overlay() {
       </div>
     );
   } else if (drmBlocked) {
-    body = "No audio detected.";
+    body = (
+      <span style={{ fontStyle: "italic", fontFamily: "var(--font-serif)" }}>
+        Bartleby hears nothing.
+      </span>
+    );
   } else {
-    body = "Awaiting English audio.";
+    body = (
+      <span style={{ fontStyle: "italic", fontFamily: "var(--font-serif)" }}>
+        Bartleby is waiting for English audio.
+      </span>
+    );
   }
 
   const bgAlpha = overlayOpacity / 100;
@@ -221,7 +231,7 @@ function Overlay() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontFamily: "var(--font-body)",
         fontSize: 13,
         fontStyle: hasAnyCaption ? "normal" : "italic",
         color: hasAnyCaption ? "rgba(20, 20, 20, 0.85)" : "rgba(40, 40, 40, 0.6)",
