@@ -316,11 +316,14 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::default())
         .setup(|app| {
-            // fullScreenAuxiliary collection behavior requires Accessory or
-            // Prohibited activation policy. Bartleby is overlay-first (watch
-            // mode = primary surface), so dropping the dock icon is on-spec.
-            // Main window is reachable via menu bar item (Phase 0+).
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // Regular activation = dock-visible Finder-like app. Meeting
+            // mode (note-taking surface) is a primary user-facing entry, so
+            // a dock icon + ⌘Tab cycle is on-spec. Overlay's fullScreenAuxiliary
+            // collection behavior is a *window-level* property (NSPanel + style
+            // mask) and works regardless of the app's activation policy —
+            // the earlier "requires Accessory" comment was a misread. Menu bar
+            // tray + ⌘⇧B remain as alt re-summon paths.
+            app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
             let overlay = app.get_webview_window("overlay").expect("overlay window");
             let panel = overlay.to_panel::<OverlayPanel>().expect("to_panel failed");
