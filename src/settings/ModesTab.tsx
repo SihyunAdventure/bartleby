@@ -145,7 +145,7 @@ export default function ModesTab() {
         <h3 className={styles.sectionLabel}>Meeting Mode</h3>
 
         <div className={styles.row}>
-          <span className={styles.rowLabel}>EN → KO 번역</span>
+          <span className={styles.rowLabel}>한국어 번역</span>
           <Toggle
             checked={translateEnabled}
             onChange={(v) => {

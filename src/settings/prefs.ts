@@ -61,7 +61,10 @@ export const DEFAULT_PREFS: Prefs = {
   bilingual_layout: "side_by_side",
   auto_summarize: true,
   summary_language: "ko",
-  translate_enabled: true,
+  // 한국어 미팅 위주 user 가 default. 영어 시청 / 영어 client call 시
+  // Settings 에서 켜는 형태. STT 가 audio 언어 자동 인식하므로 한국어
+  // 미팅엔 toggle 무관하게 KO 발화는 자체 transcribe.
+  translate_enabled: false,
 
   save_path: "~/Documents/Bartleby/",
   audio_retention_days: 30,
