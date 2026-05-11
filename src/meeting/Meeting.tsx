@@ -6,7 +6,6 @@ import Sidebar from "./Sidebar";
 import Library from "./Library";
 import Recording from "./Recording";
 import SessionDetail from "./SessionDetail";
-import type { AppMode } from "../settings/prefs";
 import styles from "./Meeting.module.css";
 
 interface SttFinalPayload {
@@ -32,8 +31,6 @@ function formatTimeWithSec(date: Date): string {
 }
 
 interface Props {
-  appMode: AppMode;
-  onAppModeChange: (m: AppMode) => void;
   onOpenSettings: () => void;
   captureRunning: boolean;
   setCaptureRunning: (v: boolean) => void;
@@ -45,8 +42,6 @@ interface Props {
 }
 
 export default function Meeting({
-  appMode,
-  onAppModeChange,
   onOpenSettings,
   captureRunning,
   setCaptureRunning,
@@ -229,8 +224,6 @@ export default function Meeting({
   return (
     <div className={styles.shell}>
       <Sidebar
-        appMode={appMode}
-        onAppModeChange={onAppModeChange}
         onOpenSettings={onOpenSettings}
         captureRunning={captureRunning}
         recordingStart={recordingStart}

@@ -30,19 +30,6 @@
   margin-top: 4px;
 }
 
-.modeRow {
-  padding: 4px 14px 12px;
-}
-
-.modeRow > * {
-  width: 100%;
-  display: flex;
-}
-
-.modeRow > * > button {
-  flex: 1;
-}
-
 .navScroll {
   flex: 1;
   overflow-y: auto;

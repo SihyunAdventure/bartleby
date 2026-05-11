@@ -1,10 +1,6 @@
-import Segmented from "../components/Segmented";
-import { setPref, type AppMode } from "../settings/prefs";
 import styles from "./Sidebar.module.css";
 
 interface Props {
-  appMode: AppMode;
-  onAppModeChange: (m: AppMode) => void;
   onOpenSettings: () => void;
   captureRunning: boolean;
   recordingStart: Date | null;
@@ -75,35 +71,17 @@ function SideIcon({ name }: { name: string }) {
 }
 
 export default function Sidebar({
-  appMode,
-  onAppModeChange,
   onOpenSettings,
   captureRunning,
   keysOk,
   sessionCount,
   view,
 }: Props) {
-  const handleModeChange = (m: AppMode) => {
-    onAppModeChange(m);
-    setPref("app_mode", m);
-  };
-
   return (
     <aside className={styles.sidebar}>
       <div className={styles.brand}>
         <div className={styles.logo}>bartleby</div>
         <div className={styles.brandEyebrow}>scrivener · v0.1</div>
-      </div>
-
-      <div className={styles.modeRow}>
-        <Segmented
-          options={[
-            { value: "watch", label: "Watch" },
-            { value: "meeting", label: "Meeting" },
-          ]}
-          value={appMode}
-          onChange={handleModeChange}
-        />
       </div>
 
       <div className={styles.navScroll}>

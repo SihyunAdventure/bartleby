@@ -1,9 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Settings from "./settings/Settings";
-import Segmented from "./components/Segmented";
 import Meeting from "./meeting/Meeting";
-import { loadPrefs, listenToPrefs, setPref, type AppMode } from "./settings/prefs";
 import type { CaptureStats } from "./types/capture";
 import type { MeetingSession } from "./meeting/types";
 import "./App.css";
@@ -46,13 +44,10 @@ interface KeyStatus {
 }
 
 function App() {
-  const [captureStatus, setCaptureStatus] = useState("");
-  const [seconds, setSeconds] = useState(10);
   const [captureRunning, setCaptureRunning] = useState(false);
   const [lastStats, setLastStats] = useState<CaptureStats | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [keysMissing, setKeysMissing] = useState(false);
-  const [appMode, setAppMode] = useState<AppMode>(() => loadPrefs().app_mode);
   const [sessions, setSessions] = useState<MeetingSession[]>(loadSessions);
   const keysOk = !keysMissing;
 
@@ -65,15 +60,6 @@ function App() {
       console.warn("[sessions] save failed:", e);
     }
   }, [sessions]);
-
-  useEffect(() => {
-    const unlistenPromise = listenToPrefs((p) => {
-      setAppMode(p.app_mode);
-    });
-    return () => {
-      unlistenPromise.then((fn) => fn());
-    };
-  }, []);
 
   const refreshKeyStatus = async () => {
     try {
@@ -92,19 +78,6 @@ function App() {
     refreshKeyStatus();
   }, []);
 
-  const formatStats = (stats: CaptureStats): string => {
-    const drmTag = stats.drm_detected
-      ? `silent (peak ${stats.peak_system_dbfs.toFixed(1)} dBFS — muted/paused/DRM?) | `
-      : `level peak ${stats.peak_system_dbfs.toFixed(1)} dBFS | `;
-    return (
-      drmTag +
-      `sys: ${stats.buffers_received}b / ${stats.system_segments_written}seg / ${(stats.system_bytes_written / 1024).toFixed(1)}KB | ` +
-      `mic: ${stats.mic_buffers_received}b / ${stats.mic_segments_written}seg / ${(stats.mic_bytes_written / 1024).toFixed(1)}KB | ` +
-      `drift: max ${stats.drift.max_drift_ms.toFixed(2)}ms | ` +
-      `peak ${stats.rss.peak_rss_mb.toFixed(0)}MB / ${stats.rss.samples} rss samples`
-    );
-  };
-
   if (isGallery) {
     return (
       <Suspense fallback={null}>
@@ -113,139 +86,18 @@ function App() {
     );
   }
 
-  // watchShell — existing capture UI as JSX variable (avoids component-inside-render
-  // remount issue while keeping the branch clean).
-  const watchShell = (
-    <>
-      <button
-        className="settings-gear"
-        onClick={() => setSettingsOpen(true)}
-        aria-label="Settings"
-        title="Settings"
-      >
-        ⚙
-      </button>
-
-      <header className="capture-hero">
-        <h1 className="display">bartleby</h1>
-        <div className="serif-quote capture-epigraph">
-          "I would prefer not to take notes."
-        </div>
-      </header>
-
-      <div className="mode-switch-row">
-        <Segmented
-          options={[
-            { value: "watch", label: "Watch" },
-            { value: "meeting", label: "Meeting" },
-          ]}
-          value={appMode}
-          onChange={(m) => {
-            setAppMode(m);
-            setPref("app_mode", m);
-          }}
-        />
-      </div>
-
-      {keysMissing && !settingsOpen && (
-        <button
-          className="key-banner"
-          onClick={() => setSettingsOpen(true)}
-        >
-          Add API keys to start →
-        </button>
-      )}
-
-      <section className="capture-panel">
-        <div className="capture-row">
-          <input
-            type="number"
-            min="10"
-            max="3600"
-            step="1"
-            value={seconds}
-            onChange={(e) => setSeconds(Number(e.currentTarget.value))}
-          />
-          <button
-            className="btn"
-            disabled={captureRunning}
-            onClick={async () => {
-              setCaptureStatus("Capturing...");
-              try {
-                const { translate_enabled } = loadPrefs();
-                const stats = await invoke<CaptureStats>("capture_system_audio", { seconds, translateEnabled: translate_enabled });
-                setCaptureStatus(formatStats(stats));
-              } catch (err) {
-                setCaptureStatus(`Error: ${String(err)}`);
-              }
-            }}
-          >
-            Capture {seconds}s
-          </button>
-        </div>
-
-        <div className="capture-row">
-          <button
-            className="btn btn-primary"
-            disabled={captureRunning}
-            onClick={async () => {
-              try {
-                const { translate_enabled } = loadPrefs();
-                await invoke("start_capture", { translateEnabled: translate_enabled });
-                setCaptureRunning(true);
-                setCaptureStatus("Listening...");
-              } catch (err) {
-                setCaptureStatus(`Error: ${String(err)}`);
-              }
-            }}
-          >
-            Start capture
-          </button>
-          <button
-            className="btn"
-            disabled={!captureRunning}
-            onClick={async () => {
-              try {
-                const stats = await invoke<CaptureStats>("stop_capture");
-                setCaptureRunning(false);
-                setCaptureStatus(formatStats(stats));
-              } catch (err) {
-                setCaptureRunning(false);
-                setCaptureStatus(`Error: ${String(err)}`);
-              }
-            }}
-          >
-            Stop capture
-          </button>
-        </div>
-
-        {captureStatus && (
-          <p className="capture-status mono">{captureStatus}</p>
-        )}
-      </section>
-    </>
-  );
-
   return (
-    <main className="container" data-mode={appMode}>
-      {appMode === "meeting" ? (
-        <Meeting
-          appMode={appMode}
-          onAppModeChange={(m) => {
-            setAppMode(m);
-          }}
-          onOpenSettings={() => setSettingsOpen(true)}
-          captureRunning={captureRunning}
-          setCaptureRunning={setCaptureRunning}
-          lastStats={lastStats}
-          setLastStats={setLastStats}
-          sessions={sessions}
-          setSessions={setSessions}
-          keysOk={keysOk}
-        />
-      ) : (
-        watchShell
-      )}
+    <main className="container">
+      <Meeting
+        onOpenSettings={() => setSettingsOpen(true)}
+        captureRunning={captureRunning}
+        setCaptureRunning={setCaptureRunning}
+        lastStats={lastStats}
+        setLastStats={setLastStats}
+        sessions={sessions}
+        setSessions={setSessions}
+        keysOk={keysOk}
+      />
       {settingsOpen && (
         <Settings
           onClose={() => setSettingsOpen(false)}
