@@ -1,13 +1,13 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-10 — **Day 1-20a ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + STT reconnect + §16 Settings UI + §02 Typography gallery + §11 LiveCaption gallery + overlay voice polish + §17 Permission Lifecycle gallery + §15 Mode Switch UI + **Phase 4 진입 — Meeting 모드 sidebar 240px + transcript view + recording controls**)
+> 마지막 세션: 2026-05-11 — **Day 1-21e ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + STT reconnect + §16 Settings UI + §02 Typography + §11 LiveCaption + Permission Lifecycle + Mode Switch + Phase 4 Meeting 본진 + **Day 21 Visual polish chunk ✅ — design-system LibraryScreen/RecordingScreen 1대1 매핑 + Summary backend (Solar Pro 3 batch) + Watch/Settings/Overlay polish**)
 
 ---
 
-## 현재 상태 (Day 20a + followup + deslop ✅ 종료, ralph 루프 완료, 2026-05-10)
+## 현재 상태 (Day 21a/b/c/d/e ✅ 종료, Visual polish chunk 완료, 2026-05-11)
 
-> 다음 세션 진입점: **Step 3h (Visual polish chunk)**. `/design-review` 또는 §03~§09 gallery polish 부터.
+> 다음 세션 진입점: **Step 3i (통합 dogfood)**. `pnpm tauri dev` 띄우고 Library → Meeting → 1h 영어 → summary panel 갱신 직접 확인.
 
 ### 누적 commits (main branch)
 
@@ -66,6 +66,11 @@
 | `4502d03` | **Day 20a slice** ✅ chunk B Meeting Mode UI 본진 — sidebar 240px + transcript view + recording controls. `src/meeting/` 5파일 신규 (Meeting.tsx/.module.css, Sidebar.tsx/.module.css, TranscriptView.tsx/.module.css, RecordingControls.tsx/.module.css). `src/types/capture.ts` CaptureStats/DriftStats/RssStats 공유 타입 추출. `src/App.tsx` appMode 분기 (Watch=watchShell JSX variable, Meeting=<Meeting/>), .meeting-sidebar-placeholder 제거. `src/App.css` data-mode="meeting" padding 0. capture 인프라 재사용 (start_capture/stop_capture/stt_final/translation_final). transcript final 만 표시. mic 실작동 deferred. 33 tests pass + 1 ignored, pnpm/cargo build clean. |
 | `a4c6c50` | **Day 19b followup** ✅ translation_error voice copy → Bartleby voice. code-reviewer (ralph step 7) verdict APPROVED_WITH_FOLLOWUP 의 HIGH 처리 — US-002 acceptance criterion 6 명시 voice copy 와 일치. App.tsx + 11-LiveCaption.tsx mirror 동기화. |
 | `84f7a42` | **Day 20a deslop** ✅ ai-slop-cleaner pass — cross-mode capture state lift (App-level captureRunning + lastStats), pendingTranslation FIFO eviction (text key collision 해소), dead opacity transition 제거, auto-scroll near-bottom guard, duplicate font-family 통합. Medium 1/2/3 + Low 4/5 처리. Low 6/7 의도적 skip. 33 tests + pnpm build clean. |
+| `3e0e97e` | **Day 21a Shared CSS primitives** ✅ (S1) — `src/styles/components.css` 신설 (~360 lines, from-scratch). `.btn` family (primary/secondary/ghost/destructive/icon + sm/lg + disabled), `.badge`/`.dot` (rec/ok/warn) + bt-pulse animation, `.meter` (6-bar audio waveform) + bt-meter, `.rec-button` (56px round → square on .recording), `.sidebar-header`/`.side-item`, `.mlist`/`.mrow` (when/title/preview/meta grid), `.tbl-utt` (transcript row), `.summary` (ink border-left), `.voice-card` (italic serif), `.empty-state`/`.msg`/`.rec-spinner`. main.tsx import 추가. CSS bundle 176→185KB (+9KB). |
+| `89cc01c` | **Day 21b Meeting library\|recording two-state** ✅ (S2) — design-system LibraryScreen + RecordingScreen 1대1 매핑. View state machine: 'library' (idle, mlist) / 'recording' (active session). `meeting/types.ts` (MeetingSession + formatDuration/Day/Time helpers). `meeting/Library.tsx` (toolbar + mlist + empty-state voice card). `meeting/Recording.tsx` (toolbar meter+timer + transcript body + controls footer). Sidebar 전면 refactor → BTSidebar 1:1 (brand block + full-width mode toggle + LIBRARY/PROJECTS nav + footer keys-verified status + recording dot). App.tsx sessions[] + keysOk lift. 33 cargo tests + 1 ignored, pnpm build clean. |
+| `0375090` | **Day 21c Recording SummaryPanel UI shell** ✅ (S3) — `meeting/SummaryPanel.tsx` + `.module.css` 신설. Recording body 를 grid 1.5fr/1fr (TranscriptView | SummaryPanel) 로 분할. 3-block layout 글로벌 `.summary` primitive 재사용: Working title (mono ink) / Themes (italic serif placeholder when partial) / Quote · candidate (rec accent border-left). Footer "Solar Pro 3 · re-summarising every 30s" + dot-ok when active. captureRunning prop 분기 (preparing vs waiting). 백엔드 X — S4 에서 실제 데이터 wire. pnpm build clean. |
+| `8d066d4` | **Day 21d Summary backend (Solar Pro 3 batch)** ✅ (S4) — `src-tauri/src/summary/{mod.rs, upstage.rs}` 신설. `app.listen("stt_final")` 으로 영어 finals buffer 누적 → 500ms cancel-aware tick (60 ticks = 30s) → debounce (snapshot.len() > last_summarized_count). Solar Pro 3 non-streaming JSON: working_title/themes/quote_candidate. response_format json_object, temperature 0.3, fence-strip parser. 6 unit tests (build_transcript 2 + parse_response 4). lib.rs CaptureSession.summary 추가 + join. Frontend: SummaryPanel listen("summary_update") + clearToken reset. **Cost: ~$0.10/h dogfood, cached input 후 더 떨어짐.** 39 cargo tests + 1 ignored (33+6), pnpm build clean. |
+| `8d26289` | **Day 21e Watch/Settings/Overlay polish** ✅ (S5) — App.css 의 local .btn/.btn-primary 정의 제거 (글로벌 components.css primitives 상속). input[type=number] → design-system .input style (inset shadow, hover/focus ring). KeyInput.tsx Verify 버튼 verifying 시 `.rec-spinner` (S1 의 14px circle + bt-spin) 표시 + disabled. Overlay voice copy 정합: "No audio detected" → **"Bartleby hears nothing."** (italic Cormorant), "Awaiting English audio" → **"Bartleby is waiting for English audio."**. EN caption → `var(--font-body)` (Inter), KO caption → `var(--font-body-kr)` (Pretendard). Settings modal box-shadow magic value → `var(--shadow-modal)` 토큰. 39 cargo tests + 1 ignored, pnpm build clean. |
 
 ### 작동 검증된 것
 
@@ -773,6 +778,54 @@ pnpm build clean (432ms), cargo build clean, cargo test --lib 33 pass + 1 ignore
 
 ---
 
+### Day 21a/b/c/d/e 결과 (Visual polish chunk ✅ — code path)
+
+design-system/ 의 영구 read-only ground truth (LibraryScreen + RecordingScreen + BTSidebar + 5개 extensions spec) 와 정합. 5개 슬라이스 atomic commits, dogfood 통합 직전.
+
+**S1 (3e0e97e) — Shared CSS primitives**:
+- `src/styles/components.css` 신설 (~360 lines, **from-scratch — design-system/ 코드 절대 copy 금지 memory rule 준수**). 글로벌 클래스만 (.btn/.badge/.dot/.meter/.rec-button/.mlist/.mrow/.tbl-utt/.summary/.voice-card/.sidebar-header/.side-item/.empty-state/.msg/.rec-spinner + bt-pulse/bt-meter/bt-spin keyframes).
+- CSS Modules (Toggle/Segmented/Slider/Settings/Meeting) 그대로 유지 — component-internal scope.
+- main.tsx 에 import 추가 (tokens.css 뒤).
+
+**S2 (89cc01c) — Meeting library|recording two-state**:
+- `meeting/types.ts` — `MeetingSession { id, startedAt, endedAt, durationSec, title, preview, stats }` + formatDuration/formatRelativeDay/formatTime.
+- `meeting/Library.tsx` + `.module.css` — toolbar (h1 mono 22px "All meetings" + count + Record `.btn-primary` btn) + empty-state voice card ("I would prefer not to… yet.") + mlist of recorded sessions (when/title/preview/EN-KO badge + DRM warn badge + seg/KB meta).
+- `meeting/Recording.tsx` + `.module.css` — toolbar (h1 22px + meter + timer tabular-nums) + bodyGrid 1.5fr/1fr + footer controls. 1s tick.
+- `meeting/Sidebar.tsx` 전면 refactor — brand block (bartleby logo + 'scrivener · v0.1' eyebrow) + full-width Watch/Meeting Segmented + scroll nav (LIBRARY 4 entries + PROJECTS 4 disabled placeholder) + Settings button + footer (keys-verified dot-ok/warn + SONIOX · UPSTAGE meta + recording dot when active).
+- App.tsx — `sessions: MeetingSession[]` lift + `keysOk = !keysMissing` derived. Meeting view state machine: handleStartRecord → recording + clearToken++, handleStop → session 누적 + library.
+
+**S3 (0375090) — SummaryPanel UI shell**:
+- `meeting/SummaryPanel.tsx` + `.module.css` — Recording 우측 panel. 3 글로벌 `.summary` block (Working title / Themes / Quote · candidate). Backend X — mock content.
+
+**S4 (8d066d4) — Summary backend Solar Pro 3 batch**:
+- `src-tauri/src/summary/mod.rs` — `start(api_key, app) → SummarySession`. current-thread tokio runtime + `app.listen("stt_final")` (sync push to Mutex<Vec<String>>) + 500ms cancel-aware tick + 30s cadence + debounce (`snapshot.len() > last_summarized_count`) + 종료 전 `app.unlisten(id)` 으로 leak 방지.
+- `src-tauri/src/summary/upstage.rs` — non-streaming chat completion. SYSTEM_PROMPT 한국어 framing (audience = Korean ear) + strict JSON schema (working_title / themes / quote_candidate). `response_format: json_object`, temperature 0.3. `parse_response` fence defensive strip. 6 unit tests.
+- `src-tauri/src/lib.rs` — `pub mod summary`. `CaptureSession.summary: Option<SummarySession>`. spawn_capture 에서 양 key 모두 있을 때 summary 가동 (upstage_key clone). capture_system_audio + stop_capture 둘 다 `join_summary` 추가.
+- Frontend — SummaryPanel `useState<SummaryUpdatePayload>` + `listen("summary_update")` + `clearToken` reset. summary 도착 시: workingTitle / themes ul / quoted candidate 실 렌더, null/empty 시 italic Cormorant placeholder.
+- **Cost back-of-envelope**: 60min × 2 calls/min × ~3K tokens in × $0.15/M ≈ $0.10/h dogfood. Upstage cached input ($0.015/M) 활성화 후 더 떨어짐.
+
+**S5 (8d26289) — Watch/Settings/Overlay polish**:
+- App.css 의 로컬 `.btn`/`.btn-primary` 정의 제거 → 글로벌 primitives 그대로 상속 (S1 이후 redundant 였음).
+- `input[type=number]` (capture 초 입력) → design-system `.input` style 정합 (inset shadow rule, hover/focus ring).
+- KeyInput.tsx Verify 버튼 `status==='verifying'` 시 `<span className="rec-spinner" />` 표시 + disabled.
+- Overlay voice copy 정합: drm_blocked "No audio detected." → **"Bartleby hears nothing."** (italic Cormorant), 기본 대기 "Awaiting English audio." → **"Bartleby is waiting for English audio."**. EN caption font-family `system-ui` → `var(--font-body)` (Inter), KO caption `var(--font-body-kr)` (Pretendard).
+- Settings.module.css modal box-shadow magic value → `var(--shadow-modal)` 토큰 (dark theme 대응 + 일관성).
+
+**검증** (5 commits 누적):
+- ✅ pnpm build clean — CSS bundle 176→187KB, JS bundle 222→231KB (+15KB).
+- ✅ cargo test --lib — 39 passed + 1 ignored (33 + 6 summary tests).
+- ✅ cargo build clean.
+- 동작 검증 deferred — Step 3i 통합 dogfood 시 사용자 직접.
+
+**Day 21 scope (의도적 제외 — 후속)**:
+- `bt-window` chrome (titlebar with traffic lights + custom toolbar) — multi-day Tauri native titlebar override rabbit hole. v0.1 dogfood 는 native chrome 으로.
+- Persistence (sqlite/local meeting storage) — Phase 5+. 현재 in-memory only, 앱 재시작 시 sessions[] 초기화.
+- Projects nav 동작 (Fundraise/Design/Hiring/Ops) — visual placeholder, 클릭 무동작.
+- Library mlist 의 detail view — 클릭 시 transcript replay screen. 현재 클릭 무동작.
+- Live `/design-review` gstack audit — 사용자가 `pnpm tauri dev` 띄운 상태에서 별도 실행 가능.
+
+---
+
 ## 다음 세션 진입점
 
 ### Step 0: 컨텍스트 빠른 로드
@@ -825,31 +878,128 @@ ralph 5 user stories — US-001 §02 Typography (cc300b0+2351cd2 / SIH-1186) →
 - Tauri backend concurrent `start_capture` guard 미구현 (현재 single-shell render 라 risk 0).
 - `lastStats` mode switch 시 reset 안 됨 (직접 영향 X).
 
-### Step 3h: Day 21+ — Visual polish chunk ← *다음 세션 진입점 (사용자 의도: dogfood 전 앱 더 예쁘고 완성되게)*
+### Step 3h: Day 21a-e — Visual polish chunk ✅ *완료 (2026-05-11)*
 
-ralph 루프로 Phase 0 + Phase 4 UI shell 모두 들어감. 이제 *시각/UX 디테일* 본진. 통합 dogfood 는 polish chunk 끝난 후.
+5 슬라이스 (S1 primitives → S2 library/recording state → S3 SummaryPanel shell → S4 Solar Pro 3 backend → S5 Watch/Settings/Overlay polish). 자세한 결과는 위 "Day 21a/b/c/d/e 결과" 섹션 참조.
 
-**진입 후보 (택 1 또는 묶음)**:
+### Step 3i: 통합 dogfood ← *다음 세션 진입점 (사용자 직접)*
 
-1. **`/design-review` (gstack live audit)** — `pnpm tauri dev` 띄운 상태에서 designer-eye QA. 실제 윈도우 screenshot 비교 → 시각 inconsistency / spacing / hierarchy / AI slop pattern / slow interaction 발견 + 자동 fix loop. 가장 ROI 높음.
+Day 21 폴리시 chunk + Day 15b 의 resilience layer + Day 17 dogfood form (Step 3e) 모두 합쳐서 실제 사용. **코드는 이미 모두 ready** — 사용자가 직접 사용 + 측정 + NEXT.md "Day 22 결과" 섹션 작성만 남음.
 
-2. **§03 Spacing / §04 Buttons / §05 Form controls / §06 Recording state / §09 Sidebar gallery sections** — Phase 0 polish gate 의 7-row 잔여. 시각 검증 row 채우기 + 실 UI 대비 spec drift 확인.
+#### 진입 1분 절차
 
-3. **Watch 모드 capture-panel UI 완성도** — 현재 minimal (`Capture Ns` button + `Start/Stop`). hero 의 capture status / live caption preview / mode hint 등 polish.
+```bash
+cd ~/Dev/side/bartleby
+git log --oneline -8                      # Day 21a-e + 이전 commits 확인
+source ~/.config/secrets/soniox.env       # SONIOX_API_KEY
+source ~/.config/secrets/upstage.env      # UPSTAGE_API_KEY
+pnpm tauri dev                            # warm-up ~10s
+```
 
-4. **Meeting 모드 디테일** — Sidebar 의 motion (recording dot pulse / scroll edge fade), TranscriptView 의 empty state Cormorant, RecordingControls 의 button hover/active state, sidebar status block typography.
+별도 터미널에서 RSS log 실시간 tail (선택):
+```bash
+ls -t $TMPDIR/bartleby-rss-*.log | head -1 | xargs tail -f
+```
 
-5. **Settings UI 디테일** — KeyInput verifying spinner, Toggle/Segmented/Slider 의 hover/active/disabled state polish, modal backdrop transition.
+콘솔 ready 신호 (정상 시 모두 표시):
+- `[stt] ready (...)` — Soniox WS handshake
+- `[translate] ready (model=solar-pro3, streaming, sequential depth=1)`
+- `[summary] ready (model=solar-pro3, cadence=30s, debounced)`
 
-6. **Overlay 미세 polish** — caption font hierarchy (영어 작게 vs 한국어 크게 비율), partial→final smoothing 실효 처리 (Day 20a deslop 의 transition 제거 결정 reconsider — single-span 으로 rearchitect 시 가능).
+#### 시나리오 1 — Meeting 모드 + 1h 영어 영상 (Korean ears for English audio wedge 통합 검증)
 
-7. **Empty / loading / error state** 들 일관 — italic Cormorant 톤 통일, voice copy matrix 적용.
+1. 앱 시작 → Watch 모드 진입 화면
+2. Sidebar 의 mode toggle → Meeting 으로 전환
+3. Library state 진입 — 빈 상태 voice card 표시 ("I would prefer not to… yet.")
+4. 우상단 **Record** `.btn-primary` 클릭 → Recording state 전환
+5. RecordingControls 의 **Start** 클릭 → backend capture + STT + translator + summary 모두 가동
+6. 영어 lecture 영상 (TED/MIT OCW/Lex Fridman ~60min) 재생
+7. 관찰:
+   - 좌측 TranscriptView 의 영어 final 누적 + Korean translation second line italic
+   - 우측 SummaryPanel ~30초 후 첫 update: working title + themes ul + quote candidate
+   - Sidebar footer 의 recording dot pulse + meter rec 색
+   - timer 가 실시간 증가
+   - 30초마다 SummaryPanel 의 "Bartleby last updated · HH:MM:SS" 변경
+8. 1h 후 **Stop** 클릭 → Library 로 복귀, mrow 한 개 추가됨 (title "Meeting · HH:MM", 실 stats meta)
 
-8. **Tray menu polish** — 현재 Show / Quit. Pause / Resume / Mode switch / Settings 추가 옵션.
+#### 시나리오 2 — Watch 모드 + 영어 영상 (overlay 자막)
 
-권장 순서: **(1) `/design-review` 부터 → 발견된 issue 우선순위 따라 (3)~(8) 중 선택**. (2) Phase 0 잔여 sections 은 design-review 결과에 따라 자연스럽게 채울 가능성.
+1. Sidebar mode toggle → Watch
+2. ⌘⇧B 또는 메뉴바에서 overlay 호출
+3. 영어 영상 fullScreenAuxiliary 상태에서 재생
+4. overlay 의 polish 확인:
+   - 빈 상태: "Bartleby is waiting for English audio." (italic Cormorant)
+   - DRM 영상: "Bartleby hears nothing." (italic Cormorant)
+   - 흐를 때: EN 11px Inter 55% opacity 위에 KO 16px Pretendard 92% opacity
 
-진입 즉시 NEXT.md 의 어느 섹션도 읽을 필요 없음 (이 Step 3h + 마지막 한 줄로 컨텍스트 충분). 특정 chunk 결정 후 해당 영역만 깊게.
+#### Post-run 측정 form (NEXT.md "Day 22 결과" 섹션에 채워서 commit)
+
+```
+실시 일시:               YYYY-MM-DD HH:MM ~ HH:MM
+영상:                    <URL or 제목>
+실제 capture 시간:       {seconds}s
+
+[시나리오 1 — Meeting 모드]
+- Library → Recording 진입 자연스러움:        ✅ / ⚠️
+- Sidebar 의 recording dot pulse / meter:    ✅ / ⚠️
+- TranscriptView final 흐름 + KO italic:      ✅ / ⚠️
+- SummaryPanel 첫 update 30~60초 안:          ✅ / ⚠️  (실제 ___초)
+- working_title 의 quality (관련성):          1-5
+- themes 의 quality (관련성):                  1-5
+- quote_candidate 의 quality (인상적):         1-5
+- 30초마다 갱신 cadence:                       ✅ / ⚠️
+- Stop → Library mrow 추가:                   ✅ / ⚠️
+- mrow preview 의 placeholder 적절성:         ✅ / ⚠️
+
+[시나리오 2 — Watch 모드]
+- overlay 빈 상태 voice copy:                 ✅ / ⚠️
+- DRM 영상 voice copy ("hears nothing"):       ✅ / ⚠️
+- EN 11px / KO 16px hierarchy 가독성:         ✅ / ⚠️
+- KO Pretendard / EN Inter 폰트 정합:          ✅ / ⚠️
+
+[Settings UI]
+- ⚙ 클릭 → modal 열림, 5 tabs 모두 접근:       ✅ / ⚠️
+- Verify 버튼 spinner 표시 자연:              ✅ / ⚠️
+- modal shadow / spacing:                     ✅ / ⚠️
+
+[Capture stats]
+- drift_ms (final):       ___ms (목표 < 100ms)
+- system segments:         ___개 (목표 ~720)
+- system total:            ___MB (목표 ~14MB)
+- peak_dbfs:               ___dBFS
+- peak_rss_mb:             ___MB (목표 < 250MB, capture 135 + STT + translate + summary 여유)
+- mean_rss_mb:             ___MB
+- 1h 동안 trajectory:      시작 ___MB → 30분 ___MB → 종료 ___MB
+
+[STT 안정성]
+- reconnect 발생 횟수:        ___번 (자연 발생, 0 = 안정)
+- 자막 누락 구간:             ___초 누적
+
+[Solar Pro 3 비용 (대략)]
+- 총 summary calls:          ___번 (1h 기준 ~120 예상)
+- Upstage dashboard 의 in/out tokens:  ___K / ___K
+- 추정 비용:                  $___
+
+[GO/NO-GO]
+- Library → Recording 흐름 자연:              ✅/❌
+- SummaryPanel quality 평균 3.5+:             ✅/❌
+- peak_rss < 250MB:                            ✅/❌
+- drift < 100ms:                               ✅/❌
+- 1h 자막 끊김 < 10s 누적:                     ✅/❌
+- overlay polish 만족:                         ✅/❌
+- Settings UI 자연:                            ✅/❌
+
+→ 7/7 → wedge 통합 검증 완료. 사용자 onboarding / 공개 준비 단계 진입 (Phase 5+).
+→ 6/7 이하 → 어느 항목 fail 인지 + 후속 슬라이스 정의.
+```
+
+#### 발견된 UX issue 처리
+
+dogfood 중 발견된 시각/UX issue 는 두 가지 path:
+- **소소한 polish** (typo, spacing, color contrast 등) → Day 22 결과 섹션에 항목 정리 후 별도 atomic commit 들로 처리.
+- **중대한 design 변경** (layout 재설계, 새 컴포넌트 등) → 새 chunk 정의 + plan-design-review.
+
+권장: 진입 즉시 NEXT.md 의 다른 섹션 읽을 필요 없음. 이 Step 3i + 마지막 한 줄로 컨텍스트 충분.
 
 ### Step 3e: Day 17 — Phase 2 acceptance (empirical) ← *Visual polish chunk 끝난 후 사용자 직접 dogfood*
 
@@ -1144,4 +1294,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, has a gallery showing Typography + LiveCaption + Permission Lifecycle + Mode Switch, opens in Meeting mode with a 240px sidebar + scrolling transcript view + recording controls — Phase 4 본진 진입. ralph 루프 완료 + code-reviewer 처리 + deslop. **다음 세션: Visual polish chunk (Step 3h) — `/design-review` 또는 §03~§09 gallery polish 부터. 통합 dogfood 는 polish 후 사용자 명시 시점.**"
+> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, opens in Meeting mode with a design-system LibraryScreen (toolbar + Record + mlist of recorded sessions) that transitions into a RecordingScreen (transcript on the left, Solar Pro 3 working-title + themes + quote-candidate panel on the right, summarising every 30 seconds), now wears the brand voice across Watch + Settings + Overlay (Bartleby hears nothing / Bartleby is waiting for English audio). Day 21 Visual polish chunk 완료 (S1 primitives → S2 library/recording → S3 SummaryPanel shell → S4 Solar Pro 3 backend → S5 polish). **다음 세션: Step 3i 통합 dogfood — `pnpm tauri dev` 띄우고 사용자 직접 1h 영어 시청 + Meeting 진입 흐름 검증 + Day 22 결과 form 채우기.**"
