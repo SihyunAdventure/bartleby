@@ -379,7 +379,14 @@ pub fn run() {
             app.global_shortcut().on_shortcut(cmd_shift_b, |app, _shortcut, event| {
                 if event.state() == ShortcutState::Pressed {
                     if let Some(window) = app.get_webview_window("main") {
-                        if window.is_visible().unwrap_or(false) {
+                        // Toggle 의도: "Bartleby 가 활성화돼 있을 때만 hide".
+                        // is_visible() 만으로는 background 의 visible-but-not-focused
+                        // 케이스에서 hide 가 호출돼 사용자 입장에서 변화 없는 듯
+                        // 보이는 문제 발생 (Regular activation 으로 바꾼 뒤 더 두드러짐).
+                        // is_visible && is_focused 둘 다일 때만 hide.
+                        let visible = window.is_visible().unwrap_or(false);
+                        let focused = window.is_focused().unwrap_or(false);
+                        if visible && focused {
                             let _ = window.hide();
                         } else {
                             let _ = window.show();
