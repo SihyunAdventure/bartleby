@@ -1,13 +1,15 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-11 — **Day 1-21e ✅** (capture infra 12 days + Phase 0 entry + Soniox STT wedge 검증 + Tauri STT 통합 + Solar Pro 3 한국어 번역 + streaming SSE + STT reconnect + §16 Settings UI + §02 Typography + §11 LiveCaption + Permission Lifecycle + Mode Switch + Phase 4 Meeting 본진 + **Day 21 Visual polish chunk ✅ — design-system LibraryScreen/RecordingScreen 1대1 매핑 + Summary backend (Solar Pro 3 batch) + Watch/Settings/Overlay polish**)
+> 마지막 세션: 2026-05-11 — **Day 1-21e + Day 22a-e + ⌘⇧B/activation fixes + Phase 4.5 S1-S5 cleanup ✅**.
+> Product 재정의: Watch+Overlay 분기 제거 → 단일 dock Finder-like note taker.
+> 두 기능: (1) Live recording 미팅 노트 [구현됨], (2) YouTube URL → 한글 더빙 [Phase 5 plan].
 
 ---
 
-## 현재 상태 (Day 21a/b/c/d/e ✅ 종료, Visual polish chunk 완료, 2026-05-11)
+## 현재 상태 (Day 22 + Phase 4.5 cleanup ✅ 종료, 2026-05-11)
 
-> 다음 세션 진입점: **Step 3i (통합 dogfood)**. `pnpm tauri dev` 띄우고 Library → Meeting → 1h 영어 → summary panel 갱신 직접 확인.
+> 다음 세션 진입점: **Phase 5 plan + 통합 dogfood**. Bartleby = single dock 앱, 미팅 노트 검증 + YouTube dubbing pipeline 설계.
 
 ### 누적 commits (main branch)
 
@@ -71,6 +73,17 @@
 | `0375090` | **Day 21c Recording SummaryPanel UI shell** ✅ (S3) — `meeting/SummaryPanel.tsx` + `.module.css` 신설. Recording body 를 grid 1.5fr/1fr (TranscriptView | SummaryPanel) 로 분할. 3-block layout 글로벌 `.summary` primitive 재사용: Working title (mono ink) / Themes (italic serif placeholder when partial) / Quote · candidate (rec accent border-left). Footer "Solar Pro 3 · re-summarising every 30s" + dot-ok when active. captureRunning prop 분기 (preparing vs waiting). 백엔드 X — S4 에서 실제 데이터 wire. pnpm build clean. |
 | `8d066d4` | **Day 21d Summary backend (Solar Pro 3 batch)** ✅ (S4) — `src-tauri/src/summary/{mod.rs, upstage.rs}` 신설. `app.listen("stt_final")` 으로 영어 finals buffer 누적 → 500ms cancel-aware tick (60 ticks = 30s) → debounce (snapshot.len() > last_summarized_count). Solar Pro 3 non-streaming JSON: working_title/themes/quote_candidate. response_format json_object, temperature 0.3, fence-strip parser. 6 unit tests (build_transcript 2 + parse_response 4). lib.rs CaptureSession.summary 추가 + join. Frontend: SummaryPanel listen("summary_update") + clearToken reset. **Cost: ~$0.10/h dogfood, cached input 후 더 떨어짐.** 39 cargo tests + 1 ignored (33+6), pnpm build clean. |
 | `8d26289` | **Day 21e Watch/Settings/Overlay polish** ✅ (S5) — App.css 의 local .btn/.btn-primary 정의 제거 (글로벌 components.css primitives 상속). input[type=number] → design-system .input style (inset shadow, hover/focus ring). KeyInput.tsx Verify 버튼 verifying 시 `.rec-spinner` (S1 의 14px circle + bt-spin) 표시 + disabled. Overlay voice copy 정합: "No audio detected" → **"Bartleby hears nothing."** (italic Cormorant), "Awaiting English audio" → **"Bartleby is waiting for English audio."**. EN caption → `var(--font-body)` (Inter), KO caption → `var(--font-body-kr)` (Pretendard). Settings modal box-shadow magic value → `var(--shadow-modal)` 토큰. 39 cargo tests + 1 ignored, pnpm build clean. |
+| `776439f` | **Day 22a** ✅ Session detail view + chunking merge v1 + errorMsg cleanup. Library mlist row 클릭 → SessionDetail (transcript read-only + Back). MeetingSession 에 transcript 필드 + handleStop snapshot. utterances lift to Meeting.tsx. errorMsg stale 처리. |
+| `866ca0c` | **Day 22b** ✅ chunking relax + sessions persist (localStorage) + acceptFirstMouse main window. merge cap 3s→5s, 250→500자, koText null 조건 제거, translation_final cumulative append. SESSIONS_STORAGE_KEY="bartleby.sessions.v1" + Date hydrate. |
+| `617ae61` | **Day 22c** ✅ EN→KO 번역 toggle. prefs.translate_enabled (default true). spawn_capture / capture_system_audio / start_capture 모두 translate_enabled 인자 수신, false 시 translator session 안 띄움. |
+| `ac94471` | **Day 22d** ✅ Sentence-boundary aware merge. endsWithSentence 조건 추가 (직전 row 가 [.?!] 로 끝나면 무조건 새 row). cap 500→250 chars + gap 5s→3s. |
+| `220d2bc` | **Day 22e** ✅ 번역 toggle default off + label 단순화. DEFAULT_PREFS.translate_enabled: true → false. Label "EN → KO 번역" → "한국어 번역". |
+| `14f818f` | **⌘⇧B + dock fixes** ✅ ActivationPolicy::Accessory → Regular (dock 아이콘 + ⌘Tab). hide 조건에 is_focused 추가 (visible-but-not-focused 시 show). |
+| `417d3b9` | **activation fix followup** ✅ acceptFirstMouse: true main window (overlay 와 동일 거동). |
+| `d404f41` | **Phase 4.5 S1+S2** ✅ Overlay frontend (~200줄 + 5 interfaces) + backend (tauri_panel! OverlayPanel, tauri-nspanel dep, overlay window, capabilities) 완전 제거. |
+| `3b29862` | **Phase 4.5 S3** ✅ watchShell JSX variable + appMode state + Sidebar Watch/Meeting Segmented toggle + App.css watch shell styles (.capture-* 등) 제거. |
+| `02195db` | **Phase 4.5 S4** ✅ prefs.ts watch fields 7개 + AppMode/CaptionMode/OverlayPosition types + Settings ModesTab Watch Mode 섹션 제거. |
+| `e3d61ed` | **Phase 4.5 S5** ✅ Gallery §11 LiveCaption + §15 Mode Switch sections 파일 제거 + Gallery.tsx import/render + Gallery.module.css §11/§15 styles + GALLERY.md entries 제거. §17 Permission Lifecycle 보존. |
 
 ### 작동 검증된 것
 
@@ -826,6 +839,88 @@ design-system/ 의 영구 read-only ground truth (LibraryScreen + RecordingScree
 
 ---
 
+### Day 22a-e + Phase 4.5 cleanup 결과 (사용자 dogfood + product pivot ✅ — 2026-05-11)
+
+Day 21 chunk 라이브 dogfood (29s 세션) 에서 발견된 issues 차례로 해결 →
+사용자 추가 product thinking → Watch/Overlay 분기 자체 deprecate → 단일
+note taker surface 로 cleanup.
+
+**Day 22a (776439f) — 첫 dogfood findings 처리**:
+- Library mlist row 클릭 → SessionDetail 신설 (read-only transcript view + Back btn)
+- types.ts 의 MeetingSession 에 transcript: SavedUtterance[] 필드 + handleStop snapshot
+- utterances state + STT/translation listeners 를 TranscriptView 에서 Meeting.tsx 으로 lift
+- TranscriptView presentational refactor
+- errorMsg ("Error: No capture in progress") stale 처리 (handleStop 첫 줄 cleanup)
+- Soniox short final merge (3s gap, 250 chars, koText null 시만) — v1
+
+**Day 22b (866ca0c) — 3 fix (dock + chunking + persistence)**:
+- ActivationPolicy Regular 변경 후 main window 첫 클릭 무반응 → tauri.conf.json 의
+  main window 에 acceptFirstMouse: true 추가 (overlay 와 동일 거동)
+- chunking merge cap relax (3s→5s, 250→500자), koText null 조건 제거 + translation_final
+  cumulative koText append
+- sessions[] localStorage persistence (SESSIONS_STORAGE_KEY="bartleby.sessions.v1") +
+  Date 필드 hydrate. 앱 재시작 후에도 미팅 노트 보존.
+
+**Day 22c (617ae61) — EN→KO 번역 toggle**:
+- prefs.translate_enabled 신설 (default true). Settings → Modes → Meeting Mode.
+- spawn_capture / capture_system_audio / start_capture 모두 translate_enabled 인자 수신,
+  false 시 translator session 안 띄움 (Upstage API 호출 0).
+- Frontend invoke 시 loadPrefs() 의 translate_enabled 매번 전달.
+
+**Day 22d (ac94471) — Sentence-boundary aware merge**:
+- 사용자 "영어/한국어 양이 다른데?" 보고. 단순 chars cap 으로는 visual mismatch 두드러짐.
+- Merge 조건에 endsWithSentence 추가 (직전 row 가 [.?!] 로 끝나면 무조건 새 row).
+- cap 도 500→250 chars + gap 5s→3s.
+
+**Day 22e (220d2bc) — 번역 toggle default off + label 단순화**:
+- 사용자: "보통 언어 자동으로 인식하지 않나?" → toggle 본질 = capability on/off.
+- DEFAULT_PREFS.translate_enabled: true → false. 한국어 미팅 위주 user 자연 default.
+- Label "EN → KO 번역" → "한국어 번역" 으로 단순화.
+
+**⌘⇧B + dock fixes (14f818f, 417d3b9)** — Phase 4.5 시점 직전 발견:
+- ActivationPolicy::Accessory → Regular (dock 아이콘 + ⌘Tab 자연, "fullScreenAuxiliary
+  requires Accessory" 코멘트는 misread — NSPanel collection behavior 는 window-level)
+- ⌘⇧B 다회 클릭 필요 → hide 조건에 is_focused 추가 (visible-but-not-focused 시 show)
+
+**Phase 4.5 cleanup (d404f41, 3b29862, 02195db, e3d61ed) — Watch/Overlay 분기 자체 제거**:
+
+사용자 인사이트 — "Watch / Meeting 큰 차이 없음, Meeting 으로 다 소화 가능. Watch 의 진짜 unique
+value 는 영어 audio → 한국어 audio 재생성 (TTS dub)" + "플로팅 바도 Accessory 아니니 이제 불필요".
+
+Bartleby product 재정의:
+```
+Bartleby (단일 dock 앱, note taker)
+├── Library — 모든 노트 (live recording + 미래 YouTube URL + file upload)
+├── Recording — live transcript + summary + KO 번역 toggle
+└── (Phase 5+) URL note → YouTube 한글 더빙 + TTS dub option (모든 노트의 output)
+```
+
+cleanup 4 슬라이스:
+- **S1+S2 (d404f41)** — Overlay frontend (App.tsx의 Overlay() ~200줄 + 5 payload interfaces) +
+  backend (tauri_panel! OverlayPanel, tauri-nspanel dep, overlay window in tauri.conf.json,
+  capabilities) 완전 제거.
+- **S3 (3b29862)** — App.tsx 의 watchShell JSX variable + appMode state +
+  Sidebar 의 Watch/Meeting Segmented toggle + App.css 의 watch shell styles (.capture-* 등) 제거.
+- **S4 (02195db)** — prefs.ts 의 watch fields 7개 (app_mode + caption_mode + overlay_opacity +
+  caption_font_size + overlay_position + caption_pause_threshold_s + click_through_default) +
+  AppMode/CaptionMode/OverlayPosition types + Settings ModesTab 의 Watch Mode 섹션 제거.
+- **S5 (e3d61ed)** — Gallery 의 §11 LiveCaption + §15 Mode Switch sections 파일 제거 +
+  Gallery.tsx import/render + Gallery.module.css 의 §11/§15 styles + GALLERY.md entries 제거.
+  §17 Permission Lifecycle 은 Meeting 의 system audio capture 가 Screen Recording permission
+  여전히 필요해서 보존.
+
+**보존된 backend** — capture/STT/translate/summary 모듈 전부. Meeting 그대로 사용.
+**검증** — pnpm + cargo 모두 clean. cargo tests 39 + 1 ignored 변동 없음.
+
+**의도적 deferred (Phase 4.5 scope 밖)**:
+- VISION.md / PLAN.md / DESIGN.md / PRINCIPLES.md 큰 재작성 — 사용자 결정 후 별도 chunk.
+- design-system-extensions/{overlay,mode-switch,permission}.md 의 deprecate 마킹 — 별도.
+- Settings tab 이름 "Modes" — Meeting Mode 만 남았으니 "Meeting" 으로 rename 가능 (별도).
+- prefs.ts 의 caption-bilingual 관련 (bilingual_layout) — Meeting 의 transcript view 가 이걸
+  실제로 wire 하는지 검토 필요 (현재 wire X 인 storage-only) → 결정 후 정리.
+
+---
+
 ## 다음 세션 진입점
 
 ### Step 0: 컨텍스트 빠른 로드
@@ -882,9 +977,9 @@ ralph 5 user stories — US-001 §02 Typography (cc300b0+2351cd2 / SIH-1186) →
 
 5 슬라이스 (S1 primitives → S2 library/recording state → S3 SummaryPanel shell → S4 Solar Pro 3 backend → S5 Watch/Settings/Overlay polish). 자세한 결과는 위 "Day 21a/b/c/d/e 결과" 섹션 참조.
 
-### Step 3i: 통합 dogfood ← *다음 세션 진입점 (사용자 직접)*
+### Step 3i: 통합 dogfood ✅ *완료 (Day 22 dogfood — 29s 세션, 2026-05-11)*
 
-Day 21 폴리시 chunk + Day 15b 의 resilience layer + Day 17 dogfood form (Step 3e) 모두 합쳐서 실제 사용. **코드는 이미 모두 ready** — 사용자가 직접 사용 + 측정 + NEXT.md "Day 22 결과" 섹션 작성만 남음.
+Day 21 폴리시 chunk 직후 사용자 직접 dogfood. 발견된 issues → Day 22a-e 로 처리됨. 자세한 결과는 위 "Day 22a-e + Phase 4.5 cleanup 결과" 섹션 참조.
 
 #### 진입 1분 절차
 
@@ -1125,26 +1220,31 @@ ls -t $TMPDIR/bartleby-rss-*.log | head -1 | xargs tail -f
 4. PRINCIPLES / VISION 의 "wedge 1차 검증" 마일스톤 (있다면) 갱신
 5. `git add -p NEXT.md && git commit` (코드 변경 없음, NEXT.md 만)
 
-### Step 4: Day 16+ — Solar Pro 3 KO translation pipeline
+### Step 4 (신설): Phase 5 plan + 통합 dogfood ← *다음 세션 진입점*
 
-### Step 4: Day 16+ — Solar Pro 3 KO translation pipeline
+**Phase 4.5 cleanup 끝**. Bartleby 가 단일 dock 앱, Meeting 노트 가 primary surface.
+다음 두 path 병행 가능:
 
-- [ ] OpenRouter Solar Pro 3 streaming translation
-- [ ] Order-preserving (`seq` per final, `Map<seq, TranslationState>`, contiguous prefix render)
-- [ ] Bounded translation queue depth 8 + EN fallback on timeout/skip
-- [ ] Reconnect protocol (1→2→4→8→max 30s exponential backoff, 30s ring buffer audio)
-- [ ] PLAN.md L329-389 spec 그대로
+**Path A — Phase 5 planning (전략 + 설계)**:
+새 기능 "YouTube URL → 한글 더빙" pipeline 의 설계:
+- yt-dlp / 다른 도구로 audio 추출 (legal: 개인용 OK, 공개 service 시 grey area)
+- Batch STT (Soniox file API or OpenAI Whisper) vs streaming 재사용 결정
+- 기존 translate/summary pipeline 재사용
+- **TTS provider 결정** (한국어 자연도 + 비용):
+  · Naver Clova Voice — native KO, 자연도 ★★★★★, 1시간 transcript ~1,500-2,500원
+  · ElevenLabs Pro — multilingual, 자연도 ★★★★, ~$10/h
+  · OpenAI tts-1 — 무난, ~$0.50/h
+- Audio + video sync (영어 1초 vs 한국어 1.2-1.5초 timing 조정)
+- 출력 형태: 새 video 파일 (.mp4 with 한국어 audio) or 원본 영상 + 동기화된 KO audio stream
 
-### Step 5: Day 17+ — Phase 2 acceptance
+**Path B — Live recording 통합 dogfood (검증)**:
+Day 22 fix 들의 실 검증:
+- 한국어 미팅 dogfood (translate off, KO transcript 만 흐름)
+- Sentence-boundary 단위 row 분리 자연성 확인
+- SessionDetail 다시 보기 흐름
+- 1시간 RSS / drift / 비용 측정 (Step 3e 의 form 채우기)
 
-본인이 영어 YouTube 1시간 시청 → 라이브 한국어 자막 overlay (네트워크 blip 한 번 simulate 해도 reconnect 작동). **wedge 1차 검증 완료**. Peak RSS < 100MB.
-
-### Step 6: Phase 0 잔여 17 sections — lazy fill
-
-- §02 Typography: Section 02 진입 시 prep notes 는 GALLERY.md §02 Notes 컬럼 참조 (Risks 4개)
-- §16 Settings UI: Phase 2 acceptance 후 BYOK key field (사용자가 ENV var 대신 UI 로 입력)
-- §14 WatchOverlay: 이미 overlay 가 production 작동 중 — gallery 의 §14 spec 비교는 Phase 2 마무리 시점
-- 나머지 sections: Phase 6 polish 시점
+권장 순서: B 먼저 (현재 기능 검증) → A (다음 phase 계획).
 
 ### Step 3 (이전): Two-window + tauri-plugin-nspanel — *완료* (Day 6 ✅)
 
@@ -1294,4 +1394,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby floats, moves, listens, surfaces silence, answers to ⌘⇧B, wears his own colors, hears Korean and English at production quality, streams live Korean translations token-by-token of any English video, reconnects through Wi-Fi blips with 30s of replay buffer, wears all five Settings tabs with live overlay preferences, opens in Meeting mode with a design-system LibraryScreen (toolbar + Record + mlist of recorded sessions) that transitions into a RecordingScreen (transcript on the left, Solar Pro 3 working-title + themes + quote-candidate panel on the right, summarising every 30 seconds), now wears the brand voice across Watch + Settings + Overlay (Bartleby hears nothing / Bartleby is waiting for English audio). Day 21 Visual polish chunk 완료 (S1 primitives → S2 library/recording → S3 SummaryPanel shell → S4 Solar Pro 3 backend → S5 polish). **다음 세션: Step 3i 통합 dogfood — `pnpm tauri dev` 띄우고 사용자 직접 1h 영어 시청 + Meeting 진입 흐름 검증 + Day 22 결과 form 채우기.**"
+> "Bartleby 는 dock 에 산다. 영어든 한국어든 미팅을 녹음하면 한국어 transcript + summary 가 쌓이고, 한국어 번역도 토글로 켜고 끈다. 한국어 미팅엔 자동으로 KO transcribe, 영어 미팅엔 KO 자막. 세션은 localStorage 에 영구 저장되어 다시 듣고 다시 본다. **다음 세션: Phase 5 — YouTube URL 을 받으면 영어 영상을 한국어 더빙으로 재생성하는 pipeline 설계. 그리고 모든 노트의 옵션 output 으로 한국어 TTS audio 가 들어온다.**"
