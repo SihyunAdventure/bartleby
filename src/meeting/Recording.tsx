@@ -68,7 +68,10 @@ export default function Recording({
         <div className={styles.transcriptCol}>
           <TranscriptView clearToken={clearToken} />
         </div>
-        <SummaryPanel captureRunning={captureRunning} />
+        <SummaryPanel
+          captureRunning={captureRunning}
+          clearToken={clearToken}
+        />
       </div>
       <div className={styles.footerControls}>
         <RecordingControls

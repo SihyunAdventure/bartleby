@@ -1,6 +1,7 @@
 pub mod capture;
 pub mod secrets;
 pub mod stt;
+pub mod summary;
 pub mod translate;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -45,6 +46,7 @@ struct CaptureSession {
     handle: std::thread::JoinHandle<Result<CaptureStats, String>>,
     stt: Option<stt::SttSession>,
     translator: Option<translate::TranslatorSession>,
+    summary: Option<summary::SummarySession>,
 }
 
 #[derive(Default)]
@@ -92,9 +94,9 @@ fn spawn_capture(
 
     // Translator is the upstream consumer of STT finals — start it first so
     // STT can hand it the final-text sender at construction.
-    let (final_tx, translator_session) = match (&stt_key, upstage_key) {
+    let (final_tx, translator_session) = match (&stt_key, &upstage_key) {
         (Some(_), Some(up_key)) => {
-            let (tx, sess) = translate::start(up_key, app.clone());
+            let (tx, sess) = translate::start(up_key.clone(), app.clone());
             (Some(tx), Some(sess))
         }
         (Some(_), None) => {
@@ -102,6 +104,15 @@ fn spawn_capture(
             (None, None)
         }
         _ => (None, None),
+    };
+
+    // Summary subscribes to stt_final events directly via the event bus
+    // (independent of the translator channel), so it gets its own session
+    // gated on the same key pair. The Meeting SummaryPanel listens to its
+    // emitted `summary_update` events.
+    let summary_session = match (&stt_key, &upstage_key) {
+        (Some(_), Some(up_key)) => Some(summary::start(up_key.clone(), app.clone())),
+        _ => None,
     };
 
     let (stt_sender, stt_session) = match stt_key {
@@ -144,7 +155,14 @@ fn spawn_capture(
         handle,
         stt: stt_session,
         translator: translator_session,
+        summary: summary_session,
     }
+}
+
+/// Wait for a summary session to wind down. Cancel flag exits the 500ms
+/// tick loop within ≤500ms.
+fn join_summary(summary: summary::SummarySession) {
+    summary::join(summary);
 }
 
 /// Wait for an STT session to wind down. Capture-thread teardown drops the
@@ -184,6 +202,9 @@ async fn capture_system_audio(
         }
         if let Some(translator) = session.translator {
             join_translator(translator);
+        }
+        if let Some(s) = session.summary {
+            join_summary(s);
         }
         stats
     })
@@ -228,6 +249,9 @@ async fn stop_capture(
         }
         if let Some(translator) = session.translator {
             join_translator(translator);
+        }
+        if let Some(s) = session.summary {
+            join_summary(s);
         }
         stats
     })

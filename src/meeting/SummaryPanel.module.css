@@ -22,6 +22,17 @@
   font-family: var(--font-mono);
   font-size: var(--t-base);
   color: var(--ink);
+  line-height: 1.4;
+}
+
+.placeholder {
+  color: var(--ink-4);
+}
+
+.placeholderItalic {
+  color: var(--ink-4);
+  font-style: italic;
+  font-family: var(--font-serif);
 }
 
 .quoteMock {
