@@ -3,6 +3,7 @@ import TranscriptView from "./TranscriptView";
 import RecordingControls from "./RecordingControls";
 import SummaryPanel from "./SummaryPanel";
 import type { CaptureStats } from "../types/capture";
+import type { SavedUtterance } from "./types";
 import styles from "./Recording.module.css";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
   onStop: (stats: CaptureStats) => void;
   onError: (msg: string) => void;
   clearToken: number;
+  utterances: SavedUtterance[];
 }
 
 function formatElapsed(ms: number): string {
@@ -31,6 +33,7 @@ export default function Recording({
   onStop,
   onError,
   clearToken,
+  utterances,
 }: Props) {
   const [, setTick] = useState(0);
 
@@ -66,7 +69,7 @@ export default function Recording({
       <hr className="hr" />
       <div className={styles.bodyGrid}>
         <div className={styles.transcriptCol}>
-          <TranscriptView clearToken={clearToken} />
+          <TranscriptView utterances={utterances} />
         </div>
         <SummaryPanel
           captureRunning={captureRunning}

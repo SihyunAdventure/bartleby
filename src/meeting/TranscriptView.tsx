@@ -1,52 +1,13 @@
-import { useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { useEffect, useRef } from "react";
+import type { SavedUtterance } from "./types";
 import styles from "./TranscriptView.module.css";
 
-interface SttFinalPayload {
-  text: string;
-  language: string | null;
-}
-
-interface TranslationFinalPayload {
-  original: string;
-  translation: string;
-}
-
-interface Utterance {
-  id: number;
-  time: string;
-  speaker: "user" | "system";
-  enText: string;
-  koText: string | null;
-}
-
-const MAX_UTTERANCES = 100;
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-}
-
 interface Props {
-  // clearToken increments when parent wants transcript cleared (on Start)
-  clearToken: number;
+  utterances: SavedUtterance[];
 }
 
-export default function TranscriptView({ clearToken }: Props) {
-  const [utterances, setUtterances] = useState<Utterance[]>([]);
-  const idRef = useRef(0);
+export default function TranscriptView({ utterances }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Clear transcript when clearToken changes
-  useEffect(() => {
-    if (clearToken > 0) {
-      setUtterances([]);
-    }
-  }, [clearToken]);
 
   // Auto-scroll to bottom on new utterances, but only when user is near the
   // bottom (within 40px). If the user has scrolled up to review history,
@@ -57,66 +18,6 @@ export default function TranscriptView({ clearToken }: Props) {
       el.scrollTop = el.scrollHeight;
     }
   }, [utterances]);
-
-  useEffect(() => {
-    // FIFO queue per raw text: handles duplicate-text utterances without
-    // collision. translation_final carries only `original` text (no id), so
-    // we match by dequeuing the oldest pending id for that text string.
-    // Cap at 50 total queued ids to bound memory when translations stall.
-    const pendingTranslation = new Map<string, number[]>();
-
-    const pendingTotal = () =>
-      [...pendingTranslation.values()].reduce((s, q) => s + q.length, 0);
-
-    const subs = [
-      listen<SttFinalPayload>("stt_final", (event) => {
-        const { text, language } = event.payload;
-        // language "ko" → user (mic), anything else → system
-        const speaker: "user" | "system" = language === "ko" ? "user" : "system";
-        const id = ++idRef.current;
-        const now = formatTime(new Date());
-
-        // Evict oldest entry when cap exceeded
-        if (pendingTotal() >= 50) {
-          const firstKey = pendingTranslation.keys().next().value;
-          if (firstKey !== undefined) {
-            const q = pendingTranslation.get(firstKey)!;
-            q.shift();
-            if (q.length === 0) pendingTranslation.delete(firstKey);
-          }
-        }
-        const q = pendingTranslation.get(text) ?? [];
-        q.push(id);
-        pendingTranslation.set(text, q);
-
-        setUtterances((prev) => {
-          const next = [
-            ...prev,
-            { id, time: now, speaker, enText: text, koText: null },
-          ];
-          return next.length > MAX_UTTERANCES ? next.slice(-MAX_UTTERANCES) : next;
-        });
-      }),
-
-      listen<TranslationFinalPayload>("translation_final", (event) => {
-        const { original, translation } = event.payload;
-        const q = pendingTranslation.get(original);
-        if (!q?.length) return;
-        const targetId = q.shift()!;
-        if (q.length === 0) pendingTranslation.delete(original);
-
-        setUtterances((prev) =>
-          prev.map((u) =>
-            u.id === targetId ? { ...u, koText: translation } : u
-          )
-        );
-      }),
-    ];
-
-    return () => {
-      subs.forEach((p) => p.then((fn) => fn()));
-    };
-  }, []);
 
   return (
     <div className={styles.container}>

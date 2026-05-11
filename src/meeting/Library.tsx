@@ -9,9 +9,10 @@ import styles from "./Library.module.css";
 interface Props {
   sessions: MeetingSession[];
   onStartRecord: () => void;
+  onSelectSession: (id: number) => void;
 }
 
-export default function Library({ sessions, onStartRecord }: Props) {
+export default function Library({ sessions, onStartRecord, onSelectSession }: Props) {
   const totalSec = sessions.reduce((s, x) => s + x.durationSec, 0);
   const totalHm =
     totalSec >= 3600
@@ -62,7 +63,7 @@ export default function Library({ sessions, onStartRecord }: Props) {
               const time = formatTime(s.startedAt);
               const dur = formatDuration(s.durationSec);
               return (
-                <button key={s.id} className="mrow" type="button">
+                <button key={s.id} className="mrow" type="button" onClick={() => onSelectSession(s.id)}>
                   <div className="when tabular">
                     {time}
                     <small>

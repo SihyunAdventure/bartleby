@@ -1,5 +1,15 @@
 import type { CaptureStats } from "../types/capture";
 
+// SavedUtterance: 녹화 종료 시 MeetingSession 에 snapshot 되는 utterance 레코드.
+// TranscriptView 의 내부 Utterance 와 동일한 shape 를 공유.
+export interface SavedUtterance {
+  id: number;
+  time: string;
+  speaker: "user" | "system";
+  enText: string;
+  koText: string | null;
+}
+
 export interface MeetingSession {
   id: number;
   startedAt: Date;
@@ -8,6 +18,7 @@ export interface MeetingSession {
   title: string;
   preview: string;
   stats: CaptureStats;
+  transcript: SavedUtterance[]; // 녹화 종료 시 snapshot
 }
 
 export function formatDuration(sec: number): string {
