@@ -1,5 +1,3 @@
-/* Sidebar — 240px, paper-2 bg, rule right border */
-
 .sidebar {
   width: 240px;
   height: 100vh;
@@ -7,32 +5,48 @@
   border-right: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
-  padding: var(--s-6) var(--s-5);
-  gap: 0;
   overflow: hidden;
   flex-shrink: 0;
 }
 
-.logo {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: var(--tracking-tight);
-  color: var(--ink);
-  margin: 0 0 var(--s-2) 0;
+.brand {
+  padding: 16px 18px 8px;
 }
 
-.epigraph {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 11px;
+.logo {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.brandEyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
   color: var(--ink-4);
-  margin: 0 0 var(--s-6) 0;
-  line-height: 1.5;
+  margin-top: 4px;
 }
 
 .modeRow {
-  margin-bottom: var(--s-4);
+  padding: 4px 14px 12px;
+}
+
+.modeRow > * {
+  width: 100%;
+  display: flex;
+}
+
+.modeRow > * > button {
+  flex: 1;
+}
+
+.navScroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 8px;
 }
 
 .settingsBtn {
@@ -40,74 +54,56 @@
   align-items: center;
   gap: var(--s-2);
   background: transparent;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--r-sm);
   color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: var(--t-xs);
   letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  padding: 6px 8px;
-  cursor: pointer;
-  transition: color 100ms ease, border-color 100ms ease;
-  margin-bottom: var(--s-5);
+  padding: 8px 18px;
+  cursor: default;
+  margin: 0 8px 8px;
+  text-align: left;
 }
+
 .settingsBtn:hover {
   color: var(--ink);
-  border-color: var(--rule);
+  background: var(--paper-3);
 }
 
-.divider {
-  height: 1px;
-  background: var(--rule);
-  border: 0;
-  margin: 0 0 var(--s-5) 0;
-}
-
-.statusBlock {
+.footer {
+  padding: 14px 18px 16px;
+  border-top: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 6px;
 }
 
-.statusLabel {
-  font-family: var(--font-mono);
-  font-size: var(--t-xs);
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--ink-4);
-  margin: 0 0 var(--s-2) 0;
-}
-
-.statusRow {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
-}
-
-.statusDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ink-5);
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.statusDot[data-recording="true"] {
-  background: var(--rec);
-}
-
-.statusText {
+.footerText {
   font-family: var(--font-mono);
   font-size: var(--t-xs);
   color: var(--ink-3);
-  margin: 0;
 }
 
-.statusStat {
+.footerMeta {
   font-family: var(--font-mono);
-  font-size: var(--t-xs);
+  font-size: 10px;
   color: var(--ink-4);
-  margin: 0;
+  letter-spacing: var(--tracking-wide);
+}
+
+.footerRec {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: 4px;
+}
+
+.footerRecText {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--rec);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
 }

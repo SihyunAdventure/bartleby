@@ -13,7 +13,5 @@
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  padding: var(--s-6);
-  gap: var(--s-4);
   background: var(--paper);
 }

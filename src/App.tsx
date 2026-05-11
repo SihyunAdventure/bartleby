@@ -6,6 +6,7 @@ import Segmented from "./components/Segmented";
 import Meeting from "./meeting/Meeting";
 import { loadPrefs, listenToPrefs, setPref, type AppMode, type CaptionMode } from "./settings/prefs";
 import type { CaptureStats } from "./types/capture";
+import type { MeetingSession } from "./meeting/types";
 import "./App.css";
 
 const Gallery = lazy(() => import("./gallery/Gallery"));
@@ -249,6 +250,8 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [keysMissing, setKeysMissing] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>(() => loadPrefs().app_mode);
+  const [sessions, setSessions] = useState<MeetingSession[]>([]);
+  const keysOk = !keysMissing;
 
   useEffect(() => {
     const unlistenPromise = listenToPrefs((p) => {
@@ -425,6 +428,9 @@ function App() {
           setCaptureRunning={setCaptureRunning}
           lastStats={lastStats}
           setLastStats={setLastStats}
+          sessions={sessions}
+          setSessions={setSessions}
+          keysOk={keysOk}
         />
       ) : (
         watchShell
