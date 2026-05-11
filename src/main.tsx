@@ -5,6 +5,7 @@ import ReactDOM from "react-dom/client";
 // over tokens.css's `body { background: var(--bg-page) }`.
 import "./styles/fonts.css";
 import "./styles/tokens.css";
+import "./styles/components.css";
 import App from "./App";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
