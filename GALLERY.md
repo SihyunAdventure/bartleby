@@ -28,13 +28,11 @@ PRINCIPLES.md §2.2 가 가리키는 19 섹션 전체 매핑.
 | 11 | Applied screens | **ship** | app.jsx | ⏳ | — | AppliedScreens — `/library` + `/live` 라우트 = 같은 컴포넌트 재사용 |
 | 12 | App icon | polish | app.jsx | ⏳ | — | AppIcon — Phase 6 |
 | 13 | Marketing | polish | app.jsx | ⏳ | — | Marketing — §18 reframe 시점에 통합 결정 |
-| 14 | WatchOverlay | **ship** | design-system-extensions/overlay.md | ⏳ | — | Phase 2 핵심. Watch mode 의 floating caption window |
-| 15 | Mode Switch | **ship** | design-system-extensions/mode-switch.md | ⏳ | — | Sidebar 상단 Watch/Meeting 전환 widget |
 | 16 | Settings UI | **ship** | design-system-extensions/settings.md | ⏳ | — | BYOK key 입력해야 v1 작동 — ship 필수. 5 탭 (Keys/Modes/Storage/Shortcuts/About) |
 | 17 | Permission Lifecycle | **ship** | design-system-extensions/permission.md | ⏳ | — | Mic/Screen Recording 권한 요청·거부·복구 flow |
 | 18 | Marketing Hero — Watch reframe | polish | design-system-extensions/marketing-hero.md | ⏳ | — | §13 Marketing 의 reframe — Phase 6 시점 결정 |
 
-**Gate 합계**: ship **12** + polish **7** = 19 ✅
+**Gate 합계**: ship **10** + polish **7** = 17 ✅ (§14 WatchOverlay · §15 ModeSwitch 제거 — Watch 모드 삭제로 dead reference)
 
 ---
 
