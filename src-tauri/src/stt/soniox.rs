@@ -228,6 +228,13 @@ pub async fn run_session(
                         // leftover partial after finals committed.
                         let partial_is_empty = partial_text.is_empty();
                         if !partial_is_empty || !last_partial_was_empty {
+                            if !partial_is_empty {
+                                println!(
+                                    "[stt partial] chars={} preview={:?}",
+                                    partial_text.chars().count(),
+                                    partial_text.chars().take(40).collect::<String>()
+                                );
+                            }
                             let _ = app_for_reader.emit(
                                 "stt_partial",
                                 SttPartial {

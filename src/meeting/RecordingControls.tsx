@@ -8,6 +8,10 @@ interface Props {
   onStart: () => void;
   onStop: (stats: CaptureStats) => void;
   onError: (msg: string) => void;
+  /** Fires synchronously the moment the Stop button is clicked, *before* we
+   *  await backend stop_capture. Lets the parent freeze its STT listeners so
+   *  in-flight finals delivered during the ~1s teardown can't mutate state. */
+  onStopClick?: () => void;
 }
 
 export default function RecordingControls({
@@ -15,6 +19,7 @@ export default function RecordingControls({
   onStart,
   onStop,
   onError,
+  onStopClick,
 }: Props) {
   const handleStart = async () => {
     try {
@@ -29,6 +34,7 @@ export default function RecordingControls({
   };
 
   const handleStop = async () => {
+    onStopClick?.();
     try {
       const stats = await invoke<CaptureStats>("stop_capture");
       onStop(stats);

@@ -164,6 +164,7 @@ impl SCStreamOutputTrait for SystemAudioSink {
 struct MicrophoneSink {
     accumulator: Arc<Mutex<AudioAccumulator>>,
     sample_tx: std::sync::mpsc::Sender<Vec<f32>>,
+    stt_sender: Option<std::sync::mpsc::Sender<Vec<f32>>>,
 }
 
 impl SCStreamOutputTrait for MicrophoneSink {
@@ -171,7 +172,14 @@ impl SCStreamOutputTrait for MicrophoneSink {
         if output_type != SCStreamOutputType::Microphone {
             return;
         }
-        route_audio_buffer(&self.accumulator, &self.sample_tx, None, None, sample, "mic");
+        route_audio_buffer(
+            &self.accumulator,
+            &self.sample_tx,
+            self.stt_sender.as_ref(),
+            None,
+            sample,
+            "mic",
+        );
     }
 }
 
@@ -279,6 +287,11 @@ pub fn capture_dual_to_opus(
         .with_excluding_windows(&[])
         .build();
 
+    // Phase 5 — SCKit mic re-enabled now that we sign with a stable Developer
+    // ID + hardened runtime + audio-input entitlement. cpal's CoreAudio
+    // backend kept handing back silent samples under this signing setup even
+    // after AVCaptureDevice granted access, while SCKit's mic path honours
+    // the hardware mic correctly when the bundle is properly signed.
     let config = SCStreamConfiguration::new()
         .with_width(2)
         .with_height(2)
@@ -295,6 +308,19 @@ pub fn capture_dual_to_opus(
     let mic_accumulator = Arc::new(Mutex::new(AudioAccumulator::new()));
     let drm_detector = Arc::new(Mutex::new(DrmDetector::new()));
 
+    // CRITICAL: do NOT fan-out mic into the STT sender. Both sys + mic on one
+    // mpsc channel feed a single Soniox WebSocket, which treats the merged
+    // stream as a 2x-rate timeline with silence interleaved into speech —
+    // endpointing degrades, finals come ~7s late. The advisor flagged this
+    // after we noticed the meeting test was fast (mic silent-failed under
+    // SCKit, STT saw sys only) but the YouTube test went slow (cpal actually
+    // delivered mic buffers and contaminated the timeline). The proper fix is
+    // a second STT session dedicated to mic — deferred until basic mic capture
+    // is working.
+    // Mic-side STT fan-out stays off for now — see Phase 5 S0 note. Once mic
+    // capture is verified working, a dedicated mic STT session (separate
+    // WebSocket) will subscribe to mic samples.
+    let mic_stt_sender: Option<std::sync::mpsc::Sender<Vec<f32>>> = None;
     let sys_sink = SystemAudioSink {
         accumulator: Arc::clone(&sys_accumulator),
         sample_tx: sys_tx,
@@ -303,7 +329,8 @@ pub fn capture_dual_to_opus(
     };
     let mic_sink = MicrophoneSink {
         accumulator: Arc::clone(&mic_accumulator),
-        sample_tx: mic_tx,
+        sample_tx: mic_tx.clone(),
+        stt_sender: mic_stt_sender.clone(),
     };
 
     // ---- 4. Spawn encoder workers before starting the stream ------------
@@ -364,6 +391,13 @@ pub fn capture_dual_to_opus(
         .start_capture()
         .context("Failed to start SCStream capture")?;
 
+    // cpal mic path is disabled while SCKit's signed-bundle mic path is the
+    // primary capture. Kept around for fallback experiments.
+    let mic_cpal_stop = Arc::new(AtomicBool::new(false));
+    let mic_stream: Option<super::mic::MicStream> = None;
+    let _ = &mic_tx; // keep `mic_tx` from being moved before SCKit owns it
+    let _ = &mic_stt_sender;
+
     match max_seconds {
         Some(s) => println!("Bartleby is listening for up to {} seconds...", s),
         None => println!("Bartleby is listening until stopped..."),
@@ -390,17 +424,17 @@ pub fn capture_dual_to_opus(
     // Signal RSS sampler + DRM emit thread to stop (before joining workers).
     rss_stop.store(true, Ordering::Relaxed);
     drm_emit_stop.store(true, Ordering::Relaxed);
+    mic_cpal_stop.store(true, Ordering::Relaxed);
 
     println!("Bartleby has finished listening.");
 
     // ---- 6. Drop senders so workers' recv() loop terminates -------------
-    // The sinks are owned by the stream; drop them explicitly via block scope
-    // by letting the stream go out of scope.  But we need the accumulators
-    // still alive for drift analysis, so we hold Arc refs separately (already done).
-    //
-    // The senders were moved into the sinks which are inside the stream.
-    // When the stream is dropped the sinks are dropped and the senders close.
+    // SCKit: dropping `stream` drops `sys_sink` and its `sys_tx` / `stt_sender`.
+    // cpal: dropping `mic_stream` ends the input stream and drops the callback
+    //       closure, which owns `mic_tx` and the cloned `stt_sender`. Both
+    //       encoder workers + the STT bridge thread then exit their recv loops.
     drop(stream);
+    drop(mic_stream);
 
     // ---- 7. Join workers and collect stats -------------------------------
     let sys_enc: EncodingStats = sys_worker

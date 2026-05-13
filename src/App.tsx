@@ -6,13 +6,17 @@ import type { CaptureStats } from "./types/capture";
 import type { MeetingSession } from "./meeting/types";
 import "./App.css";
 
-const SESSIONS_STORAGE_KEY = "bartleby.sessions.v1";
+const SESSIONS_STORAGE_KEY_V1 = "bartleby.sessions.v1";
+const SESSIONS_STORAGE_KEY = "bartleby.sessions.v2";
 
-// Restore sessions from localStorage. Date 필드는 JSON 직렬화 후 string 이 되므로
-// new Date(s) 로 다시 hydrate. parse 또는 schema 오류 시 빈 배열 반환 (graceful).
+// Phase 5 S3 — v2 introduces an optional `finalSummary` field. Old v1
+// sessions get hydrated without it; SessionDetail surfaces a "Regenerate"
+// button when finalSummary is absent. v1 key is consumed once and cleared.
 function loadSessions(): MeetingSession[] {
   try {
-    const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    const rawV2 = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    const rawV1 = localStorage.getItem(SESSIONS_STORAGE_KEY_V1);
+    const raw = rawV2 ?? rawV1;
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Array<
       Omit<MeetingSession, "startedAt" | "endedAt"> & {
@@ -20,13 +24,18 @@ function loadSessions(): MeetingSession[] {
         endedAt: string;
       }
     >;
-    return parsed.map((s) => ({
+    const hydrated = parsed.map((s) => ({
       ...s,
       startedAt: new Date(s.startedAt),
       endedAt: new Date(s.endedAt),
-      // 이전 버전에는 transcript 필드가 없을 수 있어 backfill
       transcript: s.transcript ?? [],
     }));
+    // Migrate v1 → v2 once and retire the old key.
+    if (!rawV2 && rawV1) {
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(hydrated));
+      localStorage.removeItem(SESSIONS_STORAGE_KEY_V1);
+    }
+    return hydrated;
   } catch (e) {
     console.warn("[sessions] load failed:", e);
     return [];

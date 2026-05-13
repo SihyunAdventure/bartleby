@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import TranscriptView from "./TranscriptView";
 import RecordingControls from "./RecordingControls";
-import SummaryPanel from "./SummaryPanel";
 import type { CaptureStats } from "../types/capture";
 import type { SavedUtterance } from "./types";
+import type { PartialEntry } from "./Meeting";
 import styles from "./Recording.module.css";
 
 interface Props {
@@ -12,8 +12,9 @@ interface Props {
   onStart: () => void;
   onStop: (stats: CaptureStats) => void;
   onError: (msg: string) => void;
-  clearToken: number;
+  onStopClick?: () => void;
   utterances: SavedUtterance[];
+  partial: PartialEntry | null;
 }
 
 function formatElapsed(ms: number): string {
@@ -32,8 +33,9 @@ export default function Recording({
   onStart,
   onStop,
   onError,
-  clearToken,
+  onStopClick,
   utterances,
+  partial,
 }: Props) {
   const [, setTick] = useState(0);
 
@@ -69,12 +71,8 @@ export default function Recording({
       <hr className="hr" />
       <div className={styles.bodyGrid}>
         <div className={styles.transcriptCol}>
-          <TranscriptView utterances={utterances} />
+          <TranscriptView utterances={utterances} partial={partial} />
         </div>
-        <SummaryPanel
-          captureRunning={captureRunning}
-          clearToken={clearToken}
-        />
       </div>
       <div className={styles.footerControls}>
         <RecordingControls
@@ -82,6 +80,7 @@ export default function Recording({
           onStart={onStart}
           onStop={onStop}
           onError={onError}
+          onStopClick={onStopClick}
         />
       </div>
     </div>

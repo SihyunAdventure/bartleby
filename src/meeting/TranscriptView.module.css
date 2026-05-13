@@ -101,3 +101,38 @@
   line-height: 1.5;
   margin: 0;
 }
+
+/* In-flight STT partial — italic, dimmed, settles into a real row when
+   Soniox emits stt_final. */
+.partial .enText {
+  font-style: italic;
+  color: var(--ink-4);
+  opacity: 0.7;
+}
+
+.partial .time {
+  opacity: 0.55;
+}
+
+.partial .speakerPill {
+  opacity: 0.6;
+}
+
+/* `pending`: a row whose final text hasn't closed a sentence yet. Held in
+   the dim italic style until punctuation lands — black only appears once
+   the sentence actually finishes. */
+.pending .enText {
+  font-style: italic;
+  color: var(--ink-4);
+  opacity: 0.85;
+}
+
+/* `partialTail`: the live Soniox partial inlined at the end of the current
+   pending row. Slightly more dimmed than the row body so the eye can still
+   tell it's in-flight. Same line, no separate ghost row — keeps the row
+   count stable while the user speaks. */
+.partialTail {
+  font-style: italic;
+  color: var(--ink-5);
+  opacity: 0.75;
+}

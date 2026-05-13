@@ -16,6 +16,7 @@
 //! ≈ $0.10/h. Drops further once the system prompt hits Upstage's
 //! cached-input tier ($0.015/M).
 
+pub mod finalize;
 pub mod upstage;
 
 use std::sync::atomic::{AtomicBool, Ordering};

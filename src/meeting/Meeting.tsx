@@ -13,6 +13,16 @@ interface SttFinalPayload {
   language: string | null;
 }
 
+interface SttPartialPayload {
+  text: string;
+  language: string | null;
+}
+
+export interface PartialEntry {
+  text: string;
+  speaker: "user" | "system";
+}
+
 interface TranslationFinalPayload {
   original: string;
   translation: string;
@@ -51,16 +61,24 @@ export default function Meeting({
   keysOk,
 }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [clearToken, setClearToken] = useState(0);
   const [view, setView] = useState<"library" | "recording" | "detail">("library");
   const [recordingStart, setRecordingStart] = useState<Date | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
 
   // utterances: lifted from TranscriptView so handleStop can snapshot them
   const [utterances, setUtterances] = useState<SavedUtterance[]>([]);
+  // partial: in-flight STT before endpointing. Renders as a ghost row in
+  // TranscriptView (italic + opacity) so users see live token flow instead
+  // of waiting ~7s for Soniox to finalise the utterance.
+  const [partial, setPartial] = useState<PartialEntry | null>(null);
   const idRef = useRef(0);
   // lastFinalAt: for merge-gap check (Fix 3)
   const lastFinalAtRef = useRef<Date | null>(null);
+  // frozenRef: set true on Stop click — listeners ignore any in-flight finals
+  // delivered while backend stop_capture is still wrapping up. Without this
+  // the SessionDetail snapshot diverges from the live view (extra rows /
+  // longer rows from STT continuing for ~1s after Stop).
+  const frozenRef = useRef(false);
 
   // stt_final + translation_final listeners — only active while recording
   useEffect(() => {
@@ -75,14 +93,36 @@ export default function Meeting({
       [...pendingTranslation.values()].reduce((s, q) => s + q.length, 0);
 
     const subs = [
+      listen<SttPartialPayload>("stt_partial", (event) => {
+        if (frozenRef.current) return;
+        const { text, language } = event.payload;
+        if (!text) {
+          setPartial(null);
+          return;
+        }
+        const speaker: "user" | "system" = language === "ko" ? "user" : "system";
+        setPartial({ text, speaker });
+      }),
+
       listen<SttFinalPayload>("stt_final", (event) => {
+        if (frozenRef.current) return;
         const { text, language } = event.payload;
         const speaker: "user" | "system" = language === "ko" ? "user" : "system";
-        const id = ++idRef.current;
         const now = new Date();
         const nowStr = formatTimeWithSec(now);
+        setPartial(null);
 
-        // Evict oldest entry when cap exceeded
+        // Sentence-split the incoming final. Soniox often delivers a single
+        // final that spans multiple sentences ("...should I walk? And the
+        // state-of-the-art models..."); without splitting, the row ends mid-
+        // monologue and chunking merge can't recover the boundary later.
+        // lookbehind on .?! followed by whitespace.
+        const parts = text
+          .split(/(?<=[.?!])\s+/)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+        if (parts.length === 0) return;
+
         if (pendingTotal() >= 50) {
           const firstKey = pendingTranslation.keys().next().value;
           if (firstKey !== undefined) {
@@ -92,56 +132,63 @@ export default function Meeting({
           }
         }
 
+        let lastNewId = idRef.current;
         setUtterances((prev) => {
-          const last = prev[prev.length - 1];
-          const gapMs = lastFinalAtRef.current
-            ? now.getTime() - lastFinalAtRef.current.getTime()
-            : Infinity;
-
-          // Fix 3 v2 — Sentence-boundary aware merge.
-          // 직전 row 가 punctuation [.?!] 로 끝났으면 sentence 종료 — 새 row.
-          // 그 외엔 동일 speaker + 3s gap + 250자 미만일 때만 merge.
-          // 사용자 Day 22b dogfood: "영어랑 한국어랑 양이 다른데?" — 한 row 가
-          // 너무 길어지면서 KO/EN 누적 length mismatch 시각적 두드러짐.
-          // sentence boundary 가 자연 split point, cap 도 절반으로 (500→250).
-          const endsWithSentence = last
-            ? /[.?!]\s*$/.test(last.enText)
-            : false;
-          const shouldMerge =
-            last &&
-            last.speaker === speaker &&
-            !endsWithSentence &&
-            gapMs < 3000 &&
-            last.enText.length + text.length < 250;
-
-          let next: SavedUtterance[];
-          if (shouldMerge) {
-            // 직전 utterance 에 append — row 는 새로 만들지 않음
-            next = prev.slice(0, -1);
-            next.push({ ...last, enText: `${last.enText} ${text}`.trim() });
-            // 새 text 도 last.id 로 매핑: translation_final 이 오면 올바른 row 에 반영
-            // NOTE: old last.enText key 는 그대로 두어 먼저 온 번역은 first-chunk 번역으로
-            // koText 에 기록됨. koText 가 한 번 set 되면 이후 merge 가 차단되므로 허용 가능.
-            const q = pendingTranslation.get(text) ?? [];
-            q.push(last.id);
-            pendingTranslation.set(text, q);
-          } else {
-            next = [
-              ...prev,
-              { id, time: nowStr, speaker, enText: text, koText: null },
-            ];
-            const q = pendingTranslation.get(text) ?? [];
-            q.push(id);
-            pendingTranslation.set(text, q);
+          const next: SavedUtterance[] = [...prev];
+          for (const part of parts) {
+            const last = next[next.length - 1];
+            const gapMs = lastFinalAtRef.current
+              ? now.getTime() - lastFinalAtRef.current.getTime()
+              : Infinity;
+            const lastEndsSentence = last
+              ? /[.?!]["')\]]?\s*$/.test(last.enText)
+              : false;
+            // Cap removed: sentence boundary is now the only structural split
+            // inside same speaker / same conversation window. Speaker change
+            // and 3s gap still force a new row. Lets a monologue stay on one
+            // row until punctuation arrives.
+            const shouldMerge =
+              !!last &&
+              last.speaker === speaker &&
+              !lastEndsSentence &&
+              gapMs < 3000;
+            if (shouldMerge && last) {
+              next[next.length - 1] = {
+                ...last,
+                enText: `${last.enText} ${part}`.trim(),
+              };
+              lastNewId = last.id;
+            } else {
+              const id = ++idRef.current;
+              next.push({
+                id,
+                time: nowStr,
+                speaker,
+                enText: part,
+                koText: null,
+              });
+              lastNewId = id;
+            }
           }
-
-          return next.length > MAX_UTTERANCES ? next.slice(-MAX_UTTERANCES) : next;
+          return next.length > MAX_UTTERANCES
+            ? next.slice(-MAX_UTTERANCES)
+            : next;
         });
+
+        // Best-effort translation mapping: pair the entire incoming text with
+        // the most recently touched row. translation_final carries the full
+        // EN text as `original`, so this works for single-sentence finals and
+        // degrades gracefully for multi-sentence ones (KO lands on the last
+        // row only — acceptable while translate toggle is default-off).
+        const q = pendingTranslation.get(text) ?? [];
+        q.push(lastNewId);
+        pendingTranslation.set(text, q);
 
         lastFinalAtRef.current = now;
       }),
 
       listen<TranslationFinalPayload>("translation_final", (event) => {
+        if (frozenRef.current) return;
         const { original, translation } = event.payload;
         const q = pendingTranslation.get(original);
         if (!q?.length) return;
@@ -172,17 +219,24 @@ export default function Meeting({
 
   const handleStartRecord = () => {
     setView("recording");
-    setRecordingStart(new Date());
+    // Don't set recordingStart here — the user may dwell on the Recording
+    // screen for a few seconds before actually clicking Start. recordingStart
+    // is set in onStart below, the moment backend start_capture returns.
+    setRecordingStart(null);
     setErrorMsg(null);
     setUtterances([]);
+    setPartial(null);
     lastFinalAtRef.current = null;
-    setClearToken((t) => t + 1);
-    // Don't call setCaptureRunning here — RecordingControls's Start
-    // button still owns the actual invoke('start_capture') call.
+    frozenRef.current = false;
   };
 
   const handleStop = (stats: CaptureStats) => {
-    setErrorMsg(null); // Fix 2 — errorMsg 잔존 방지
+    // Freeze immediately so any in-flight stt_final / translation_final
+    // arriving while backend stop_capture wraps up cannot mutate state.
+    // This keeps the SessionDetail snapshot identical to the live view at
+    // the moment of Stop.
+    frozenRef.current = true;
+    setErrorMsg(null);
     setCaptureRunning(false);
     setLastStats(stats);
     const endedAt = new Date();
@@ -191,9 +245,23 @@ export default function Meeting({
       1,
       Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000)
     );
-    // utterances 는 현재 render 의 state — setUtterances functional update 와
-    // 달리 handleStop closure 는 최신 render 의 utterances 를 직접 읽음.
-    // handleStop 이 memoized 되지 않으므로 매 render 마다 최신값 capture.
+
+    // If a partial ghost was visible at Stop, commit it as a final row so
+    // the saved transcript visually matches the live screen.
+    let finalUtterances = utterances;
+    if (partial && partial.text.length > 0) {
+      finalUtterances = [
+        ...utterances,
+        {
+          id: ++idRef.current,
+          time: formatTimeWithSec(endedAt),
+          speaker: partial.speaker,
+          enText: partial.text,
+          koText: null,
+        },
+      ];
+    }
+
     const newSession: MeetingSession = {
       id: Date.now(),
       startedAt,
@@ -201,13 +269,17 @@ export default function Meeting({
       durationSec,
       title: `Meeting · ${formatTime(startedAt)}`,
       preview:
-        utterances[0]?.enText?.slice(0, 80) ??
+        finalUtterances[0]?.enText?.slice(0, 80) ??
         "Bartleby would prefer not to summarise yet.",
       stats,
-      transcript: [...utterances], // snapshot
+      transcript: finalUtterances,
     };
     setSessions([...sessions, newSession]);
-    setView("library");
+    // Phase 5 S3 — go directly to SessionDetail. The user just clicked Stop;
+    // making them then click their freshly-made session from Library is
+    // friction. SessionDetail handles the "Bartleby is finalising…" state.
+    setSelectedSessionId(newSession.id);
+    setView("detail");
     setRecordingStart(null);
   };
 
@@ -242,20 +314,52 @@ export default function Meeting({
           <Recording
             captureRunning={captureRunning}
             recordingStart={recordingStart}
-            onStart={() => setCaptureRunning(true)}
+            onStart={() => {
+              setCaptureRunning(true);
+              setRecordingStart(new Date());
+            }}
             onStop={handleStop}
             onError={(msg) => {
               setCaptureRunning(false);
               setErrorMsg(msg);
               setView("library");
             }}
-            clearToken={clearToken}
+            onStopClick={() => {
+              // Fires synchronously on Stop button click, before the ~1s
+              // backend stop_capture await. Freeze first so any in-flight
+              // finals are ignored, then commit the current partial as a
+              // real row so the live view's last utterance lands in the
+              // saved transcript.
+              frozenRef.current = true;
+              if (partial && partial.text.length > 0) {
+                const id = ++idRef.current;
+                const now = new Date();
+                const nowStr = formatTimeWithSec(now);
+                setUtterances((prev) => [
+                  ...prev,
+                  {
+                    id,
+                    time: nowStr,
+                    speaker: partial.speaker,
+                    enText: partial.text,
+                    koText: null,
+                  },
+                ]);
+                setPartial(null);
+              }
+            }}
             utterances={utterances}
+            partial={partial}
           />
         ) : (
           <SessionDetail
             session={sessions.find((s) => s.id === selectedSessionId)!}
             onBack={handleBackToLibrary}
+            onSessionUpdate={(updated) =>
+              setSessions(
+                sessions.map((s) => (s.id === updated.id ? updated : s))
+              )
+            }
           />
         )}
         {errorMsg && (

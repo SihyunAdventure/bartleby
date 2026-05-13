@@ -101,14 +101,13 @@ fn spawn_capture(
         _ => (None, None),
     };
 
-    // Summary subscribes to stt_final events directly via the event bus
-    // (independent of the translator channel), so it gets its own session
-    // gated on the same key pair. The Meeting SummaryPanel listens to its
-    // emitted `summary_update` events.
-    let summary_session = match (&stt_key, &upstage_key) {
-        (Some(_), Some(up_key)) => Some(summary::start(up_key.clone(), app.clone())),
-        _ => None,
-    };
+    // Phase 5 S1 — Live 30s summary tick disabled. The live SummaryPanel was
+    // removed (advisor + Hyprnote precedent: meeting info value comes from
+    // *finalize-only* enhance, not from a streaming "working title" theatre).
+    // `summary` module is kept for the upcoming Phase 5 S2 `finalize.rs` —
+    // a single batch call on Stop replaces the 30s tick.
+    let _ = &upstage_key;
+    let summary_session: Option<summary::SummarySession> = None;
 
     let (stt_sender, stt_session) = match stt_key {
         Some(key) => {
@@ -305,8 +304,64 @@ async fn verify_api_key(name: String, value: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+async fn finalize_session(
+    transcript: Vec<summary::finalize::InputUtterance>,
+) -> Result<summary::finalize::FinalizeResult, String> {
+    let api_key =
+        resolve_key("UPSTAGE_API_KEY").ok_or_else(|| "UPSTAGE_API_KEY not set".to_string())?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("http client: {e}"))?;
+    summary::finalize::finalize_session(&client, &api_key, &transcript).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+fn init_file_logging() {
+    use std::os::unix::io::AsRawFd;
+    if std::env::var("RUST_BACKTRACE").is_err() {
+        std::env::set_var("RUST_BACKTRACE", "full");
+    }
+    let Some(home) = std::env::var_os("HOME") else {
+        return;
+    };
+    let log_dir = std::path::PathBuf::from(home).join("Library/Logs/Bartleby");
+    if std::fs::create_dir_all(&log_dir).is_err() {
+        return;
+    }
+    let log_path = log_dir.join("debug.log");
+    let Ok(file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    else {
+        return;
+    };
+    let fd = file.as_raw_fd();
+    unsafe {
+        libc::dup2(fd, libc::STDOUT_FILENO);
+        libc::dup2(fd, libc::STDERR_FILENO);
+    }
+    std::mem::forget(file);
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    println!("\n=== Bartleby session @ unix_ts={ts} pid={} ===", std::process::id());
+    eprintln!("[log] → {}", log_path.display());
+    std::panic::set_hook(Box::new(|info| {
+        let bt = std::backtrace::Backtrace::force_capture();
+        eprintln!("\n[PANIC] {info}\n[BACKTRACE]\n{bt}\n");
+    }));
+}
+
 pub fn run() {
+    init_file_logging();
+    // Phase 5 mic — force a macOS TCC mic prompt. cpal opens the input
+    // stream without going through AVFoundation, so without this call
+    // macOS silently hands cpal an empty stream and never asks the user.
+    capture::permission::request_microphone_access();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -389,7 +444,8 @@ pub fn run() {
             api_key_status,
             save_api_key,
             clear_api_key,
-            verify_api_key
+            verify_api_key,
+            finalize_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

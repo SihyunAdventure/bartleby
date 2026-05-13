@@ -59,7 +59,14 @@ impl Resampler {
 
         // Drop everything before cursor floor so src_buf doesn't grow without
         // bound. Adjust cursor to its new fractional position.
-        let drop_n = self.cursor as usize;
+        //
+        // Clamp to src_buf.len(): with RATIO=3.0 the cursor can overshoot the
+        // buffer by 1–2 samples on the last push (idx+1 == len breaks the loop
+        // *after* cursor += RATIO already moved past len). Without the clamp
+        // `drain(0..drop_n)` panics when drop_n > len. cpal's 512-frame mic
+        // buffers triggered this; SCKit's 480-frame buffers happened to be
+        // multiples of 3 and never tripped it.
+        let drop_n = (self.cursor as usize).min(self.src_buf.len());
         if drop_n > 0 {
             self.src_buf.drain(0..drop_n);
             self.cursor -= drop_n as f64;
