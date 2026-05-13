@@ -33,6 +33,11 @@ mkdir -p "$HOME/Library/Logs/Bartleby"
 echo "→ pnpm tauri build --debug"
 ( cd "$REPO_ROOT" && pnpm tauri build --debug ) 2>&1 | tail -8
 
+echo "→ swiftc bartleby-mic sidecar"
+swiftc -O \
+  "$REPO_ROOT/src-tauri/swift/bartleby-mic.swift" \
+  -o "$APP/Contents/MacOS/bartleby-mic"
+
 echo "→ codesign (stable Developer ID, hardened runtime)"
 codesign --force --deep \
   --sign "$SIGN_IDENTITY" \

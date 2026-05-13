@@ -5,6 +5,9 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Bartleby listens to your microphone during meeting capture so it can transcribe and summarize the conversation.</string>
 
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Bartleby captures microphone audio during meeting capture so it can transcribe and summarize what you say.</string>
+
     <key>NSScreenCaptureUsageDescription</key>
     <string>Bartleby captures system audio (and a 2x2 placeholder video frame) so it can transcribe what you are watching or listening to.</string>
 

@@ -287,16 +287,15 @@ pub fn capture_dual_to_opus(
         .with_excluding_windows(&[])
         .build();
 
-    // Phase 5 — SCKit mic re-enabled now that we sign with a stable Developer
-    // ID + hardened runtime + audio-input entitlement. cpal's CoreAudio
-    // backend kept handing back silent samples under this signing setup even
-    // after AVCaptureDevice granted access, while SCKit's mic path honours
-    // the hardware mic correctly when the bundle is properly signed.
+    // Phase 6 — `with_captures_microphone(false)`. SCKit's mic capture is
+    // silent on macOS 15.x but still claims the mic device, which routes the
+    // Swift AVAudioEngine sidecar to a silent reflection path. AVAudioEngine
+    // is the canonical mic source now; SCKit handles system audio only.
     let config = SCStreamConfiguration::new()
         .with_width(2)
         .with_height(2)
         .with_captures_audio(true)
-        .with_captures_microphone(true)
+        .with_captures_microphone(false)
         .with_sample_rate(SAMPLE_RATE as i32)
         .with_channel_count(i32::from(CHANNELS));
 
@@ -382,7 +381,28 @@ pub fn capture_dual_to_opus(
         }
     });
 
-    // ---- 5. Wire up sinks and start capture -----------------------------
+    // ---- 5a. Spawn mic sidecar BEFORE SCStream starts -------------------
+    // AVAudioEngine in the sidecar must claim audio device routing first.
+    // Reversed order (SCStream first) makes the sidecar receive silent
+    // reflection samples on macOS 15.x — empirically verified: standalone
+    // sidecar peaks at 0.3 while same sidecar under live SCStream peaks at
+    // ≈0.01. SCStream itself perturbs default-input routing regardless of
+    // with_captures_microphone(false).
+    let mic_cpal_stop = Arc::new(AtomicBool::new(false));
+    let mic_stream: Option<super::mic_avengine::MicEngineStream> =
+        match super::mic_avengine::start(
+            mic_tx.clone(),
+            mic_stt_sender.clone(),
+            mic_cpal_stop.clone(),
+        ) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                eprintln!("[mic engine] start failed: {e}");
+                None
+            }
+        };
+
+    // ---- 5b. Wire up SCStream sinks and start system audio capture ------
     let mut stream = SCStream::new(&filter, &config);
     stream.add_output_handler(sys_sink, SCStreamOutputType::Audio);
     stream.add_output_handler(mic_sink, SCStreamOutputType::Microphone);
@@ -390,13 +410,6 @@ pub fn capture_dual_to_opus(
     stream
         .start_capture()
         .context("Failed to start SCStream capture")?;
-
-    // cpal mic path is disabled while SCKit's signed-bundle mic path is the
-    // primary capture. Kept around for fallback experiments.
-    let mic_cpal_stop = Arc::new(AtomicBool::new(false));
-    let mic_stream: Option<super::mic::MicStream> = None;
-    let _ = &mic_tx; // keep `mic_tx` from being moved before SCKit owns it
-    let _ = &mic_stt_sender;
 
     match max_seconds {
         Some(s) => println!("Bartleby is listening for up to {} seconds...", s),
