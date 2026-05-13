@@ -1,15 +1,30 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-12 — **Phase 4.5 S6b + YouTube URL dub 분리 (Rehear sibling repo) ✅**.
-> Product 재정의: Watch+Overlay 분기 제거 → 단일 dock note taker (미팅 노트 only).
+> 마지막 세션: 2026-05-13 — **Phase 5 본진 ✅ (finalize-on-Stop 결과 페이지 본진 + dogfood polish 6종). Mic capture deferred to Phase 6.**
 > 단일 기능: Live recording 미팅 노트. YouTube URL dub 은 Rehear 별개 repo (`~/Dev/side/rehear/`) 로 분리됨.
 
 ---
 
-## 현재 상태 (Day 22 + Phase 4.5 cleanup ✅ 종료, 2026-05-12)
+## 다음 세션 진입점 (2026-05-13 EOD)
 
-> 다음 세션 진입점: **Bartleby Phase 5 — 한국어 미팅 1시간 통합 dogfood + persistence (SQLite). Rehear 의 YouTube dub 은 별개 repo.**
+> **Phase 6 S0 — Mic capture cheap try (Anarlog entitlements pattern, ~5분)**. Fail 시 **Phase 6 S1 — Swift sidecar + AVAudioEngine** (~3-5h, Anarlog 정공법).
+
+**왜 mic 가 핵심**: macOS 15.x 환경에서 cpal + SCKit 두 path 모두 silent samples. cpal silent samples 는 알려진 bug ([tauri#9928](https://github.com/tauri-apps/tauri/issues/9928), [cpal#329](https://github.com/RustAudio/cpal/issues/329)), SCKit `Microphone` callback 미호출도 macOS 15 알려진 issue ([pyobjc#647](https://github.com/ronaldoussoren/pyobjc/issues/647)). Developer ID + hardened runtime + entitlement + AVCaptureDevice grant 다 했어도 풀리지 않음 — Privacy → Microphone list 에 Bartleby 자체가 등장 안 함.
+
+**Phase 6 S0 (Linear SIH-1235)** — Anarlog (fastrepl/anarlog) 의 entitlements 와 일치시키기. 5분:
+- `src-tauri/entitlements.plist`: ADD `cs.allow-jit` + `cs.allow-unsigned-executable-memory`, REMOVE bogus `device.microphone` (Apple 의 실제 key 는 `device.audio-input` 만)
+- `src-tauri/Info.plist`: ADD `NSAudioCaptureUsageDescription`
+- Anarlog 가 cpal 으로 mic 잘 잡음, 우리 차이 = entitlements + plist key
+- 빌드 → tccutil reset → Recording Start → log peak 값이 발화 시 0.1+ 면 성공
+
+**Phase 6 S1 (Linear SIH-1236, S0 fail 시)** — Swift sidecar binary + AVAudioEngine.installTap. 별도 signed sidecar 가 TCC 의 separate bundle ID 로 entry 등록 + 정상 prompt 발생. stdout 으로 raw f32 LE pipe → Rust mpsc → 기존 Opus encoder pipeline.
+
+## 현재 상태 (Phase 5 본진 ✅ 종료, 2026-05-13)
+
+> 직전 (Phase 4.5 cleanup, Day 22) 시점의 진입점 = "Phase 5 한국어 미팅 dogfood + SQLite". Phase 5 가 실제로는 **dogfood 자체보다 결과 페이지 본진** 으로 변경 — finalize-on-Stop UX 가 dogfood 의 핵심이 됨. SQLite persistence 는 v1 release 시점으로 deferred (localStorage v2 로 충분 검증).
+
+### 누적 commits (main branch)
 
 ### 누적 commits (main branch)
 
@@ -1382,4 +1397,4 @@ Throwaway reference. 다시 살펴볼 일 거의 없음. 코드 복사 금지 (m
 
 ## 마지막 한 줄
 
-> "Bartleby 는 dock 에 산다. 영어든 한국어든 미팅을 녹음하면 한국어 transcript + summary 가 쌓이고, 한국어 번역도 토글로 켜고 끈다. 한국어 미팅엔 자동으로 KO transcribe, 영어 미팅엔 KO 자막. 세션은 localStorage 에 영구 저장되어 다시 듣고 다시 본다. **다음 세션: Phase 5 — 한국어 미팅 1시간 통합 dogfood + sqlite persistence. YouTube URL 더빙은 별개 sibling repo Rehear (`~/Dev/side/rehear/`) 에서 평행 progress.**"
+> "Bartleby 는 dock 에 산다. 영어든 한국어든 녹취를 멈추면 *Quote · TL;DR · Outline · One-pager · Transcript* 다섯 layer 가 단일 통합 view 로 정리된다 — Tiro 의 4-tab 보다 한 흐름으로 읽힘, Hyprnote 의 finalize-only 정신, Solar Pro 3 의 한국어 문어체 (-했음/-였다). Outline topic 클릭하면 그 시간으로 transcript 가 펼침. Outline / One-pager / Transcript 다 clipboard 로. **System audio 는 잘 잡힘. Mic 는 macOS 15.x 의 알려진 cpal/SCKit silent samples bug 로 보류 — 다음 세션 첫 step: Anarlog 의 entitlements 일치 (5분), fail 시 Swift sidecar + AVAudioEngine (~3-5h).**"
