@@ -1,6 +1,6 @@
 # Vercel project root is configured as web/.
-# Keep local Tauri build outputs, target/, node_modules/, and repo tooling out of CLI uploads.
-*
-!web/
-!web/**
-!.vercelignore
+# Upload the web folder, but keep local Tauri build outputs, target/, node_modules/, and repo tooling out of CLI uploads.
+/*
+!/web
+!/web/**
+!/.vercelignore
