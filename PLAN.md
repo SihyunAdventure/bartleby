@@ -66,7 +66,7 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 **기간**: Day 16
 
 **완료 내용**:
-- Solar Pro 3 via OpenRouter 한국어 번역 integration ✅
+- Upstage Solar Pro 3 direct API 한국어 번역 integration ✅
 - Streaming SSE 번역 (real-time token 스트리밍) ✅
 - Order-preserving translation pipeline (seq# 기반, out-of-order 방지) ✅
 - Batch translation (2-3 final STT events 묶어서 한 LLM call) ✅
@@ -83,8 +83,8 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 - Library view — 모든 미팅 노트 (날짜별, pin, 제목 편집) ✅
 - Recording session UI — 실시간 KO|EN split transcript, LIVE indicator, audio meter ✅
 - `SummaryPanel` — 종료 후 TL;DR + Decisions + Action Items + Key Quotes ✅
-- Solar Pro 3 batch summarize (전체 transcript → 구조화 요약) ✅
-- localStorage 세션 영구 보관 (앱 재시작 후 복구) ✅
+- Upstage Solar Pro 3 finalize-on-stop (전체 transcript → 구조화 노트) ✅
+- SQLite 세션 영구 보관 (앱 재시작 후 복구) ✅
 - `pendingTranslation` eviction + cross-mode capture state lift ✅
 
 **Phase 4 acceptance**: 한국어 미팅 요약이 Slack paste 수준.
@@ -143,13 +143,13 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 
 ---
 
-## Phase 7 — 다국어 + GPT-4o Realtime (future)
+## Phase 7 — 다국어 + realtime voice exploration (future, not public v1)
 
 **목표**: 영어 사용자 영어 미팅 transcribe + 음성 chat.
 
 **포함**:
 - 다국어 미팅 (영어 사용자 영어 미팅 — EN transcript only)
-- GPT-4o realtime API 으로 음성 chat (meeting Q&A 실시간)
+- realtime voice API 검토 (provider 미확정, public v1 surface 아님)
 
 **진입 시점**: PMF (waitlist 100+) 이후.
 
@@ -161,8 +161,9 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 |---|---|
 | Desktop | Tauri 2.0 + React + TS |
 | ScreenCaptureKit binding | `screencapturekit` crate v2.0 (svtlabs) |
-| STT | Soniox streaming (BYOK, EN/KO) |
-| 번역 / 요약 | Solar Pro 3 via OpenRouter (BYOK, 128K) |
+| STT | Soniox `stt-rt-v4` streaming (BYOK, EN/KO) |
+| 번역 / 요약 | Upstage `solar-pro3` direct API (BYOK) |
+| Local ML | 없음 — 공개 빌드에 model weights 번들/자동설치 금지 |
 | 최소 OS | macOS 15 Sequoia |
 | 저장 | 로컬 markdown (`sessions/{uuid}/`) |
 | 사용자 키 | macOS Keychain |
@@ -194,8 +195,8 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 
 | Risk | Probability | Mitigation |
 |---|---|---|
-| Soniox 정확도 부족 | 35% | OpenRouter 라 Whisper / 다른 provider swap |
-| Solar Pro 3 번역 품질 | 35% | Claude / Gemini 즉시 swap |
+| Soniox 정확도 부족 | 35% | 공개 surface 변경 없이 dogfood 데이터로 튜닝; provider swap 은 별도 결정 |
+| Solar Pro 3 번역 품질 | 35% | prompt/UX 개선 우선; fallback provider 는 public v1 이후 별도 결정 |
 | Apple Developer 승인 지연 | 20% | Day 1 신청, 1주 lead time |
 | Timeline slip | 40% | Phase 6/7 scope cut buffer |
 

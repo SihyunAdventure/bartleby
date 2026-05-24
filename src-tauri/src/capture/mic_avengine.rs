@@ -20,13 +20,26 @@ use anyhow::{Context, Result};
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
 const CHUNK_FRAMES: usize = 1024;
 const CHUNK_BYTES: usize = CHUNK_FRAMES * 4;
+/// Linear amplitude threshold above which we treat the system audio as
+/// "actively playing" and suppress the mic's STT fan-out to dodge acoustic
+/// crosstalk. 0.056 ≈ -25 dBFS — well below speech volume but well above
+/// the resting noise floor of a quiet room. Sys Opus capture and mic Opus
+/// capture both continue regardless; only the mic→STT fan-out is gated.
+const SYS_ACTIVE_THRESHOLD: f32 = 0.056;
+
+/// Envelope release coefficient applied to the sys-peak gate per chunk
+/// (≈21ms at 48kHz / 1024 frames). 0.92 decays to ~10% over ~250ms — long
+/// enough to bridge inter-word silences in conversational speech so the
+/// mic's STT stays muted across the whole turn, short enough that a real
+/// pause (>~500ms) releases the gate within a beat.
+const SYS_ENVELOPE_RELEASE: f32 = 0.92;
 
 pub struct MicEngineStream {
     child: Option<Child>,
@@ -48,6 +61,7 @@ impl Drop for MicEngineStream {
 pub fn start(
     sample_tx: Sender<Vec<f32>>,
     stt_sender: Option<Sender<Vec<f32>>>,
+    sys_peak_bits: Arc<AtomicU32>,
     stop: Arc<AtomicBool>,
 ) -> Result<MicEngineStream> {
     let sidecar = locate_sidecar()?;
@@ -67,6 +81,7 @@ pub fn start(
         let mut reader = BufReader::with_capacity(64 * 1024, stdout);
         let mut buf = vec![0u8; CHUNK_BYTES];
         let mut callback: u64 = 0;
+        let mut sys_envelope: f32 = 0.0;
 
         while !stop.load(Ordering::Relaxed) {
             if let Err(e) = reader.read_exact(&mut buf) {
@@ -95,8 +110,22 @@ pub fn start(
                 stereo.push(*s);
             }
 
-            if let Some(s) = &stt_sender {
-                let _ = s.send(stereo.clone());
+            // Phase 6 S4 — STT crosstalk gate with envelope follower.
+            // Instantaneous sys peak alone leaks during inter-word silences
+            // (sys peak briefly dips below threshold mid-sentence, gate
+            // releases, mic echo gets transcribed). Tracking an attack-fast
+            // / release-slow envelope holds the gate across short pauses
+            // so the whole sys turn is suppressed, releasing only when sys
+            // is truly silent for ~half a second. Opus capture is
+            // unaffected — only the live caption fan-out is gated.
+            let sys_peak = f32::from_bits(sys_peak_bits.load(Ordering::Relaxed));
+            sys_envelope = sys_peak.max(sys_envelope * SYS_ENVELOPE_RELEASE);
+            let gate_stt = sys_envelope > SYS_ACTIVE_THRESHOLD;
+
+            if !gate_stt {
+                if let Some(s) = &stt_sender {
+                    let _ = s.send(stereo.clone());
+                }
             }
             if sample_tx.send(stereo).is_err() {
                 break;

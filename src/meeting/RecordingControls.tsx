@@ -34,11 +34,15 @@ export default function RecordingControls({
   };
 
   const handleStop = async () => {
+    invoke("log_frontend", { msg: "RecordingControls.handleStop click" }).catch(() => {});
     onStopClick?.();
     try {
       const stats = await invoke<CaptureStats>("stop_capture");
+      invoke("log_frontend", { msg: `stop_capture returned, calling onStop` }).catch(() => {});
       onStop(stats);
+      invoke("log_frontend", { msg: `onStop returned` }).catch(() => {});
     } catch (err) {
+      invoke("log_frontend", { msg: `stop_capture or onStop threw: ${String(err)}` }).catch(() => {});
       onError(`Error: ${String(err)}`);
     }
   };

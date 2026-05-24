@@ -126,10 +126,7 @@ pub fn start(
             .build_input_stream(
                 &stream_config,
                 move |data: &[i16], _: &_| {
-                    let buf: Vec<f32> = data
-                        .iter()
-                        .map(|&s| s as f32 / i16::MAX as f32)
-                        .collect();
+                    let buf: Vec<f32> = data.iter().map(|&s| s as f32 / i16::MAX as f32).collect();
                     process(&buf);
                 },
                 err_fn,

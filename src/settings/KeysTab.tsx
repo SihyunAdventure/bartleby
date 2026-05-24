@@ -38,7 +38,7 @@ export default function KeysTab({ onChanged }: Props) {
       <KeyInput
         name="SONIOX_API_KEY"
         label="Soniox API Key"
-        helper="Used for STT (English/Korean transcription). ≈$0.12/hr at current pricing — confirm at sign-up."
+        helper="Speech-to-text: Soniox stt-rt-v4 realtime streaming. Required for EN/KO transcription."
         storedSource={soniox.source}
         onSaved={notify}
         onCleared={notify}
@@ -46,7 +46,7 @@ export default function KeysTab({ onChanged }: Props) {
       <KeyInput
         name="UPSTAGE_API_KEY"
         label="Upstage API Key"
-        helper="Used for Korean translation (Solar Pro 3). $0.15/M in, $0.60/M out — caching kicks in after first call."
+        helper="LLM: Upstage solar-pro3 direct API. Used for Korean translation and final notes; no OpenRouter/local model."
         storedSource={upstage.source}
         onSaved={notify}
         onCleared={notify}

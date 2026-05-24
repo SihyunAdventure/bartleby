@@ -1,26 +1,27 @@
 import styles from "./Sidebar.module.css";
 
+export type LibraryFilter = "all" | "today" | "week";
+
 interface Props {
   onOpenSettings: () => void;
   captureRunning: boolean;
-  recordingStart: Date | null;
   keysOk: boolean;
   sessionCount: number;
+  todayCount: number;
+  weekCount: number;
   view: "library" | "recording";
+  libraryFilter: LibraryFilter;
+  onSelectFilter: (f: LibraryFilter) => void;
 }
 
-const LIBRARY_NAV = [
+const LIBRARY_NAV: Array<{
+  key: LibraryFilter;
+  label: string;
+  icon: string;
+}> = [
   { key: "all", label: "All meetings", icon: "all" },
   { key: "today", label: "Today", icon: "today" },
   { key: "week", label: "This week", icon: "week" },
-  { key: "starred", label: "Starred", icon: "starred" },
-];
-
-const PROJECTS_NAV = [
-  { key: "fundraise", label: "Fundraise — seed" },
-  { key: "design", label: "Design partners" },
-  { key: "hiring", label: "Hiring" },
-  { key: "ops", label: "Operations" },
 ];
 
 function SideIcon({ name }: { name: string }) {
@@ -55,12 +56,6 @@ function SideIcon({ name }: { name: string }) {
           <path d="M2 5h8" />
         </svg>
       );
-    case "starred":
-      return (
-        <svg {...props}>
-          <path d="M6 2l1.2 2.6L10 5l-2 1.8.5 2.7L6 8.2 3.5 9.5 4 6.8 2 5l2.8-.4z" />
-        </svg>
-      );
     default:
       return (
         <svg {...props}>
@@ -75,7 +70,11 @@ export default function Sidebar({
   captureRunning,
   keysOk,
   sessionCount,
+  todayCount,
+  weekCount,
   view,
+  libraryFilter,
+  onSelectFilter,
 }: Props) {
   return (
     <aside className={styles.sidebar}>
@@ -86,34 +85,31 @@ export default function Sidebar({
 
       <div className={styles.navScroll}>
         <div className="sidebar-header">LIBRARY</div>
-        {LIBRARY_NAV.map((it) => (
-          <div
-            key={it.key}
-            className="side-item"
-            aria-selected={it.key === "all" && view === "library"}
-          >
-            <span className="ico">
-              <SideIcon name={it.icon} />
-            </span>
-            <span style={{ flex: 1 }}>{it.label}</span>
-            <span className="count tabular">
-              {it.key === "all" ? sessionCount : 0}
-            </span>
-          </div>
-        ))}
-
-        <div className="sidebar-header" style={{ marginTop: 14 }}>
-          PROJECTS
-        </div>
-        {PROJECTS_NAV.map((it) => (
-          <div key={it.key} className="side-item" aria-disabled="true">
-            <span className="ico">
-              <SideIcon name="default" />
-            </span>
-            <span style={{ flex: 1 }}>{it.label}</span>
-            <span className="count tabular">0</span>
-          </div>
-        ))}
+        {LIBRARY_NAV.map((it) => {
+          const count =
+            it.key === "all"
+              ? sessionCount
+              : it.key === "today"
+              ? todayCount
+              : weekCount;
+          const selected = view === "library" && libraryFilter === it.key;
+          return (
+            <div
+              key={it.key}
+              className="side-item"
+              role="button"
+              tabIndex={0}
+              aria-selected={selected}
+              onClick={() => onSelectFilter(it.key)}
+            >
+              <span className="ico">
+                <SideIcon name={it.icon} />
+              </span>
+              <span style={{ flex: 1 }}>{it.label}</span>
+              <span className="count tabular">{count}</span>
+            </div>
+          );
+        })}
       </div>
 
       <button className={styles.settingsBtn} onClick={onOpenSettings}>

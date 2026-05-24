@@ -148,11 +148,18 @@ mod tests {
         std::thread::sleep(Duration::from_millis(300));
         stop.store(true, Ordering::Relaxed);
 
-        let stats = handle.join().expect("worker panicked").expect("sampler error");
+        let stats = handle
+            .join()
+            .expect("worker panicked")
+            .expect("sampler error");
         // On macOS we should have at least 1 sample; on other platforms 0.
         #[cfg(target_os = "macos")]
         {
-            assert!(stats.samples >= 1, "expected ≥1 sample, got {}", stats.samples);
+            assert!(
+                stats.samples >= 1,
+                "expected ≥1 sample, got {}",
+                stats.samples
+            );
             assert!(stats.peak_rss_mb > 0.0, "peak_rss_mb should be positive");
         }
         #[cfg(not(target_os = "macos"))]

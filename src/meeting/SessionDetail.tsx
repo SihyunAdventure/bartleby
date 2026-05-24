@@ -4,6 +4,8 @@ import ReactMarkdown from "react-markdown";
 import type { MeetingSession, FinalSummary } from "./types";
 import { formatDuration, formatRelativeDay, formatTime } from "./types";
 import Segmented from "../components/Segmented";
+import AudioPlayer from "./AudioPlayer";
+import { loadPrefs } from "../settings/prefs";
 import styles from "./SessionDetail.module.css";
 
 interface Props {
@@ -92,6 +94,7 @@ export default function SessionDetail({
     }
     if (flightedFor.current === session.id) return;
     if (session.transcript.length === 0) return;
+    if (!loadPrefs().auto_summarize) return;
     flightedFor.current = session.id;
     void runFinalize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,6 +281,16 @@ export default function SessionDetail({
             )}
           </section>
         )}
+
+        {/* Audio player — sys + mic Opus segments, asset:// served */}
+        <section className={styles.transcriptSection}>
+          <div className={styles.transcriptHeader}>
+            <span className={styles.transcriptToggle} aria-disabled="true">
+              ◷ Audio
+            </span>
+          </div>
+          <AudioPlayer audioDir={session.stats.audio_dir ?? ""} />
+        </section>
 
         {/* Bottom — Transcript collapsible */}
         <section className={styles.transcriptSection}>

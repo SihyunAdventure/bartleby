@@ -1,17 +1,62 @@
-import { useEffect, useState } from "react";
-import { loadPrefs, setPref, type UpdateChannel } from "./prefs";
-import Segmented from "../components/Segmented";
+import { useState } from "react";
+import type { Update } from "@tauri-apps/plugin-updater";
+import {
+  checkForAppUpdate,
+  installUpdateAndRelaunch,
+  updatesDisabledInDev,
+  type UpdateProgress,
+} from "../update/updater";
 import styles from "./AboutTab.module.css";
 
 const VERSION = "0.1.0";
 
 export default function AboutTab() {
-  const [updateChannel, setUpdateChannel] = useState<UpdateChannel>("stable");
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [message, setMessage] = useState<string>(
+    updatesDisabledInDev()
+      ? "Dev mode skips automatic update checks."
+      : "Bartleby checks for updates on launch.",
+  );
+  const [progress, setProgress] = useState<UpdateProgress | null>(null);
 
-  useEffect(() => {
-    const p = loadPrefs();
-    setUpdateChannel(p.update_channel);
-  }, []);
+  const handleCheck = async () => {
+    setChecking(true);
+    setMessage("Checking heybartleby.com/latest.json…");
+    setProgress(null);
+    try {
+      const next = await checkForAppUpdate({ force: true });
+      setUpdate(next);
+      setMessage(
+        next
+          ? `Update ${next.version} is available.`
+          : "You are on the latest available version.",
+      );
+    } catch (err) {
+      setMessage(`Update check failed: ${String(err)}`);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleInstall = async () => {
+    if (!update) return;
+    setInstalling(true);
+    setMessage(`Installing Bartleby ${update.version}…`);
+    try {
+      await installUpdateAndRelaunch(update, setProgress);
+    } catch (err) {
+      setMessage(`Update install failed: ${String(err)}`);
+      setInstalling(false);
+    }
+  };
+
+  const progressLabel = progress
+    ? progress.contentLength
+      ? `${Math.round((progress.downloadedBytes / progress.contentLength) * 100)}%`
+      : `${Math.round(progress.downloadedBytes / 1024 / 1024)} MB`
+    : null;
 
   return (
     <div className={styles.root}>
@@ -43,38 +88,32 @@ export default function AboutTab() {
 
       <div className={styles.divider} />
 
-      <div className={styles.updateRow}>
-        <div className={styles.updateLeft}>
-          <span className={styles.fieldLabel}>Auto-update</span>
-          <span className={styles.lastChecked}>Last checked: —</span>
-        </div>
-        <button
-          className="btn"
-          disabled
-          title="추후 슬라이스 (auto-update infra)"
-        >
-          Check now…
-        </button>
-      </div>
-
       <div className={styles.row}>
-        <span className={styles.fieldLabel}>Update channel</span>
-        <Segmented<UpdateChannel>
-          options={[
-            { value: "stable", label: "Stable" },
-            { value: "beta", label: "Beta" },
-          ]}
-          value={updateChannel}
-          onChange={(v) => {
-            setUpdateChannel(v);
-            setPref("update_channel", v);
-          }}
-        />
+        <span className={styles.fieldLabel}>Show / hide Bartleby</span>
+        <span className={styles.shortcut}>⌘ ⇧ B</span>
       </div>
 
-      <div className={styles.divider} />
-
-      <p className={styles.license}>License: MIT (or source-available — TBD Phase 5)</p>
+      <section className={styles.updateCard}>
+        <div>
+          <span className={styles.fieldLabel}>Updates</span>
+          <p className={styles.updateMessage}>
+            {message}
+            {progressLabel ? ` (${progressLabel})` : ""}
+          </p>
+        </div>
+        <div className={styles.updateActions}>
+          <button className="btn" onClick={handleCheck} disabled={checking || installing}>
+            {checking ? "Checking…" : "Check"}
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={handleInstall}
+            disabled={!update || checking || installing}
+          >
+            {installing ? "Installing…" : "Install"}
+          </button>
+        </div>
+      </section>
 
       <p className={styles.footer}>Design with care from Seoul.</p>
     </div>

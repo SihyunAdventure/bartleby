@@ -112,11 +112,11 @@
    - 📝 *Markdown forever* — your notes outlive any subscription
 2. **How it works** (3-step):
    - Play any English audio
-   - Bartleby listens via system audio (no bot, no recording stream to a server)
+   - Bartleby listens via your Mac and sends data only to your BYOK providers
    - Korean captions appear in a floating window. Saved as markdown.
 3. **Pricing** (간단):
    - v1 free + waitlist
-   - BYOK explained: "Use your own Soniox + OpenRouter keys. We charge nothing in v1."
+   - BYOK explained: "Use your own Soniox + Upstage keys. We charge nothing in v1."
 4. **Below fold meeting demo** + 30-second meeting screencast
 5. **Footer**: links, source-available license badge (TBD), GitHub, Twitter, contact
 

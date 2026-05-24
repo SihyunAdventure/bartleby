@@ -20,11 +20,11 @@ use tauri::{AppHandle, Emitter};
 use super::rss::RssStats;
 use super::silence::DrmDetector;
 
+use screencapturekit::cm::CMSampleBuffer;
 use screencapturekit::prelude::{
     SCContentFilter, SCShareableContent, SCStream, SCStreamConfiguration, SCStreamOutputTrait,
     SCStreamOutputType,
 };
-use screencapturekit::cm::CMSampleBuffer;
 
 use super::encoding::{encoder_worker, EncodingStats};
 
@@ -94,6 +94,11 @@ pub struct CaptureStats {
     /// True iff system audio stayed below the silence threshold for the
     /// entire capture (DRM-protected sources zero-fill the buffer).
     pub drm_detected: bool,
+    /// Phase 6 S5 — directory holding the persisted Opus segments for this
+    /// session. `{audio_dir}/sys-*.opus` for system audio,
+    /// `{audio_dir}/mic-*.opus` for microphone. Empty string if the caller
+    /// kept the legacy /tmp path (Day 4 fixed-duration command).
+    pub audio_dir: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +148,11 @@ struct SystemAudioSink {
     /// Optional fan-out for STT (cloned interleaved samples). Mic is excluded
     /// — Phase 3+ meeting mode will revisit mic→STT pairing.
     stt_sender: Option<std::sync::mpsc::Sender<Vec<f32>>>,
+    /// Phase 6 S4 — most recent system audio peak (linear 0.0-1.0, f32 bits).
+    /// Read by `mic_avengine` to gate its STT fan-out: when speakers are
+    /// loud, the mic picks up acoustic echo of the system audio and would
+    /// otherwise dup the same utterance into the USER row.
+    sys_peak_bits: Arc<std::sync::atomic::AtomicU32>,
 }
 
 impl SCStreamOutputTrait for SystemAudioSink {
@@ -155,6 +165,7 @@ impl SCStreamOutputTrait for SystemAudioSink {
             &self.sample_tx,
             self.stt_sender.as_ref(),
             Some(&self.drm_detector),
+            Some(&self.sys_peak_bits),
             sample,
             "sys",
         );
@@ -177,6 +188,7 @@ impl SCStreamOutputTrait for MicrophoneSink {
             &self.sample_tx,
             self.stt_sender.as_ref(),
             None,
+            None,
             sample,
             "mic",
         );
@@ -192,15 +204,13 @@ fn route_audio_buffer(
     sample_tx: &std::sync::mpsc::Sender<Vec<f32>>,
     stt_sender: Option<&std::sync::mpsc::Sender<Vec<f32>>>,
     drm_detector: Option<&Arc<Mutex<DrmDetector>>>,
+    sys_peak_bits: Option<&Arc<std::sync::atomic::AtomicU32>>,
     sample: CMSampleBuffer,
     label: &str,
 ) {
     let host_recv_instant = std::time::Instant::now();
 
-    let pts_seconds = sample
-        .presentation_timestamp()
-        .as_seconds()
-        .unwrap_or(0.0);
+    let pts_seconds = sample.presentation_timestamp().as_seconds().unwrap_or(0.0);
 
     let Some(buffer_list) = sample.audio_buffer_list() else {
         return;
@@ -220,6 +230,11 @@ fn route_audio_buffer(
 
     if let Some(detector) = drm_detector {
         detector.lock().unwrap().observe(&interleaved);
+    }
+
+    if let Some(peak_bits) = sys_peak_bits {
+        let peak = interleaved.iter().fold(0.0_f32, |m, &s| m.max(s.abs()));
+        peak_bits.store(peak.to_bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
     if let Some(stt) = stt_sender {
@@ -265,7 +280,8 @@ pub fn capture_dual_to_opus(
     system_base_path: &Path,
     mic_base_path: &Path,
     rss_log_path: &Path,
-    stt_sender: Option<std::sync::mpsc::Sender<Vec<f32>>>,
+    stt_sys_sender: Option<std::sync::mpsc::Sender<Vec<f32>>>,
+    stt_mic_sender: Option<std::sync::mpsc::Sender<Vec<f32>>>,
     app: &AppHandle,
 ) -> Result<CaptureStats> {
     const SAMPLE_RATE: u32 = 48_000;
@@ -306,50 +322,40 @@ pub fn capture_dual_to_opus(
     let sys_accumulator = Arc::new(Mutex::new(AudioAccumulator::new()));
     let mic_accumulator = Arc::new(Mutex::new(AudioAccumulator::new()));
     let drm_detector = Arc::new(Mutex::new(DrmDetector::new()));
+    // Phase 6 S4 — sys peak (linear 0.0-1.0 stored as f32 bits) read by
+    // mic_avengine to gate its STT fan-out and suppress acoustic crosstalk.
+    let sys_peak_bits = Arc::new(std::sync::atomic::AtomicU32::new(0));
 
-    // CRITICAL: do NOT fan-out mic into the STT sender. Both sys + mic on one
-    // mpsc channel feed a single Soniox WebSocket, which treats the merged
-    // stream as a 2x-rate timeline with silence interleaved into speech —
-    // endpointing degrades, finals come ~7s late. The advisor flagged this
-    // after we noticed the meeting test was fast (mic silent-failed under
-    // SCKit, STT saw sys only) but the YouTube test went slow (cpal actually
-    // delivered mic buffers and contaminated the timeline). The proper fix is
-    // a second STT session dedicated to mic — deferred until basic mic capture
-    // is working.
-    // Mic-side STT fan-out stays off for now — see Phase 5 S0 note. Once mic
-    // capture is verified working, a dedicated mic STT session (separate
-    // WebSocket) will subscribe to mic samples.
-    let mic_stt_sender: Option<std::sync::mpsc::Sender<Vec<f32>>> = None;
+    // Phase 6 S3 — Both sys and mic STT senders are wired through. Two
+    // parallel Soniox sessions in lib.rs::spawn_capture each subscribe to
+    // their own source, so the endpoint detector sees one stream apiece (no
+    // 2x-rate timeline collapse). SCKit's mic path stays disabled (see config
+    // above); only the Swift AVAudioEngine sidecar populates the mic stream.
     let sys_sink = SystemAudioSink {
         accumulator: Arc::clone(&sys_accumulator),
         sample_tx: sys_tx,
         drm_detector: Arc::clone(&drm_detector),
-        stt_sender,
+        stt_sender: stt_sys_sender,
+        sys_peak_bits: Arc::clone(&sys_peak_bits),
     };
     let mic_sink = MicrophoneSink {
         accumulator: Arc::clone(&mic_accumulator),
         sample_tx: mic_tx.clone(),
-        stt_sender: mic_stt_sender.clone(),
+        stt_sender: stt_mic_sender.clone(),
     };
 
     // ---- 4. Spawn encoder workers before starting the stream ------------
     let sys_base = system_base_path.to_path_buf();
     let mic_base = mic_base_path.to_path_buf();
 
-    let sys_worker = std::thread::spawn(move || {
-        encoder_worker(sys_rx, &sys_base, "sys")
-    });
-    let mic_worker = std::thread::spawn(move || {
-        encoder_worker(mic_rx, &mic_base, "mic")
-    });
+    let sys_worker = std::thread::spawn(move || encoder_worker(sys_rx, &sys_base, "sys"));
+    let mic_worker = std::thread::spawn(move || encoder_worker(mic_rx, &mic_base, "mic"));
 
     // ---- 4b. Spawn RSS sampler thread -----------------------------------
     let rss_stop = Arc::new(AtomicBool::new(false));
     let rss_stop_clone = Arc::clone(&rss_stop);
     let rss_path = rss_log_path.to_path_buf();
-    let rss_worker = std::thread::spawn(move || {
-        super::rss::rss_sampler(rss_stop_clone, rss_path)
-    });
+    let rss_worker = std::thread::spawn(move || super::rss::rss_sampler(rss_stop_clone, rss_path));
 
     // ---- 4c. Spawn DRM emit thread --------------------------------------
     // Polls the detector every 500ms; once we have ~3s of stereo audio the
@@ -389,18 +395,18 @@ pub fn capture_dual_to_opus(
     // ≈0.01. SCStream itself perturbs default-input routing regardless of
     // with_captures_microphone(false).
     let mic_cpal_stop = Arc::new(AtomicBool::new(false));
-    let mic_stream: Option<super::mic_avengine::MicEngineStream> =
-        match super::mic_avengine::start(
-            mic_tx.clone(),
-            mic_stt_sender.clone(),
-            mic_cpal_stop.clone(),
-        ) {
-            Ok(s) => Some(s),
-            Err(e) => {
-                eprintln!("[mic engine] start failed: {e}");
-                None
-            }
-        };
+    let mic_stream: Option<super::mic_avengine::MicEngineStream> = match super::mic_avengine::start(
+        mic_tx.clone(),
+        stt_mic_sender.clone(),
+        Arc::clone(&sys_peak_bits),
+        mic_cpal_stop.clone(),
+    ) {
+        Ok(s) => Some(s),
+        Err(e) => {
+            eprintln!("[mic engine] start failed: {e}");
+            None
+        }
+    };
 
     // ---- 5b. Wire up SCStream sinks and start system audio capture ------
     let mut stream = SCStream::new(&filter, &config);
@@ -442,12 +448,23 @@ pub fn capture_dual_to_opus(
     println!("Bartleby has finished listening.");
 
     // ---- 6. Drop senders so workers' recv() loop terminates -------------
-    // SCKit: dropping `stream` drops `sys_sink` and its `sys_tx` / `stt_sender`.
-    // cpal: dropping `mic_stream` ends the input stream and drops the callback
-    //       closure, which owns `mic_tx` and the cloned `stt_sender`. Both
-    //       encoder workers + the STT bridge thread then exit their recv loops.
+    // Stream drop releases the SCKit sinks (sys_tx is *moved* into SystemAudioSink
+    // so it dies with the stream; stt_sys_sender same). mic_stream drop ends the
+    // AVAudioEngine sidecar and joins its reader thread, whose closure owns the
+    // *cloned* mic_tx + stt_mic_sender — those clones drop with the closure.
+    //
+    // Phase 6 S5 deadlock fix — the *original* mic_tx and stt_mic_sender are
+    // still alive as function-scope locals (we passed clones to the sinks,
+    // not the originals). sys_tx and stt_sys_sender, by contrast, are *moved*
+    // into SystemAudioSink so they already die with the stream above. Until
+    // the surviving locals drop, the workers' mpsc Receivers stay open and
+    // `.recv()` blocks forever — mic_worker.join() → handle.join() →
+    // stop_capture hangs, frontend never sees onStop. Drop them explicitly
+    // *before* the workers' join below so the channels close.
     drop(stream);
     drop(mic_stream);
+    drop(mic_tx);
+    drop(stt_mic_sender);
 
     // ---- 7. Join workers and collect stats -------------------------------
     let sys_enc: EncodingStats = sys_worker
@@ -494,6 +511,29 @@ pub fn capture_dual_to_opus(
     let peak_system_dbfs = drm.peak_dbfs();
     let drm_detected = drm.is_drm_blocked(drm_min_samples);
 
+    // audio_dir = parent of the system/mic segment files. Frontend uses
+    // this to locate the persisted Opus segments for playback.
+    let audio_dir = system_base_path
+        .parent()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+
+    // Phase 6 S5 — merge rolling 5s segments into single sys.opus / mic.opus
+    // for the in-app player. Single-stream remux (one serial, monotonic
+    // granule) is required: naive byte-concat produced a chained Ogg
+    // bitstream that Chromium's HTMLMediaElement guessed at via a size/
+    // bitrate heuristic — sparse silence-heavy sys captures rendered as
+    // 24h durations. Segments stay on disk as recovery fallback.
+    if let Some(audio_dir_path) = system_base_path.parent() {
+        for prefix in ["sys", "mic"] {
+            if let Err(e) =
+                super::encoding::remux_segments_into_single_stream(audio_dir_path, prefix)
+            {
+                eprintln!("[remux] {prefix}: {e:#}");
+            }
+        }
+    }
+
     Ok(CaptureStats {
         buffers_received: sys_acc.buffer_count,
         frames_written: sys_frames,
@@ -509,6 +549,7 @@ pub fn capture_dual_to_opus(
         rss: rss_stats,
         peak_system_dbfs,
         drm_detected,
+        audio_dir,
     })
 }
 
@@ -526,7 +567,11 @@ pub fn compute_drift(system_traces: &[BufferTrace], mic_traces: &[BufferTrace]) 
     }
 
     let abs_dur = |a: std::time::Instant, b: std::time::Instant| {
-        if a >= b { a.duration_since(b) } else { b.duration_since(a) }
+        if a >= b {
+            a.duration_since(b)
+        } else {
+            b.duration_since(a)
+        }
     };
 
     let mut paired: Vec<(f64, f64)> = Vec::with_capacity(mic_traces.len());
@@ -534,8 +579,14 @@ pub fn compute_drift(system_traces: &[BufferTrace], mic_traces: &[BufferTrace]) 
 
     for mic in mic_traces {
         while sys_idx + 1 < system_traces.len() {
-            let cur_diff  = abs_dur(mic.host_recv_instant, system_traces[sys_idx].host_recv_instant);
-            let next_diff = abs_dur(mic.host_recv_instant, system_traces[sys_idx + 1].host_recv_instant);
+            let cur_diff = abs_dur(
+                mic.host_recv_instant,
+                system_traces[sys_idx].host_recv_instant,
+            );
+            let next_diff = abs_dur(
+                mic.host_recv_instant,
+                system_traces[sys_idx + 1].host_recv_instant,
+            );
             if next_diff < cur_diff {
                 sys_idx += 1;
             } else {
@@ -583,7 +634,11 @@ pub fn planar_to_interleaved_stereo(planes: &[&[f32]]) -> Vec<f32> {
 
     let frames = planes[0].len();
     let left = planes[0];
-    let right = if planes.len() >= 2 { planes[1] } else { planes[0] };
+    let right = if planes.len() >= 2 {
+        planes[1]
+    } else {
+        planes[0]
+    };
 
     let mut out = Vec::with_capacity(2 * frames);
     for i in 0..frames {
@@ -643,8 +698,16 @@ mod tests {
 
         let stats = compute_drift(&sys, &mic);
         assert_eq!(stats.paired_samples, 5);
-        assert!((stats.max_drift_ms).abs() < 1e-9, "max_drift_ms={}", stats.max_drift_ms);
-        assert!((stats.final_drift_ms).abs() < 1e-9, "final_drift_ms={}", stats.final_drift_ms);
+        assert!(
+            (stats.max_drift_ms).abs() < 1e-9,
+            "max_drift_ms={}",
+            stats.max_drift_ms
+        );
+        assert!(
+            (stats.final_drift_ms).abs() < 1e-9,
+            "final_drift_ms={}",
+            stats.final_drift_ms
+        );
     }
 
     #[test]
@@ -659,8 +722,16 @@ mod tests {
 
         let stats = compute_drift(&sys, &mic);
         assert_eq!(stats.paired_samples, 5);
-        assert!(stats.max_drift_ms.abs() < 1e-6, "max_drift_ms={}", stats.max_drift_ms);
-        assert!(stats.final_drift_ms.abs() < 1e-6, "final_drift_ms={}", stats.final_drift_ms);
+        assert!(
+            stats.max_drift_ms.abs() < 1e-6,
+            "max_drift_ms={}",
+            stats.max_drift_ms
+        );
+        assert!(
+            stats.final_drift_ms.abs() < 1e-6,
+            "final_drift_ms={}",
+            stats.final_drift_ms
+        );
     }
 
     #[test]

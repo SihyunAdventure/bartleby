@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
 use anyhow::{Context, Result};
+use ogg::reading::PacketReader;
 use ogg::writing::{PacketWriteEndInfo, PacketWriter};
 use opus::{Application, Bitrate, Channels, Encoder};
 
@@ -97,10 +98,10 @@ pub fn encoder_worker(
                     stats.segments_written += 1;
                 }
                 let seg_index = stats.segments_written;
-                seg = Some(
-                    SegmentWriter::open(base_path, seg_index)
-                        .with_context(|| format!("[{label}] Failed to open segment {seg_index}"))?,
-                );
+                seg =
+                    Some(SegmentWriter::open(base_path, seg_index).with_context(|| {
+                        format!("[{label}] Failed to open segment {seg_index}")
+                    })?);
             }
 
             let seg = seg.as_mut().expect("segment always open here");
@@ -113,7 +114,10 @@ pub fn encoder_worker(
             let pkt_len = packet.len();
             seg.write_audio_packet(packet, stats.total_frames)
                 .with_context(|| {
-                    format!("[{label}] Failed to write audio packet to segment {}", seg.index)
+                    format!(
+                        "[{label}] Failed to write audio packet to segment {}",
+                        seg.index
+                    )
                 })?;
 
             seg.frame_count += 1;
@@ -202,7 +206,12 @@ impl SegmentWriter {
         let _ = total_frames_before; // unused here; kept for potential future use
 
         self.pkt_writer
-            .write_packet(packet, self.serial, PacketWriteEndInfo::NormalPacket, granule)
+            .write_packet(
+                packet,
+                self.serial,
+                PacketWriteEndInfo::NormalPacket,
+                granule,
+            )
             .context("Failed to write audio packet")
     }
 
@@ -213,20 +222,11 @@ impl SegmentWriter {
     /// packet with `EndStream` — but the cleaner approach is to write the last
     /// audio packet with `EndStream` directly.  Because we only know it's the
     /// last packet *after* the loop, we write a zero-byte end-of-stream marker.
-    fn finalize_as_last(
-        &mut self,
-        _total_packets: usize,
-        _total_frames: usize,
-    ) -> Result<()> {
+    fn finalize_as_last(&mut self, _total_packets: usize, _total_frames: usize) -> Result<()> {
         // Write a zero-byte EoS sentinel to close the Ogg stream.
         let granule = (self.frame_count * 960) as u64;
         self.pkt_writer
-            .write_packet(
-                vec![],
-                self.serial,
-                PacketWriteEndInfo::EndStream,
-                granule,
-            )
+            .write_packet(vec![], self.serial, PacketWriteEndInfo::EndStream, granule)
             .context("Failed to write EoS packet")?;
 
         // BufWriter flush is triggered by drop, but be explicit.
@@ -243,13 +243,132 @@ impl SegmentWriter {
 
 fn segment_path(base: &Path, index: usize) -> PathBuf {
     // base = /tmp/bartleby-system-1778167256821
-    // result = /tmp/bartleby-system-1778167256821-000.opus
+    // result = /tmp/bartleby-system-1778167256821-000000.opus
+    //
+    // 6-digit zero-pad keeps lexical filename sort == numeric segment sort up
+    // to ~999_999 segments (≈ 57 days of continuous capture). Previous 3-digit
+    // padding silently scrambled audio order past the 1000-segment boundary
+    // (~83 minutes) because both finalize_audio_concat and any directory
+    // listing fell back to lexical sort.
     let stem = base
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("segment");
     let parent = base.parent().unwrap_or(Path::new("."));
-    parent.join(format!("{stem}-{index:03}.opus"))
+    parent.join(format!("{stem}-{index:06}.opus"))
+}
+
+/// Concatenate every `{prefix}-NNNNNN.opus` segment under `dir` into a single
+/// `{prefix}.opus` file as one logical Ogg Opus stream — one serial, one
+/// monotonically increasing granule position. Skips per-segment OpusHead/
+/// OpusTags duplicates and the zero-byte EoS sentinel each segment ends with.
+///
+/// Naive byte-concat was producing a *chained* Ogg bitstream (one logical
+/// stream per 5-second segment). Chromium's HTMLMediaElement falls back to a
+/// size/bitrate heuristic on chained Opus streams, which renders nonsense
+/// durations (24h for a sparse silence-heavy capture). A single-stream remux
+/// gives the player a well-defined granule timeline.
+pub fn remux_segments_into_single_stream(dir: &Path, prefix: &str) -> Result<()> {
+    let read = match std::fs::read_dir(dir) {
+        Ok(r) => r,
+        Err(_) => return Ok(()),
+    };
+
+    let mut segments: Vec<PathBuf> = read
+        .filter_map(|r| r.ok())
+        .filter(|e| {
+            let n = e.file_name().to_string_lossy().to_string();
+            n.starts_with(&format!("{prefix}-")) && n.ends_with(".opus")
+        })
+        .map(|e| e.path())
+        .collect();
+    if segments.is_empty() {
+        return Ok(());
+    }
+
+    // Numeric sort by the trailing -NNNNNN index. Lexical sort was scrambling
+    // playback past the 1000-segment boundary (3-digit pad → "100" < "1000"
+    // < "101" in string order). 6-digit pad fixes new captures going forward;
+    // numeric sort here also recovers any 3-digit captures still on disk.
+    segments.sort_by_key(|p| {
+        p.file_stem()
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.rsplit('-').next())
+            .and_then(|n| n.parse::<usize>().ok())
+            .unwrap_or(usize::MAX)
+    });
+
+    let out_path = dir.join(format!("{prefix}.opus"));
+    let out = File::create(&out_path)
+        .with_context(|| format!("Failed to create remux output: {}", out_path.display()))?;
+    let mut writer = PacketWriter::new(BufWriter::new(out));
+
+    let serial: u32 = rand_serial();
+    let mut cumulative_frames: u64 = 0;
+    let mut head_written = false;
+    let mut tags_written = false;
+
+    for seg_path in &segments {
+        let file = match File::open(seg_path) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+        let mut reader = PacketReader::new(file);
+
+        while let Some(pkt) = reader.read_packet().ok().flatten() {
+            let data = pkt.data;
+            if data.is_empty() {
+                // Per-segment EoS sentinel — drop; we emit one final EoS below.
+                continue;
+            }
+            if !head_written && data.len() >= 8 && &data[..8] == b"OpusHead" {
+                writer
+                    .write_packet(data, serial, PacketWriteEndInfo::EndPage, 0)
+                    .context("remux: write OpusHead failed")?;
+                head_written = true;
+                continue;
+            }
+            if !tags_written && data.len() >= 8 && &data[..8] == b"OpusTags" {
+                writer
+                    .write_packet(data, serial, PacketWriteEndInfo::EndPage, 0)
+                    .context("remux: write OpusTags failed")?;
+                tags_written = true;
+                continue;
+            }
+            if data.len() >= 8 && (&data[..8] == b"OpusHead" || &data[..8] == b"OpusTags") {
+                // Duplicate header from a subsequent segment — discard.
+                continue;
+            }
+
+            cumulative_frames += 960; // one Opus frame = 20 ms @ 48 kHz
+            writer
+                .write_packet(
+                    data,
+                    serial,
+                    PacketWriteEndInfo::NormalPacket,
+                    cumulative_frames,
+                )
+                .context("remux: write audio packet failed")?;
+        }
+    }
+
+    writer
+        .write_packet(
+            Vec::new(),
+            serial,
+            PacketWriteEndInfo::EndStream,
+            cumulative_frames,
+        )
+        .context("remux: write EoS failed")?;
+    writer.inner_mut().flush().context("remux: flush failed")?;
+
+    println!(
+        "[remux] {prefix}: {} segments → {} ({:.2}s)",
+        segments.len(),
+        out_path.display(),
+        cumulative_frames as f64 / SAMPLE_RATE as f64,
+    );
+    Ok(())
 }
 
 /// Generate a pseudo-random u32 serial for an Ogg stream.
@@ -269,13 +388,13 @@ fn rand_serial() -> u32 {
 /// Build an RFC 7845 §5.1 OpusHead packet for 2-channel 48 kHz.
 fn opus_head() -> Vec<u8> {
     let mut buf = Vec::with_capacity(19);
-    buf.extend_from_slice(b"OpusHead");      // 8 bytes magic
-    buf.push(1);                              // version = 1
-    buf.push(2);                              // channel count = 2
+    buf.extend_from_slice(b"OpusHead"); // 8 bytes magic
+    buf.push(1); // version = 1
+    buf.push(2); // channel count = 2
     buf.extend_from_slice(&0u16.to_le_bytes()); // pre-skip = 0
     buf.extend_from_slice(&48_000u32.to_le_bytes()); // input sample rate
     buf.extend_from_slice(&0u16.to_le_bytes()); // output gain = 0
-    buf.push(0);                              // channel mapping family = 0
+    buf.push(0); // channel mapping family = 0
     buf
 }
 
@@ -285,10 +404,10 @@ fn opus_tags() -> Vec<u8> {
     let vendor_len = VENDOR.len() as u32;
 
     let mut buf = Vec::with_capacity(8 + 4 + VENDOR.len() + 4);
-    buf.extend_from_slice(b"OpusTags");                  // 8 bytes magic
-    buf.extend_from_slice(&vendor_len.to_le_bytes());    // vendor string length
-    buf.extend_from_slice(VENDOR);                        // vendor string
-    buf.extend_from_slice(&0u32.to_le_bytes());          // user comment list length = 0
+    buf.extend_from_slice(b"OpusTags"); // 8 bytes magic
+    buf.extend_from_slice(&vendor_len.to_le_bytes()); // vendor string length
+    buf.extend_from_slice(VENDOR); // vendor string
+    buf.extend_from_slice(&0u32.to_le_bytes()); // user comment list length = 0
     buf
 }
 
@@ -311,8 +430,7 @@ mod tests {
             samples.push(v); // R
         }
 
-        let mut encoder =
-            Encoder::new(48_000, Channels::Stereo, Application::Audio).unwrap();
+        let mut encoder = Encoder::new(48_000, Channels::Stereo, Application::Audio).unwrap();
         encoder.set_bitrate(Bitrate::Bits(32_000)).unwrap();
         let mut decoder = opus::Decoder::new(48_000, Channels::Stereo).unwrap();
 
@@ -323,9 +441,7 @@ mod tests {
 
         // Decode and verify non-zero RMS.
         let mut decoded = vec![0.0f32; 1920];
-        let n = decoder
-            .decode_float(&packet, &mut decoded, false)
-            .unwrap();
+        let n = decoder.decode_float(&packet, &mut decoded, false).unwrap();
         assert!(n > 0, "decoded frame count must be > 0");
         let rms = (decoded[..n * 2]
             .iter()
@@ -352,11 +468,17 @@ mod tests {
         let base = Path::new("/tmp/bartleby-system-1778167256821");
         assert_eq!(
             segment_path(base, 0).to_str().unwrap(),
-            "/tmp/bartleby-system-1778167256821-000.opus"
+            "/tmp/bartleby-system-1778167256821-000000.opus"
         );
         assert_eq!(
             segment_path(base, 1).to_str().unwrap(),
-            "/tmp/bartleby-system-1778167256821-001.opus"
+            "/tmp/bartleby-system-1778167256821-000001.opus"
+        );
+        // Past the 1000-segment boundary the 6-digit pad still preserves
+        // lexical = numeric ordering — the bug that motivated this width.
+        assert_eq!(
+            segment_path(base, 1000).to_str().unwrap(),
+            "/tmp/bartleby-system-1778167256821-001000.opus"
         );
     }
 }

@@ -4,8 +4,8 @@ fn main() {
     // (tauri build 시점의 bundle Info.plist 는 tauri-build 가 별도로 처리)
     #[cfg(target_os = "macos")]
     {
-        let plist = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
-            .join("Info.plist");
+        let plist =
+            std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("Info.plist");
         println!("cargo:rerun-if-changed={}", plist.display());
         println!(
             "cargo:rustc-link-arg=-Wl,-sectcreate,__TEXT,__info_plist,{}",

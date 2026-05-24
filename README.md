@@ -11,7 +11,7 @@
 - **단일 surface**: dock Finder-like 앱. Library + Recording (live transcript + summary panel)
 - **타겟**: 매일 영어/한국어 미팅이 섞여 있는 한국 전문가
 - **첫 사용자**: Sihyun (본인 dogfood)
-- **상태**: Day 1-22 + Phase 4.5 cleanup ✅ — capture infra (1h stable) + Soniox STT + Solar Pro 3 번역 + summary panel + Library/Recording UI + sessions localStorage persistence + 번역 toggle. **다음**: Phase 5 한국어 미팅 1시간 통합 dogfood + SQLite persistence.
+- **상태**: Phase 6 dogfood build — capture infra + Soniox STT + Upstage Solar Pro 3 번역/최종 노트 + Library/Recording UI + SQLite persistence + 번역 toggle.
 - **타겟 출시**: 2026-08-13 ~ 2026-08-27 (12-14주)
 
 ## Sibling product — Rehear
@@ -28,8 +28,9 @@ YouTube URL → 한국어 (또는 다른 언어) 더빙 영상 재생성 은 별
 | [design-system-extensions/](./design-system-extensions/) | Phase 0 surface spec (일부 Phase 4.5 에서 deprecate 마킹됨) |
 | [PRINCIPLES.md](./PRINCIPLES.md) | ⭐ 디자인 구현 원칙 — *작업 전 반드시 읽기* |
 | [GALLERY.md](./GALLERY.md) | 섹션 매핑 표 + ship/polish gate + 검증 워크플로우 |
+| [MODELS.md](./MODELS.md) | 공개 빌드에서 노출하는 STT/LLM 모델 surface |
 | [PLAN.md](./PLAN.md) | Phase 1-7 실행 계획 |
-| [NEXT.md](./NEXT.md) | 다음 세션 continuation 가이드 |
+| [NEXT.md](./NEXT.md) | 내부 continuation log — 공개 모델 surface 는 MODELS.md 기준 |
 
 ## Stack
 
@@ -37,9 +38,9 @@ YouTube URL → 한국어 (또는 다른 언어) 더빙 영상 재생성 은 별
 Desktop:   Tauri 2.0 (Rust + React + TypeScript)
 캡처:       ScreenCaptureKit (system audio, mic deferred)
 STT:       Soniox stt-rt-v4 streaming (BYOK, EN/KO multilingual auto-detect)
-번역:       Upstage Solar Pro 3 (BYOK, streaming SSE)
-Summary:   Solar Pro 3 batch (30s cadence + debounce)
-저장:       localStorage (Phase 5 → SQLite migration)
+LLM:       Upstage solar-pro3 direct API (BYOK, translation + final note)
+Local ML:  none bundled, none auto-installed
+저장:       SQLite via tauri-plugin-sql + local audio segments
 도메인:    heybartleby.com
 ```
 
@@ -53,6 +54,7 @@ vs Granola / Otter / Fireflies:
 - **한국어 first** — 한국어 native transcript + 요약 (자동 언어 분기)
 - **Local data ownership** — 노트는 로컬 storage (BYOK keys 외 cloud X)
 - **BYOK** — vendor lock 회피, Keychain 영구 저장
+- **No hidden models** — OpenRouter/Whisper/Ollama/GPT/Claude/Gemini 는 공개 surface 아님
 - **Character brand** — Melville 의 Bartleby, 정중하고 절제됨
 
 ## 디자인 캐릭터
@@ -65,4 +67,4 @@ Inter / Pretendard (sans body) + Cormorant + Gowun Batang (serif) +
 
 ## 다음 액션
 
-[NEXT.md](./NEXT.md) 참조 — Phase 5 entry: 한국어 미팅 1시간 통합 dogfood + Step 4 form 채우기 + SQLite persistence migration plan.
+[MODELS.md](./MODELS.md) 기준으로 공개 모델 surface 를 유지하고, release plan 은 DMG/signing/web 구조를 Copy & Taste 방식으로 정리한다.

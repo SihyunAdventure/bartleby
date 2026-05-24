@@ -7,12 +7,18 @@ import {
 import styles from "./Library.module.css";
 
 interface Props {
+  title: string;
   sessions: MeetingSession[];
   onStartRecord: () => void;
   onSelectSession: (id: number) => void;
 }
 
-export default function Library({ sessions, onStartRecord, onSelectSession }: Props) {
+export default function Library({
+  title,
+  sessions,
+  onStartRecord,
+  onSelectSession,
+}: Props) {
   const totalSec = sessions.reduce((s, x) => s + x.durationSec, 0);
   const totalHm =
     totalSec >= 3600
@@ -27,7 +33,7 @@ export default function Library({ sessions, onStartRecord, onSelectSession }: Pr
     <div className={styles.shell}>
       <div className={styles.toolbar}>
         <div className={styles.titleBlock}>
-          <h1 className={styles.title}>All meetings</h1>
+          <h1 className={styles.title}>{title}</h1>
           <div className={styles.eyebrow}>{countLabel}</div>
         </div>
         <button
@@ -49,7 +55,7 @@ export default function Library({ sessions, onStartRecord, onSelectSession }: Pr
             </div>
             <p className={styles.emptyHint}>
               Press <strong>Record</strong> to begin a session. Bartleby will
-              transcribe, translate, and quietly summarise as you talk.
+              transcribe while recording and finalize the note after Stop.
             </p>
           </div>
         </div>

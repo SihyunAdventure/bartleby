@@ -250,5 +250,9 @@ pub async fn verify_key(api_key: &str) -> Result<(), String> {
         return Err("Upstage rejected the key (401)".into());
     }
     let body_text = resp.text().await.unwrap_or_default();
-    Err(format!("HTTP {}: {}", status, body_text.chars().take(200).collect::<String>()))
+    Err(format!(
+        "HTTP {}: {}",
+        status,
+        body_text.chars().take(200).collect::<String>()
+    ))
 }

@@ -36,7 +36,7 @@ source 가 달라도 Read / Skim / Listen 세 출력 경로는 동일하다.
 
 ### BYOK + macOS Keychain
 
-Soniox + OpenRouter 키는 macOS Keychain 에 저장. Bartleby 측 서버 없음.
+Soniox + Upstage 키는 macOS Keychain 에 저장. Bartleby 측 서버 없음.
 코드에서 키를 다른 곳에 저장하거나 logging 하는 것 금지.
 새 외부 API 추가 시 동일 패턴 적용.
 

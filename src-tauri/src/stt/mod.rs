@@ -25,6 +25,7 @@ use tauri::{AppHandle, Emitter};
 
 use resample::Resampler;
 use ring::AudioRing;
+pub use soniox::SttSource;
 use soniox::{SessionEnd, SttError};
 
 /// Cap on consecutive reconnect attempts before giving up. With backoff
@@ -53,6 +54,7 @@ pub struct SttSession {
 pub fn start(
     api_key: String,
     app: AppHandle,
+    source: SttSource,
     final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 ) -> (std::sync::mpsc::Sender<Vec<f32>>, SttSession) {
     let (sample_tx, sample_rx) = std::sync::mpsc::channel::<Vec<f32>>();
@@ -65,8 +67,7 @@ pub fn start(
             .expect("[stt] failed to build tokio runtime");
 
         rt.block_on(async move {
-            let (chunk_tx, chunk_rx) =
-                tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+            let (chunk_tx, chunk_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
             let ring = Arc::new(Mutex::new(AudioRing::new()));
 
             // Bridge: sync mpsc → resampler → ring + tokio mpsc, on a
@@ -102,6 +103,7 @@ pub fn start(
                 stop_for_thread,
                 final_tx,
                 ring,
+                source,
             )
             .await;
 
@@ -125,6 +127,7 @@ async fn run_with_reconnect(
     stop: Arc<AtomicBool>,
     final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     ring: Arc<Mutex<AudioRing>>,
+    source: SttSource,
 ) {
     let mut attempt: u32 = 0;
     loop {
@@ -139,6 +142,7 @@ async fn run_with_reconnect(
             &stop,
             final_tx.clone(),
             &ring,
+            source,
         )
         .await;
 
@@ -158,6 +162,7 @@ async fn run_with_reconnect(
                         "Reconnect cap reached ({} attempts): {}",
                         MAX_RECONNECT_ATTEMPTS, drop_reason
                     ),
+                    source,
                 },
             );
             break;
@@ -165,8 +170,8 @@ async fn run_with_reconnect(
 
         let backoff_secs = backoff_seconds(attempt);
         eprintln!(
-            "[stt] dropped ({}). reconnect attempt {} in {}s",
-            drop_reason, attempt, backoff_secs
+            "[stt {:?}] dropped ({}). reconnect attempt {} in {}s",
+            source, drop_reason, attempt, backoff_secs
         );
         let _ = app.emit(
             "stt_error",
@@ -176,6 +181,7 @@ async fn run_with_reconnect(
                     "Connection lost ({}). Retrying in {}s (attempt {}/{})",
                     drop_reason, backoff_secs, attempt, MAX_RECONNECT_ATTEMPTS
                 ),
+                source,
             },
         );
 

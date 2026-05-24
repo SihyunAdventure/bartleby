@@ -4,6 +4,7 @@ pub mod stt;
 pub mod summary;
 pub mod translate;
 
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -13,15 +14,7 @@ use tauri::{
     tray::TrayIconBuilder,
     Manager, State, WindowEvent,
 };
-use tauri_plugin_global_shortcut::{
-    Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
-};
-
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 /// In-progress capture session — stop flag drives the capture thread out of
 /// its polling loop, the join handle returns final stats once it's done.
@@ -32,7 +25,11 @@ fn greet(name: &str) -> String {
 struct CaptureSession {
     stop: Arc<AtomicBool>,
     handle: std::thread::JoinHandle<Result<CaptureStats, String>>,
-    stt: Option<stt::SttSession>,
+    /// Two STT sessions — sys is the canonical wedge ("Korean ears for English
+    /// audio"), feeds the translator. mic is the user's own voice, surfaced
+    /// directly without translation (Phase 6 S3 wire). Both join on stop.
+    stt_sys: Option<stt::SttSession>,
+    stt_mic: Option<stt::SttSession>,
     translator: Option<translate::TranslatorSession>,
     summary: Option<summary::SummarySession>,
 }
@@ -59,7 +56,248 @@ fn resolve_key(name: &str) -> Option<String> {
             return Some(v);
         }
     }
+    // Dev fallback — read $HOME/.config/secrets/<service>.env directly.
+    // dev-run.sh sources these into the shell, but if the user launches
+    // Bartleby via Spotlight/Finder/menu-bar instead of the script the
+    // ENV isn't there. Reading the file directly closes that gap so the
+    // user doesn't lose Keys verified every time they re-launch.
+    let file = match name {
+        "SONIOX_API_KEY" => "soniox.env",
+        "UPSTAGE_API_KEY" => "upstage.env",
+        _ => return None,
+    };
+    let Some(home) = std::env::var_os("HOME") else {
+        return None;
+    };
+    let path = std::path::PathBuf::from(home)
+        .join(".config/secrets")
+        .join(file);
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        return None;
+    };
+    for line in content.lines() {
+        let line = line.trim().trim_start_matches("export ");
+        if let Some((key, value)) = line.split_once('=') {
+            if key.trim() == name {
+                let v = value.trim().trim_matches(|c| c == '"' || c == '\'');
+                if !v.is_empty() {
+                    println!(
+                        "[secrets] {name} resolved from file fallback ({})",
+                        path.display()
+                    );
+                    return Some(v.to_string());
+                }
+            }
+        }
+    }
     None
+}
+
+/// Phase 6 S5 debug — surface frontend console messages into the Rust
+/// debug.log file so we can diagnose handleStop / persistSessions flow
+/// without keeping the webview inspector open. Temporary instrumentation;
+/// remove once the session-save path is stable.
+#[tauri::command]
+fn log_frontend(msg: String) {
+    println!("[frontend] {msg}");
+}
+
+#[derive(serde::Serialize)]
+struct AudioSegments {
+    sys: Vec<String>,
+    mic: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct StorageStatus {
+    app_data_dir: String,
+    audio_dir: String,
+    audio_bytes: u64,
+    database_bytes: u64,
+}
+
+fn app_data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    tauri::Manager::path(app)
+        .app_data_dir()
+        .map_err(|e| format!("app data dir: {e}"))
+}
+
+fn dir_size(path: &Path) -> u64 {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return 0;
+    };
+    if meta.is_file() {
+        return meta.len();
+    }
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return 0;
+    };
+    entries
+        .filter_map(Result::ok)
+        .map(|entry| dir_size(&entry.path()))
+        .sum()
+}
+
+fn storage_status_inner(app: &tauri::AppHandle) -> Result<StorageStatus, String> {
+    let app_dir = app_data_dir(app)?;
+    let audio_dir = app_dir.join("audio");
+    let db_path = app_dir.join("bartleby.db");
+    Ok(StorageStatus {
+        app_data_dir: app_dir.display().to_string(),
+        audio_dir: audio_dir.display().to_string(),
+        audio_bytes: dir_size(&audio_dir),
+        database_bytes: std::fs::metadata(db_path).map(|m| m.len()).unwrap_or(0),
+    })
+}
+
+fn audio_dir_timestamp_ms(path: &Path) -> Option<u128> {
+    if let Some(ts) = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .and_then(|s| s.parse::<u128>().ok())
+    {
+        return Some(ts);
+    }
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_millis())
+}
+
+#[tauri::command]
+fn storage_status(app: tauri::AppHandle) -> Result<StorageStatus, String> {
+    storage_status_inner(&app)
+}
+
+#[tauri::command]
+fn open_storage_folder(app: tauri::AppHandle) -> Result<(), String> {
+    let app_dir = app_data_dir(&app)?;
+    std::fs::create_dir_all(&app_dir).map_err(|e| format!("create app data dir: {e}"))?;
+    std::process::Command::new("open")
+        .arg(&app_dir)
+        .spawn()
+        .map_err(|e| format!("open Finder: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn cleanup_old_audio(app: tauri::AppHandle, retention_days: u64) -> Result<StorageStatus, String> {
+    let retention_days = retention_days.clamp(1, 3650);
+    let app_dir = app_data_dir(&app)?;
+    let audio_root = app_dir.join("audio");
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("system clock: {e}"))?
+        .as_millis();
+    let retention_ms = retention_days as u128 * 24 * 60 * 60 * 1000;
+    let cutoff_ms = now_ms.saturating_sub(retention_ms);
+
+    if let Ok(entries) = std::fs::read_dir(&audio_root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let Some(ts_ms) = audio_dir_timestamp_ms(&path) else {
+                continue;
+            };
+            if ts_ms < cutoff_ms {
+                std::fs::remove_dir_all(&path)
+                    .map_err(|e| format!("remove {}: {e}", path.display()))?;
+            }
+        }
+    }
+
+    storage_status_inner(&app)
+}
+
+#[tauri::command]
+fn recording_permission_status() -> capture::permission::RecordingPermissionStatus {
+    capture::permission::recording_status()
+}
+
+#[tauri::command]
+fn request_microphone_permission() -> capture::permission::RecordingPermissionStatus {
+    capture::permission::request_microphone_access();
+    capture::permission::recording_status()
+}
+
+#[tauri::command]
+fn request_screen_recording_permission() -> capture::permission::RecordingPermissionStatus {
+    capture::permission::request_screen_recording_access();
+    capture::permission::recording_status()
+}
+
+fn open_privacy_settings(anchor: &str) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(format!(
+            "x-apple.systempreferences:com.apple.preference.security?{anchor}"
+        ))
+        .spawn()
+        .map_err(|e| format!("open System Settings: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_microphone_settings() -> Result<(), String> {
+    open_privacy_settings("Privacy_Microphone")
+}
+
+#[tauri::command]
+fn open_screen_recording_settings() -> Result<(), String> {
+    open_privacy_settings("Privacy_ScreenCapture")
+}
+
+/// List playable Opus files under a session's audio_dir. Prefers the
+/// finalized sys.opus / mic.opus single-file concat (continuous timeline);
+/// falls back to the rolling sys-NNN.opus / mic-NNN.opus segments when
+/// the concat hasn't run yet. Frontend converts paths to webview-safe
+/// URLs via convertFileSrc.
+#[tauri::command]
+fn list_audio_segments(dir: String) -> Result<AudioSegments, String> {
+    let path = std::path::Path::new(&dir);
+    if !path.is_dir() {
+        return Ok(AudioSegments {
+            sys: vec![],
+            mic: vec![],
+        });
+    }
+
+    let sys_concat = path.join("sys.opus");
+    let mic_concat = path.join("mic.opus");
+    let mut sys = if sys_concat.is_file() {
+        vec![sys_concat.display().to_string()]
+    } else {
+        Vec::new()
+    };
+    let mut mic = if mic_concat.is_file() {
+        vec![mic_concat.display().to_string()]
+    } else {
+        Vec::new()
+    };
+
+    if !sys.is_empty() && !mic.is_empty() {
+        return Ok(AudioSegments { sys, mic });
+    }
+
+    for entry in std::fs::read_dir(path).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let p = entry.path().display().to_string();
+        if sys.is_empty() && name.starts_with("sys-") && name.ends_with(".opus") {
+            sys.push(p);
+        } else if mic.is_empty() && name.starts_with("mic-") && name.ends_with(".opus") {
+            mic.push(p);
+        }
+    }
+    if sys.len() > 1 {
+        sys.sort();
+    }
+    if mic.len() > 1 {
+        mic.sort();
+    }
+    Ok(AudioSegments { sys, mic })
 }
 
 fn spawn_capture(
@@ -91,7 +329,9 @@ fn spawn_capture(
             (Some(tx), Some(sess))
         }
         (Some(_), Some(_), false) => {
-            println!("[translate] translate_enabled=false — Korean translation disabled by user pref");
+            println!(
+                "[translate] translate_enabled=false — Korean translation disabled by user pref"
+            );
             (None, None)
         }
         (Some(_), None, _) => {
@@ -109,14 +349,32 @@ fn spawn_capture(
     let _ = &upstage_key;
     let summary_session: Option<summary::SummarySession> = None;
 
-    let (stt_sender, stt_session) = match stt_key {
+    // Phase 6 S3 — two parallel Soniox sessions, one per audio source.
+    // - sys (system audio): English-leaning lecture/podcast content, hands
+    //   English finals to the translator for Korean caption.
+    // - mic (user voice): mixed-language conversational content, no
+    //   translation by default (the user speaking their own language doesn't
+    //   need to be translated to itself).
+    // Soniox's protocol has no per-channel labeling on a stereo stream, so
+    // sending sys+mic as one stereo session would collapse on the server's
+    // single endpoint detector — empirically observed: finals lag ~7s when
+    // streams are merged. Two parallel sessions cost 2x ($0.0072/min) but
+    // keep endpointing per-source.
+    let (stt_sys_sender, stt_sys_session, stt_mic_sender, stt_mic_session) = match &stt_key {
         Some(key) => {
-            let (tx, sess) = stt::start(key, app.clone(), final_tx);
-            (Some(tx), Some(sess))
+            let (sys_tx, sys_sess) =
+                stt::start(key.clone(), app.clone(), stt::SttSource::Sys, final_tx);
+            let (mic_tx, mic_sess) = stt::start(
+                key.clone(),
+                app.clone(),
+                stt::SttSource::Mic,
+                None, // mic finals stay in their own language; no translate path
+            );
+            (Some(sys_tx), Some(sys_sess), Some(mic_tx), Some(mic_sess))
         }
         None => {
-            println!("[capture] SONIOX_API_KEY not set — STT disabled (overlay caption unavailable)");
-            (None, None)
+            println!("[capture] SONIOX_API_KEY not set — STT disabled (caption unavailable)");
+            (None, None, None, None)
         }
     };
 
@@ -126,12 +384,19 @@ fn spawn_capture(
             .unwrap_or_default()
             .as_millis();
 
-        let system_base = std::env::temp_dir()
-            .join(format!("bartleby-system-{}", timestamp));
-        let mic_base = std::env::temp_dir()
-            .join(format!("bartleby-mic-{}", timestamp));
-        let rss_log = std::env::temp_dir()
-            .join(format!("bartleby-rss-{}.log", timestamp));
+        // Phase 6 S5 — persist Opus segments under the app data dir so a
+        // session's audio survives reboots and is discoverable for future
+        // playback. Falls back to /tmp if the app data dir is unavailable.
+        let audio_root = tauri::Manager::path(&app)
+            .app_data_dir()
+            .ok()
+            .map(|p| p.join("audio").join(timestamp.to_string()))
+            .unwrap_or_else(|| std::env::temp_dir().join(format!("bartleby-{}", timestamp)));
+        let _ = std::fs::create_dir_all(&audio_root);
+
+        let system_base = audio_root.join("sys");
+        let mic_base = audio_root.join("mic");
+        let rss_log = audio_root.join("rss.log");
 
         capture::system_audio::capture_dual_to_opus(
             stop_for_thread,
@@ -139,7 +404,8 @@ fn spawn_capture(
             &system_base,
             &mic_base,
             &rss_log,
-            stt_sender,
+            stt_sys_sender,
+            stt_mic_sender,
             &app,
         )
         .map_err(|e| e.to_string())
@@ -147,7 +413,8 @@ fn spawn_capture(
     CaptureSession {
         stop,
         handle,
-        stt: stt_session,
+        stt_sys: stt_sys_session,
+        stt_mic: stt_mic_session,
         translator: translator_session,
         summary: summary_session,
     }
@@ -178,35 +445,6 @@ fn join_translator(translator: translate::TranslatorSession) {
     }
 }
 
-/// Fixed-duration capture (legacy command kept for the Day 4-9 button flow).
-/// Spawns the same signal-driven capture and waits for `seconds` to elapse.
-#[tauri::command]
-async fn capture_system_audio(
-    app: tauri::AppHandle,
-    seconds: u64,
-    translate_enabled: bool,
-) -> Result<CaptureStats, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let session = spawn_capture(app, Some(seconds), translate_enabled);
-        let stats = session
-            .handle
-            .join()
-            .map_err(|_| "Capture thread panicked".to_string())?;
-        if let Some(stt) = session.stt {
-            join_stt(stt);
-        }
-        if let Some(translator) = session.translator {
-            join_translator(translator);
-        }
-        if let Some(s) = session.summary {
-            join_summary(s);
-        }
-        stats
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
 /// Start an indefinite capture. The session lives in app state until
 /// `stop_capture` is called. Errors if a capture is already in progress.
 #[tauri::command]
@@ -215,6 +453,13 @@ async fn start_capture(
     state: State<'_, AppState>,
     translate_enabled: bool,
 ) -> Result<(), String> {
+    if !capture::permission::recording_ready() {
+        return Err(
+            "Recording permissions are missing. Grant Microphone and Screen Recording in the first-run checklist or macOS System Settings."
+                .into(),
+        );
+    }
+
     let mut guard = state.capture.lock().unwrap();
     if guard.is_some() {
         return Err("Capture already in progress".into());
@@ -225,9 +470,7 @@ async fn start_capture(
 
 /// Signal the running capture to stop and join the thread, returning stats.
 #[tauri::command]
-async fn stop_capture(
-    state: State<'_, AppState>,
-) -> Result<CaptureStats, String> {
+async fn stop_capture(state: State<'_, AppState>) -> Result<CaptureStats, String> {
     let session = state
         .capture
         .lock()
@@ -240,7 +483,10 @@ async fn stop_capture(
             .handle
             .join()
             .map_err(|_| "Capture thread panicked".to_string())?;
-        if let Some(stt) = session.stt {
+        if let Some(stt) = session.stt_sys {
+            join_stt(stt);
+        }
+        if let Some(stt) = session.stt_mic {
             join_stt(stt);
         }
         if let Some(translator) = session.translator {
@@ -268,15 +514,24 @@ struct KeyStatus {
 fn api_key_status(name: String) -> Result<KeyStatus, String> {
     if let Ok(Some(v)) = secrets::load(&name) {
         if !v.is_empty() {
-            return Ok(KeyStatus { present: true, source: Some("keychain") });
+            return Ok(KeyStatus {
+                present: true,
+                source: Some("keychain"),
+            });
         }
     }
     if let Ok(v) = std::env::var(&name) {
         if !v.is_empty() {
-            return Ok(KeyStatus { present: true, source: Some("env") });
+            return Ok(KeyStatus {
+                present: true,
+                source: Some("env"),
+            });
         }
     }
-    Ok(KeyStatus { present: false, source: None })
+    Ok(KeyStatus {
+        present: false,
+        source: None,
+    })
 }
 
 #[tauri::command]
@@ -348,7 +603,10 @@ fn init_file_logging() {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    println!("\n=== Bartleby session @ unix_ts={ts} pid={} ===", std::process::id());
+    println!(
+        "\n=== Bartleby session @ unix_ts={ts} pid={} ===",
+        std::process::id()
+    );
     eprintln!("[log] → {}", log_path.display());
     std::panic::set_hook(Box::new(|info| {
         let bt = std::backtrace::Backtrace::force_capture();
@@ -358,12 +616,38 @@ fn init_file_logging() {
 
 pub fn run() {
     init_file_logging();
-    // Phase 5 mic — force a macOS TCC mic prompt. cpal opens the input
-    // stream without going through AVFoundation, so without this call
-    // macOS silently hands cpal an empty stream and never asks the user.
-    capture::permission::request_microphone_access();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(
+            tauri_plugin_sql::Builder::default()
+                .add_migrations(
+                    "sqlite:bartleby.db",
+                    vec![tauri_plugin_sql::Migration {
+                        version: 1,
+                        description: "create sessions table",
+                        sql: "CREATE TABLE IF NOT EXISTS sessions (\
+                            id INTEGER PRIMARY KEY, \
+                            started_at INTEGER NOT NULL, \
+                            ended_at INTEGER NOT NULL, \
+                            duration_sec INTEGER NOT NULL, \
+                            title TEXT NOT NULL, \
+                            preview TEXT, \
+                            summary TEXT, \
+                            transcript_json TEXT NOT NULL, \
+                            stats_json TEXT NOT NULL, \
+                            audio_dir TEXT, \
+                            created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000), \
+                            updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000), \
+                            deleted_at INTEGER\
+                        ); CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at); CREATE INDEX IF NOT EXISTS idx_sessions_deleted_at ON sessions(deleted_at);",
+                        kind: tauri_plugin_sql::MigrationKind::Up,
+                    }],
+                )
+                .build(),
+        )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::default())
         .setup(|app| {
@@ -437,15 +721,23 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            greet,
-            capture_system_audio,
             start_capture,
             stop_capture,
             api_key_status,
             save_api_key,
             clear_api_key,
             verify_api_key,
-            finalize_session
+            finalize_session,
+            log_frontend,
+            list_audio_segments,
+            storage_status,
+            open_storage_folder,
+            cleanup_old_audio,
+            recording_permission_status,
+            request_microphone_permission,
+            request_screen_recording_permission,
+            open_microphone_settings,
+            open_screen_recording_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

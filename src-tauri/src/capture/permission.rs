@@ -1,22 +1,62 @@
-//! macOS TCC microphone permission request.
+//! macOS TCC recording permission probes and requests.
 //!
 //! cpal's CoreAudio backend opens an input stream without going through any
 //! AVFoundation entry point, so macOS never surfaces the standard mic prompt
 //! and just hands cpal an empty / silent stream.
 //! `AVCaptureDevice.requestAccessForMediaType:completionHandler:` is the
-//! documented Apple API to force the prompt; calling it once at startup
-//! registers the bundle in Privacy → Microphone.
+//! documented Apple API to force the prompt; onboarding calls it explicitly so
+//! the first launch can request permissions step by step.
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionState {
+    Granted,
+    NotDetermined,
+    Denied,
+    Restricted,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+pub struct RecordingPermissionStatus {
+    pub microphone: PermissionState,
+    pub screen_recording: PermissionState,
+}
+
+#[cfg(target_os = "macos")]
+fn audio_media_type() -> Option<&'static objc2_av_foundation::AVMediaType> {
+    // SAFETY: `AVMediaTypeAudio` is a global NSString constant; safe to read
+    // once AVFoundation is dyld-loaded (which Tauri has done by the time
+    // the frontend can invoke these commands).
+    unsafe { objc2_av_foundation::AVMediaTypeAudio }
+}
+
+#[cfg(target_os = "macos")]
+pub fn microphone_status() -> PermissionState {
+    use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice};
+
+    let Some(media_type) = audio_media_type() else {
+        eprintln!("[mic permission] AVMediaTypeAudio is null — AVFoundation not loaded");
+        return PermissionState::Unknown;
+    };
+
+    let status = unsafe { AVCaptureDevice::authorizationStatusForMediaType(media_type) };
+    match status {
+        AVAuthorizationStatus::Authorized => PermissionState::Granted,
+        AVAuthorizationStatus::NotDetermined => PermissionState::NotDetermined,
+        AVAuthorizationStatus::Denied => PermissionState::Denied,
+        AVAuthorizationStatus::Restricted => PermissionState::Restricted,
+        _ => PermissionState::Unknown,
+    }
+}
 
 #[cfg(target_os = "macos")]
 pub fn request_microphone_access() {
     use block2::RcBlock;
     use objc2::runtime::Bool;
-    use objc2_av_foundation::{AVCaptureDevice, AVMediaTypeAudio};
+    use objc2_av_foundation::AVCaptureDevice;
 
-    // SAFETY: `AVMediaTypeAudio` is a global NSString constant; safe to read
-    // once AVFoundation is dyld-loaded (which Tauri's main has triggered by
-    // the time `run()` is called).
-    let media_type = match unsafe { AVMediaTypeAudio } {
+    let media_type = match audio_media_type() {
         Some(t) => t,
         None => {
             eprintln!("[mic permission] AVMediaTypeAudio is null — AVFoundation not loaded");
@@ -44,5 +84,75 @@ pub fn request_microphone_access() {
     );
 }
 
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
+}
+
+#[cfg(target_os = "macos")]
+pub fn screen_recording_status() -> PermissionState {
+    // CoreGraphics exposes only a granted/not-granted preflight. Denied vs.
+    // not-yet-requested is not distinguishable here, so the UI pairs this with
+    // an explicit request/open-settings path.
+    if unsafe { CGPreflightScreenCaptureAccess() } {
+        PermissionState::Granted
+    } else {
+        PermissionState::NotDetermined
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn request_screen_recording_access() -> PermissionState {
+    if unsafe { CGRequestScreenCaptureAccess() } {
+        PermissionState::Granted
+    } else {
+        screen_recording_status()
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn recording_status() -> RecordingPermissionStatus {
+    RecordingPermissionStatus {
+        microphone: microphone_status(),
+        screen_recording: screen_recording_status(),
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn recording_ready() -> bool {
+    matches!(microphone_status(), PermissionState::Granted)
+        && matches!(screen_recording_status(), PermissionState::Granted)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn microphone_status() -> PermissionState {
+    PermissionState::Granted
+}
+
 #[cfg(not(target_os = "macos"))]
 pub fn request_microphone_access() {}
+
+#[cfg(not(target_os = "macos"))]
+pub fn screen_recording_status() -> PermissionState {
+    PermissionState::Granted
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn request_screen_recording_access() -> PermissionState {
+    PermissionState::Granted
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn recording_status() -> RecordingPermissionStatus {
+    RecordingPermissionStatus {
+        microphone: PermissionState::Granted,
+        screen_recording: PermissionState::Granted,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn recording_ready() -> bool {
+    true
+}

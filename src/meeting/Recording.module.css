@@ -71,6 +71,5 @@
 
 .footerControls {
   padding: var(--s-3) var(--s-6) var(--s-5);
-  border-top: 1px solid var(--rule);
   flex-shrink: 0;
 }

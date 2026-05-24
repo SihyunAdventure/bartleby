@@ -36,9 +36,10 @@ Library 가 모든 미팅 노트를 통합한다. 노트는 같은 형태로 쌓
 
 ## 핵심 기능 — Live Recording 노트 (구현됨)
 
-봇 없이 system audio + mic 캡처. Soniox 스트리밍 STT, Solar Pro 3 한국어 번역.
-세션 종료 후 한국어 요약 (TL;DR + Decisions + Action Items + Key Quotes).
-노트는 로컬 markdown, Library 에 영구 보관.
+봇 없이 system audio + mic 캡처. Soniox `stt-rt-v4` 스트리밍 STT,
+Upstage `solar-pro3` 직접 API 로 한국어 번역과 최종 노트를 생성한다.
+세션 종료 후 한국어 노트 (TL;DR + Outline + One-pager + Quote).
+노트는 로컬 SQLite/오디오 세그먼트로 Library 에 영구 보관.
 
 > 실제 사용 예: 영어 팀 미팅 녹화, 한국어 요약 Slack paste, 다음날 팔로업.
 
@@ -56,7 +57,8 @@ fork), UX/mental model 이 다르다 — 미팅 노트는 productivity, YouTube 
 
 - **봇 입장 X** — 상대방이 미팅 봇을 인식하게 만들지 않는다. 모든 캡처는 사용자 자신의 Mac 에서.
 - **클라우드 SaaS X** — Bartleby 측 서버가 transcript 를 보관하거나 처리하지 않는다. 결과물은 사용자 Mac 에.
-- **BYOK** — Soniox (STT) + OpenRouter (LLM) 키를 사용자가 직접 소유. vendor lock 없음. macOS Keychain 보관.
+- **BYOK** — Soniox (STT) + Upstage (LLM) 키를 사용자가 직접 소유. vendor lock 없음. macOS Keychain 보관.
+- **숨은 모델 X** — OpenRouter, Whisper/Ollama, Claude/Gemini/GPT fallback 은 공개 surface 가 아니다.
 - **한국어 ↔ 영어 pair 외 다국어 X** — 한국어 청자에게 집중한다. 다국어 지원은 PMF 이후.
 - **DRM 영상 X** — ScreenCaptureKit Apple 정책 차단. Netflix · Disney+ · Apple TV+ 등 재생 불가. Advertised non-feature.
 
@@ -80,10 +82,10 @@ fork), UX/mental model 이 다르다 — 미팅 노트는 productivity, YouTube 
 |---|---|
 | Desktop | Tauri 2.0 (Rust + React + TS) |
 | STT | Soniox streaming (BYOK, EN/KO) |
-| LLM | Solar Pro 3 via OpenRouter (BYOK, 128K context) |
+| LLM | Upstage `solar-pro3` direct API (BYOK) |
 | 캡처 | ScreenCaptureKit (macOS 15+, mic + system audio) |
-| 저장 | 로컬 markdown (`~/Documents/Bartleby/`) |
-| 사용자 키 | macOS Keychain (Soniox + OpenRouter) |
+| 저장 | 로컬 SQLite + audio segments |
+| 사용자 키 | macOS Keychain (Soniox + Upstage) |
 
 ## Non-goals (v1)
 

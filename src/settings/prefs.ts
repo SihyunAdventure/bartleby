@@ -8,42 +8,30 @@ import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 const STORAGE_KEY = "bartleby.prefs.v1";
 const EVENT_NAME = "prefs_changed";
 
-export type BilingualLayout = "side_by_side" | "ko_above_en" | "single_auto";
-export type SummaryLanguage = "ko" | "en";
-export type UpdateChannel = "stable" | "beta";
-
 export interface Prefs {
+  // Onboarding
+  onboarding_completed: boolean;
+
   // Meeting mode
-  mic_source: string;               // "default" until enumeration ships
-  bilingual_layout: BilingualLayout;
   auto_summarize: boolean;
-  summary_language: SummaryLanguage;
   // 영어 → 한국어 번역 가동 여부. false 면 translator session 안 띄움 (네트워크/비용 절약).
   // 한국어 미팅 (모두 한국어 발화) 에서 KO line 이 EN 의 자가 번역 같아 어색할 때 끄기.
   translate_enabled: boolean;
 
   // Storage
-  save_path: string;                // ~/Documents/Bartleby/ display only
   audio_retention_days: number;     // 1-90
-
-  // Updates
-  update_channel: UpdateChannel;
 }
 
 export const DEFAULT_PREFS: Prefs = {
-  mic_source: "default",
-  bilingual_layout: "side_by_side",
+  onboarding_completed: false,
+
   auto_summarize: true,
-  summary_language: "ko",
   // 한국어 미팅 위주 user 가 default. 영어 시청 / 영어 client call 시
   // Settings 에서 켜는 형태. STT 가 audio 언어 자동 인식하므로 한국어
   // 미팅엔 toggle 무관하게 KO 발화는 자체 transcribe.
   translate_enabled: false,
 
-  save_path: "~/Documents/Bartleby/",
   audio_retention_days: 30,
-
-  update_channel: "stable",
 };
 
 export function loadPrefs(): Prefs {

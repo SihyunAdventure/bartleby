@@ -7,6 +7,14 @@
     "core:default",
     "opener:default",
     "core:window:allow-start-dragging",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "process:default",
+    "store:default",
+    "sql:default",
+    "sql:allow-load",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "core:webview:default",
+    "updater:default"
   ]
 }

@@ -1,46 +1,14 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Settings from "./settings/Settings";
+import { loadPrefs } from "./settings/prefs";
 import Meeting from "./meeting/Meeting";
+import { loadSessions, persistSessions } from "./meeting/sessionsStore";
+import Onboarding from "./onboarding/Onboarding";
+import { checkForAppUpdate, installUpdateAndRelaunch } from "./update/updater";
 import type { CaptureStats } from "./types/capture";
 import type { MeetingSession } from "./meeting/types";
 import "./App.css";
-
-const SESSIONS_STORAGE_KEY_V1 = "bartleby.sessions.v1";
-const SESSIONS_STORAGE_KEY = "bartleby.sessions.v2";
-
-// Phase 5 S3 — v2 introduces an optional `finalSummary` field. Old v1
-// sessions get hydrated without it; SessionDetail surfaces a "Regenerate"
-// button when finalSummary is absent. v1 key is consumed once and cleared.
-function loadSessions(): MeetingSession[] {
-  try {
-    const rawV2 = localStorage.getItem(SESSIONS_STORAGE_KEY);
-    const rawV1 = localStorage.getItem(SESSIONS_STORAGE_KEY_V1);
-    const raw = rawV2 ?? rawV1;
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Array<
-      Omit<MeetingSession, "startedAt" | "endedAt"> & {
-        startedAt: string;
-        endedAt: string;
-      }
-    >;
-    const hydrated = parsed.map((s) => ({
-      ...s,
-      startedAt: new Date(s.startedAt),
-      endedAt: new Date(s.endedAt),
-      transcript: s.transcript ?? [],
-    }));
-    // Migrate v1 → v2 once and retire the old key.
-    if (!rawV2 && rawV1) {
-      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(hydrated));
-      localStorage.removeItem(SESSIONS_STORAGE_KEY_V1);
-    }
-    return hydrated;
-  } catch (e) {
-    console.warn("[sessions] load failed:", e);
-    return [];
-  }
-}
 
 const Gallery = lazy(() => import("./gallery/Gallery"));
 
@@ -56,35 +24,76 @@ function App() {
   const [captureRunning, setCaptureRunning] = useState(false);
   const [lastStats, setLastStats] = useState<CaptureStats | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [keysMissing, setKeysMissing] = useState(false);
-  const [sessions, setSessions] = useState<MeetingSession[]>(loadSessions);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [keysMissing, setKeysMissing] = useState(true);
+  const [sessions, setSessions] = useState<MeetingSession[]>([]);
+  const [sessionsHydrated, setSessionsHydrated] = useState(false);
   const keysOk = !keysMissing;
 
-  // Persist sessions to localStorage on every change. Date 필드는 string 으로
-  // 직렬화되므로 load 시 다시 Date 로 hydrate (loadSessions 참조).
+  // Hydrate sessions from disk once on mount. Until this completes the
+  // persist effect below is gated so an initial empty state doesn't
+  // overwrite the on-disk store.
   useEffect(() => {
-    try {
-      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
-    } catch (e) {
-      console.warn("[sessions] save failed:", e);
-    }
-  }, [sessions]);
+    loadSessions().then((s) => {
+      setSessions(s);
+      setSessionsHydrated(true);
+    });
+  }, []);
 
-  const refreshKeyStatus = async () => {
+  // Persist sessions to plugin-store on every change after hydration.
+  // Meeting.handleStop also calls persistSessions directly so the JSON
+  // file is on disk before navigation happens — this useEffect is the
+  // safety net for paths that mutate sessions outside handleStop
+  // (e.g. SessionDetail's summary regenerate updates the parent state).
+  useEffect(() => {
+    if (!sessionsHydrated) return;
+    persistSessions(sessions);
+  }, [sessions, sessionsHydrated]);
+
+  const refreshKeyStatus = async (): Promise<boolean> => {
     try {
       const [s, u] = await Promise.all([
         invoke<KeyStatus>("api_key_status", { name: "SONIOX_API_KEY" }),
         invoke<KeyStatus>("api_key_status", { name: "UPSTAGE_API_KEY" }),
       ]);
-      setKeysMissing(!s.present || !u.present);
+      const ready = s.present && u.present;
+      setKeysMissing(!ready);
+      return ready;
     } catch {
-      // Backend down or command unavailable — leave banner hidden so we
-      // don't pester the user about a transient issue.
+      // Backend down or command unavailable — be conservative in first-run
+      // onboarding and show the provider guide until a refresh succeeds.
+      setKeysMissing(true);
+      return false;
     }
   };
 
   useEffect(() => {
-    refreshKeyStatus();
+    const prefs = loadPrefs();
+    refreshKeyStatus().then(() => {
+      if (!prefs.onboarding_completed) {
+        setShowOnboarding(true);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isGallery) return;
+    const id = window.setTimeout(() => {
+      void checkForAppUpdate()
+        .then((update) => {
+          if (!update) return;
+          const shouldInstall = window.confirm(
+            `Bartleby ${update.version} is ready. Install it now and restart?`,
+          );
+          if (shouldInstall) {
+            void installUpdateAndRelaunch(update);
+          }
+        })
+        .catch((err) => {
+          console.warn("[updater] auto-check failed", err);
+        });
+    }, 2500);
+    return () => window.clearTimeout(id);
   }, []);
 
   if (isGallery) {
@@ -111,6 +120,13 @@ function App() {
         <Settings
           onClose={() => setSettingsOpen(false)}
           onChange={refreshKeyStatus}
+        />
+      )}
+      {showOnboarding && (
+        <Onboarding
+          keysOk={keysOk}
+          onKeysChanged={refreshKeyStatus}
+          onClose={() => setShowOnboarding(false)}
         />
       )}
     </main>

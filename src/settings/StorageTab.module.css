@@ -48,13 +48,29 @@
 }
 
 .diskValue {
+  display: block;
+  margin-top: 4px;
   font-family: var(--font-mono);
-  font-size: var(--t-xs);
-  color: var(--ink-4);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
   letter-spacing: var(--tracking-wide);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
 }
 
 .buttonRow {
   display: flex;
   gap: var(--s-2);
+}
+
+.error {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--danger);
+  line-height: 1.45;
 }

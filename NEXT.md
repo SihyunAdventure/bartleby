@@ -1,24 +1,74 @@
 # Bartleby — Next Session Continuation
 
 > 다음 세션에서 이 파일부터 읽고 진행.
-> 마지막 세션: 2026-05-13 — **Phase 5 본진 ✅ (finalize-on-Stop 결과 페이지 본진 + dogfood polish 6종). Mic capture deferred to Phase 6.**
+> 마지막 세션: 2026-05-14 — **Phase 6 mic capture spike ✅ + S3 mic→STT dual session ✅** (한국어 발화 → USER label transcript live verified). Phase 6 S4 = acoustic crosstalk fix (mic 가 speaker output 잡음).
 > 단일 기능: Live recording 미팅 노트. YouTube URL dub 은 Rehear 별개 repo (`~/Dev/side/rehear/`) 로 분리됨.
+
+> **Current public model surface**: Soniox `stt-rt-v4` for STT + Upstage
+> `solar-pro3` direct API for translation/final notes. OpenRouter,
+> Whisper/Ollama/local models, Claude/Gemini/GPT fallback models are historical
+> notes only and must not be surfaced in public builds.
 
 ---
 
-## 다음 세션 진입점 (2026-05-13 EOD)
+## 다음 세션 진입점 (2026-05-14 EOD)
 
-> **Phase 6 S0 — Mic capture cheap try (Anarlog entitlements pattern, ~5분)**. Fail 시 **Phase 6 S1 — Swift sidecar + AVAudioEngine** (~3-5h, Anarlog 정공법).
+> **Phase 6 S4 — Acoustic crosstalk fix**. mic 가 laptop speaker 출력의 audio 도 acoustic feedback 으로 잡아서 같은 utterance 가 SYSTEM + USER row 양쪽에 dup 됨. dogfood 한 번에 확실히 드러난 fail mode. ~20-60분 (옵션에 따라).
 
-**왜 mic 가 핵심**: macOS 15.x 환경에서 cpal + SCKit 두 path 모두 silent samples. cpal silent samples 는 알려진 bug ([tauri#9928](https://github.com/tauri-apps/tauri/issues/9928), [cpal#329](https://github.com/RustAudio/cpal/issues/329)), SCKit `Microphone` callback 미호출도 macOS 15 알려진 issue ([pyobjc#647](https://github.com/ronaldoussoren/pyobjc/issues/647)). Developer ID + hardened runtime + entitlement + AVCaptureDevice grant 다 했어도 풀리지 않음 — Privacy → Microphone list 에 Bartleby 자체가 등장 안 함.
+**왜 필요**: Phase 6 S3 (mic→STT wire, commit TBD-on-session-close) dogfood 에서 발견. system audio 재생 시 transcript:
+```
+00:33:12  SYSTEM  프리뷰랑 비교, 프리뷰랑 비교했을
+00:33:13  USER    프리뷰랑 비교했을           ← 동일 audio 의 mic echo
+00:33:14  SYSTEM  때 어떻게 되어가고 있는지...
+00:33:15  USER    때 어떻게 되어가고 있는지... ← duplicate
+```
 
-**Phase 6 S0 (Linear SIH-1235)** — Anarlog (fastrepl/anarlog) 의 entitlements 와 일치시키기. 5분:
-- `src-tauri/entitlements.plist`: ADD `cs.allow-jit` + `cs.allow-unsigned-executable-memory`, REMOVE bogus `device.microphone` (Apple 의 실제 key 는 `device.audio-input` 만)
-- `src-tauri/Info.plist`: ADD `NSAudioCaptureUsageDescription`
-- Anarlog 가 cpal 으로 mic 잘 잡음, 우리 차이 = entitlements + plist key
-- 빌드 → tccutil reset → Recording Start → log peak 값이 발화 시 0.1+ 면 성공
+Speaker output 이 laptop mic 의 acoustic input 으로 들어가 mic session 도 transcribe → SYSTEM + USER 둘 다 같은 utterance 발사. 우리 `verify-mic.sh` 의 `say`-based acoustic loop verify mechanism 의 정반대 side effect (그땐 feature, 실 사용에선 bug).
 
-**Phase 6 S1 (Linear SIH-1236, S0 fail 시)** — Swift sidecar binary + AVAudioEngine.installTap. 별도 signed sidecar 가 TCC 의 separate bundle ID 로 entry 등록 + 정상 prompt 발생. stdout 으로 raw f32 LE pipe → Rust mpsc → 기존 Opus encoder pipeline.
+**Fix 옵션** (cost ascending):
+
+| 옵션 | 코드 | 트레이드오프 |
+|---|---|---|
+| A. UI hint "Use headphones" | ~5분 | 사용자 환경 변경. 미팅·강의 use case 자연. v1 viable. crosstalk 자체는 처리 안 함. |
+| B. Frontend dedupe (text+time fuzzy match) | ~10분 | sys final 직후 N초 내 mic final 의 text similarity > threshold 면 mic row drop. 사용자 shadowing case false positive 가능. |
+| C. Backend sys-peak-gated mic mute | ~20분 | sys peak dBFS > threshold (e.g. -25dBFS) 면 mic_avengine 의 sample emit 일시 zero-fill. 동시 발화 turn 손실 trade-off (보통 turn-taking 이 일반이라 acceptable). |
+| D. Anarlog-style AEC DSP | 별도 day | mic buffer 에서 system audio referential signal subtract. proper fix. anarlog 의 `aec_mic: Option<Arc<[f32]>>` field 패턴. |
+
+**추천**: B + A 조합. A 가 사용자 UX 안내 (Settings hint 또는 first-launch banner), B 가 fallback. C/D 는 별도 Phase 6 S5.
+
+**Other follow-ups** (Phase 6 S5+):
+- mic UI peak indicator (현재 sys 만 우측 상단 막대로 표시. mic 는 log only)
+- Soniox endpoint detection 의 한국어 sensitivity tuning — sentence merge logic 완화로 일단 풀렸지만 (gap-only), 향후 prefs 로 user toggle 가능
+
+## 이번 세션 (2026-05-14) — Phase 6 mic capture spike ✅ + S3 mic→STT ✅
+
+3-stage 진단 path:
+
+| Stage | 가설 | 결과 |
+|---|---|---|
+| S0 (SIH-1235) | Anarlog plist diff (entitlements + NSAudioCaptureUsageDescription) 만으로 cpal/SCKit silence 풀림 | **FAIL → 진단 reframe**. plist 적용 후에도 발화 시 mic samples 없음. 그런데 log 의 `AVCaptureDevice verdict: granted=true` 가 결정적 단서 — TCC entry 는 이미 grant 되어있음. "Prompt 안 뜸" 은 fail 아니라 already-granted. 진짜 fail mode = **API path** (SCStream 의 mic feature + cpal 둘 다 silent on macOS 15.x), entitlement 가 아님. |
+| S1 cheap variant (SIH-1236 변형) | Single-binary Swift sidecar (separate-bundle 없이) + AVAudioEngine.installTap. NEXT.md spec 의 separate-bundle 가설은 advisor reframe 후 dropped — granted=true evidence 가 그 가설의 전제 부정 | **PARTIAL** — sidecar binary spawn 성공, `[bartleby-mic] engine started`, callback 도 받음. 그러나 peak 가 0.01-0.05 수준 (silence). standalone 실행 시 peak=0.31 정상 → sidecar 자체는 작동, Bartleby context 안에서만 silent. |
+| S2 spawn-order fix | mic_avengine::start() 를 SCStream.start_capture() **이전** 으로 이동. SCStream 이 audio device routing 을 perturb 해서 sidecar 가 silent reflection 받는 가설 | **PASS** ✅ — peak #300=0.105, #800=0.108, **#1200=0.557**. 정상 대화 음량 도달. |
+
+**작동 검증된 path**:
+- `src-tauri/swift/bartleby-mic.swift` (~80줄) → swiftc -O → `Bartleby.app/Contents/MacOS/bartleby-mic` (75KB ARM64). codesign --deep 가 same Developer ID + designated requirement 로 sub-binary 사인, TCC entry 부모와 공유.
+- AVAudioEngine + AVAudioConverter → 48kHz mono f32 LE → stdout
+- Rust `capture/mic_avengine.rs` (Drop 으로 child.kill + reader.join) — std::process::Command spawn + BufReader::with_capacity(64KB) + 1024-frame chunks → stereo upmix → 기존 `mic_tx` fan-out
+- SCKit `with_captures_microphone(false)` — silent 인 와중에도 device routing 자원 점유했었음, 명시 disable 필요
+- `scripts/verify-mic.sh` 자동 회귀 test (`say` background + standalone sidecar 7s record + python peak/duration/activity 측정)
+
+**알려진 deferred (Phase 6 S3 에서 wire)**:
+- mic→STT (system_audio.rs L323 `mic_stt_sender = None` 의 의도적 deferral)
+- UI 의 mic peak indicator (현재 log only, Recording UI 우측 상단 빨간 막대는 system audio peak)
+
+**plist hygiene (parallel finding)**:
+- `entitlements.plist`: `device.microphone` bogus key 제거 (Apple 실제 key 는 `device.audio-input` 만). `cs.allow-jit` + `cs.allow-unsigned-executable-memory` 추가 (Anarlog pattern, Tauri webview JIT 필요).
+- `Info.plist`: `NSAudioCaptureUsageDescription` 추가 (macOS 의 별도 mic capture description).
+- 이 변경 자체는 mic 풀림의 root cause 가 아니었지만 (S0 의 가설은 reframe 됨), security hygiene 관점에선 valid keep.
+
+**Linear**:
+- SIH-1235 (S0 Anarlog plist) → **Done** (진단 결과 + plist diff 적용)
+- SIH-1236 (S1 Swift sidecar) → **Done** (cheap variant 로 PASS, separate-bundle 부분은 spec 보다 가벼움)
 
 ## 현재 상태 (Phase 5 본진 ✅ 종료, 2026-05-13)
 

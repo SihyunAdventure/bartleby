@@ -15,18 +15,23 @@
       {
         "label": "main",
         "title": "Bartleby",
-        "width": 800,
-        "height": 600,
+        "width": 1280,
+        "height": 860,
         "acceptFirstMouse": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/audio/**"]
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -36,7 +41,16 @@
     ],
     "macOS": {
       "minimumSystemVersion": "15.0",
+      "signingIdentity": "Developer ID Application: Notique Inc. (7M2DZPHB8R)",
+      "hardenedRuntime": true,
+      "providerShortName": "7M2DZPHB8R",
       "entitlements": "entitlements.plist"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRBMDRGQ0RERjI2MEM0MTYKUldRV3hHRHkzZndFU2wycktYN0krTTM0ZlBudEFDM08yL0V5d0I1RUhYdHVJQkZTS3dJL3RjQXYK",
+      "endpoints": ["https://heybartleby.com/latest.json"]
     }
   }
 }

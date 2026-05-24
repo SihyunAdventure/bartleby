@@ -28,4 +28,7 @@ export interface CaptureStats {
   rss: RssStats;
   peak_system_dbfs: number;
   drm_detected: boolean;
+  /** Phase 6 S5 — directory holding the persisted Opus segments for this
+   *  session. Empty string for the legacy fixed-duration Day 4 command. */
+  audio_dir: string;
 }

@@ -14,8 +14,8 @@ use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -25,6 +25,16 @@ use super::ring::AudioRing;
 
 const SONIOX_WS_URL: &str = "wss://stt-rt.soniox.com/transcribe-websocket";
 const TARGET_SAMPLE_RATE: u32 = 16_000;
+
+/// Which audio source a Soniox session is transcribing. Frontend uses this
+/// to decide speaker label (mic → "user", sys → "system") and route partials
+/// independently so the two channels don't clobber each other's caption.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SttSource {
+    Sys,
+    Mic,
+}
 
 /// How a single websocket session ended. The reconnect loop treats `Stopped`
 /// and `Finished` as terminal, `Dropped` as retryable.
@@ -44,6 +54,7 @@ pub enum SessionEnd {
 pub struct SttPartial {
     pub text: String,
     pub language: Option<String>,
+    pub source: SttSource,
 }
 
 /// Payload emitted to the frontend when a token batch is finalized — the
@@ -52,6 +63,7 @@ pub struct SttPartial {
 pub struct SttFinal {
     pub text: String,
     pub language: Option<String>,
+    pub source: SttSource,
 }
 
 /// Payload emitted on a session error so the overlay can surface it instead
@@ -61,6 +73,7 @@ pub struct SttFinal {
 pub struct SttError {
     pub code: Option<String>,
     pub message: String,
+    pub source: SttSource,
 }
 
 #[derive(Deserialize, Debug)]
@@ -102,6 +115,7 @@ pub async fn run_session(
     stop: &Arc<AtomicBool>,
     final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     ring: &Arc<Mutex<AudioRing>>,
+    source: SttSource,
 ) -> Result<SessionEnd> {
     let (ws, _resp) = connect_async(SONIOX_WS_URL)
         .await
@@ -126,10 +140,7 @@ pub async fn run_session(
     // ready (rare, near-empty); on reconnect it's up to ~30s of speech we'd
     // otherwise lose to the gap.
     {
-        let snapshot = ring
-            .lock()
-            .expect("ring mutex poisoned")
-            .snapshot();
+        let snapshot = ring.lock().expect("ring mutex poisoned").snapshot();
         if !snapshot.is_empty() {
             let total_bytes: usize = snapshot.iter().map(|c| c.len()).sum();
             println!(
@@ -171,8 +182,14 @@ pub async fn run_session(
                     Ok(m) => {
                         if let Some(err) = m.error_message {
                             let code = m.error_code.map(|v| v.to_string());
-                            let _ = app_for_reader
-                                .emit("stt_error", SttError { code, message: err.clone() });
+                            let _ = app_for_reader.emit(
+                                "stt_error",
+                                SttError {
+                                    code,
+                                    message: err.clone(),
+                                    source,
+                                },
+                            );
                             *drop_reason_reader.lock().unwrap() =
                                 Some(format!("server error: {err}"));
                             aborted_reader.store(true, Ordering::SeqCst);
@@ -220,6 +237,7 @@ pub async fn run_session(
                                 SttFinal {
                                     text: final_text,
                                     language: final_lang,
+                                    source,
                                 },
                             );
                         }
@@ -240,6 +258,7 @@ pub async fn run_session(
                                 SttPartial {
                                     text: partial_text,
                                     language: partial_lang,
+                                    source,
                                 },
                             );
                         }
@@ -253,8 +272,7 @@ pub async fn run_session(
                     Err(e) => eprintln!("[stt] parse err: {e}; raw: {t}"),
                 },
                 Ok(Message::Close(_)) => {
-                    *drop_reason_reader.lock().unwrap() =
-                        Some("server closed websocket".into());
+                    *drop_reason_reader.lock().unwrap() = Some("server closed websocket".into());
                     aborted_reader.store(true, Ordering::SeqCst);
                     return;
                 }
@@ -284,9 +302,19 @@ pub async fn run_session(
             break;
         }
     }
-    // Soniox EOS = empty text frame. Best-effort; ignore errors after stop.
-    let _ = sink.send(Message::Text(String::new())).await;
-    let _ = reader.await;
+    // Soniox EOS = empty text frame, then explicit close. Wrap the entire
+    // teardown in a single timeout so that *any* await in here — the EOS
+    // send, the sink.close handshake, or reader.next() pending on the
+    // server's Close frame — can't deadlock stop_capture. Five seconds is
+    // generous enough for a clean shutdown but short enough that the user
+    // sees the SessionDetail snap into place. The reader task is then
+    // abandoned (process-exit cleans it up).
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let _ = sink.send(Message::Text(String::new())).await;
+        let _ = sink.close().await;
+        let _ = reader.await;
+    })
+    .await;
 
     if stop.load(Ordering::SeqCst) {
         println!("[stt] session ended (stop)");
@@ -332,33 +360,30 @@ pub async fn verify_key(api_key: &str) -> Result<(), String> {
         .await
         .map_err(|e| format!("Send config failed: {e}"))?;
 
-    let verdict = tokio::time::timeout(
-        std::time::Duration::from_millis(1_500),
-        async {
-            while let Some(msg) = stream.next().await {
-                match msg {
-                    Ok(Message::Text(t)) => {
-                        if let Ok(parsed) = serde_json::from_str::<ServerMessage>(&t) {
-                            if let Some(err) = parsed.error_message {
-                                return Err(err);
-                            }
-                            // Any non-error message means handshake succeeded.
-                            return Ok(());
+    let verdict = tokio::time::timeout(std::time::Duration::from_millis(1_500), async {
+        while let Some(msg) = stream.next().await {
+            match msg {
+                Ok(Message::Text(t)) => {
+                    if let Ok(parsed) = serde_json::from_str::<ServerMessage>(&t) {
+                        if let Some(err) = parsed.error_message {
+                            return Err(err);
                         }
+                        // Any non-error message means handshake succeeded.
+                        return Ok(());
                     }
-                    Ok(Message::Close(frame)) => {
-                        let reason = frame
-                            .map(|f| f.reason.to_string())
-                            .unwrap_or_else(|| "server closed".into());
-                        return Err(reason);
-                    }
-                    Err(e) => return Err(format!("recv: {e}")),
-                    _ => {}
                 }
+                Ok(Message::Close(frame)) => {
+                    let reason = frame
+                        .map(|f| f.reason.to_string())
+                        .unwrap_or_else(|| "server closed".into());
+                    return Err(reason);
+                }
+                Err(e) => return Err(format!("recv: {e}")),
+                _ => {}
             }
-            Err("stream ended without verdict".into())
-        },
-    )
+        }
+        Err("stream ended without verdict".into())
+    })
     .await;
 
     let _ = sink.send(Message::Text(String::new())).await;

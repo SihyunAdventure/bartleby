@@ -46,12 +46,12 @@ Used for STT (transcription).
 [●●●●●●●●●●●●●●●●●●●●●●●●●●●●]   [Verify] [Clear]
 $0.12/hr 추정 ($0.30/hr legacy 가격, 가입 시 직접 확인)
 
-OpenRouter API Key                [✓ verified]
-Used for KO translation/summary (Solar Pro 3).
+Upstage API Key                   [✓ verified]
+Used for KO translation/final note (solar-pro3 direct API).
 [●●●●●●●●●●●●●●●●●●●●●●●●●●●●]   [Verify] [Clear]
 ~$0.15/$0.60 per 1M tokens
 
-Both keys are stored in macOS Keychain. Bartleby never sees them.
+Both keys are stored in macOS Keychain. No OpenRouter/local model is used.
 ```
 
 - KeyInput component (`components.jsx` `KeyInput`) 그대로 사용
@@ -166,5 +166,5 @@ design-system 의 토큰 그대로:
 
 - Settings 가 modal 인지 라우트 (`/settings`) 인지 — 현재 spec 은 라우트 가정 (Tab Segmented 가 sidebar 보다 자연)
 - Tab 전환 animation (cross-fade 100ms vs none)
-- BYOK key verify 호출 시 어떤 endpoint 사용 (Soniox: `auth/check`? OpenRouter: `models` 호출?)
+- BYOK key verify 호출 시 어떤 endpoint 사용 (Soniox: WebSocket config ping, Upstage: minimal chat completion ping)
 - Theme (light/dark) toggle 위치 — Settings 탭? 또는 menu bar?

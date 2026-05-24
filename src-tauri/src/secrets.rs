@@ -14,8 +14,7 @@ use keyring::{Entry, Error as KeyringError};
 const SERVICE: &str = "com.heybartleby.bartleby";
 
 fn entry(name: &str) -> Result<Entry> {
-    Entry::new(SERVICE, name)
-        .with_context(|| format!("Keychain entry init failed for {}", name))
+    Entry::new(SERVICE, name).with_context(|| format!("Keychain entry init failed for {}", name))
 }
 
 pub fn load(name: &str) -> Result<Option<String>> {

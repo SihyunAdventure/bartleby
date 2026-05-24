@@ -64,19 +64,6 @@
   background: var(--rule);
 }
 
-.updateRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-}
-
-.updateLeft {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-
 .row {
   display: flex;
   align-items: center;
@@ -91,19 +78,36 @@
   color: var(--ink-2);
 }
 
-.lastChecked {
+.shortcut {
   font-family: var(--font-mono);
   font-size: var(--t-xs);
-  color: var(--ink-5);
-  letter-spacing: var(--tracking-wide);
+  color: var(--ink-2);
+  letter-spacing: var(--tracking-wider);
 }
 
-.license {
-  font-family: var(--font-mono);
-  font-size: var(--t-xs);
+.updateCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  padding: var(--s-4);
+}
+
+.updateMessage {
+  margin: var(--s-2) 0 0;
   color: var(--ink-4);
-  letter-spacing: var(--tracking-wide);
-  margin: 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.updateActions {
+  display: flex;
+  gap: var(--s-2);
+  flex-shrink: 0;
 }
 
 .footer {
@@ -112,4 +116,11 @@
   font-size: 12px;
   color: var(--ink-4);
   margin: 0;
+}
+
+@media (max-width: 720px) {
+  .updateCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }

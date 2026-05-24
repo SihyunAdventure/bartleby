@@ -11,9 +11,14 @@ node_modules
 dist
 dist-ssr
 *.local
+*.key
 
 # OMC orchestration state (per-machine)
 .omc/
+
+# Vercel local project links (per-machine)
+.vercel/
+web/.vercel/
 
 # Claude Code local config (per-machine)
 .claude/

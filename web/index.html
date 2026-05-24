@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bartleby — Korean ears for English meetings</title>
+    <meta
+      name="description"
+      content="Bartleby records meetings on your Mac, transcribes with Soniox, and writes Korean notes with Upstage Solar Pro."
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f6f0e6;
+        --paper-2: #efe6d9;
+        --ink: #1f1c19;
+        --muted: #70685e;
+        --rule: #d9cdbc;
+        --accent: #2d2a26;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      main { max-width: 1120px; margin: 0 auto; padding: 72px 28px; }
+      .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: 48px; align-items: end; min-height: 70vh; }
+      .kicker, .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      h1 { margin: 18px 0 18px; font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.06em; line-height: .9; font-size: clamp(58px, 11vw, 140px); }
+      .lede { max-width: 680px; color: var(--muted); line-height: 1.7; font-size: 18px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+      a.button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border: 1px solid var(--accent); border-radius: 999px; color: var(--paper); background: var(--accent); text-decoration: none; font-weight: 600; }
+      a.button.secondary { color: var(--ink); background: transparent; border-color: var(--rule); }
+      .card { border: 1px solid var(--rule); background: var(--paper-2); border-radius: 28px; padding: 28px; box-shadow: 0 20px 60px rgba(31,28,25,.08); }
+      .card h2, section h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 34px; letter-spacing: -.035em; font-weight: 500; }
+      .rows { display: grid; gap: 18px; margin-top: 26px; }
+      .row { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid var(--rule); padding-top: 16px; color: var(--muted); }
+      .row strong { color: var(--ink); }
+      section { margin-top: 88px; }
+      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 24px; }
+      .tile { border: 1px solid var(--rule); border-radius: 22px; background: rgba(255,255,255,.24); padding: 22px; }
+      .tile h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .tile p { margin: 0; color: var(--muted); line-height: 1.6; font-size: 14px; }
+      footer { margin-top: 88px; padding-top: 24px; border-top: 1px solid var(--rule); color: var(--muted); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      footer a { color: inherit; }
+      @media (max-width: 820px) { .hero, .grid { grid-template-columns: 1fr; } main { padding-top: 44px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="hero">
+        <div>
+          <div class="kicker">Bartleby for macOS</div>
+          <h1>Korean ears for English meetings.</h1>
+          <p class="lede">
+            Capture microphone and system audio locally, transcribe realtime with Soniox stt-rt-v4, then turn the transcript into Korean notes with Upstage Solar Pro.
+          </p>
+          <div class="actions">
+            <a class="button" href="/releases/Bartleby_0.1.0_universal.dmg">Download universal DMG</a>
+            <a class="button secondary" href="/latest.json">Updater feed</a>
+          </div>
+        </div>
+        <aside class="card">
+          <div class="eyebrow">Release posture</div>
+          <h2>Private by default. BYOK by design.</h2>
+          <div class="rows">
+            <div class="row"><strong>Storage</strong><span>Audio + notes stay on your Mac</span></div>
+            <div class="row"><strong>STT</strong><span>Soniox stt-rt-v4</span></div>
+            <div class="row"><strong>LLM</strong><span>Upstage solar-pro3</span></div>
+            <div class="row"><strong>Updates</strong><span>Signed Tauri updater feed</span></div>
+          </div>
+        </aside>
+      </div>
+
+      <section>
+        <div class="eyebrow">First run</div>
+        <h2>Onboarding asks only for what recording needs.</h2>
+        <div class="grid">
+          <div class="tile"><h3>Permissions</h3><p>Microphone and Screen Recording are requested step-by-step, with direct System Settings links for denied states.</p></div>
+          <div class="tile"><h3>Model setup</h3><p>No local model download. Bartleby automatically uses the pinned hosted models once keys are saved.</p></div>
+          <div class="tile"><h3>BYOK</h3><p>Soniox and Upstage keys are verified before saving to macOS Keychain.</p></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="eyebrow">Download notes</div>
+        <h2>Install, grant permissions, paste keys, record.</h2>
+        <div class="grid">
+          <div class="tile"><h3>macOS</h3><p>Built for macOS 15+. The DMG is the public installer; signed updater artifacts are served separately through latest.json.</p></div>
+          <div class="tile"><h3>Costs</h3><p>You pay Soniox and Upstage directly. Bartleby does not mark up provider usage.</p></div>
+          <div class="tile"><h3>Updates</h3><p>Future releases are signed with the Bartleby Tauri updater key and installed from heybartleby.com.</p></div>
+        </div>
+      </section>
+
+      <footer>
+        <span>© 2026 Notique · Bartleby</span>
+        <span><a href="https://github.com/heybartleby/bartleby">GitHub</a> · <a href="mailto:hello@heybartleby.com">hello@heybartleby.com</a></span>
+      </footer>
+    </main>
+  </body>
+</html>

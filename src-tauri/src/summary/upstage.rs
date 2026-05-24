@@ -72,8 +72,12 @@ pub fn parse_response(raw: &str) -> Result<SummaryResult, String> {
     } else {
         trimmed
     };
-    serde_json::from_str::<SummaryResult>(body)
-        .map_err(|e| format!("JSON parse: {e} | body={}", body.chars().take(200).collect::<String>()))
+    serde_json::from_str::<SummaryResult>(body).map_err(|e| {
+        format!(
+            "JSON parse: {e} | body={}",
+            body.chars().take(200).collect::<String>()
+        )
+    })
 }
 
 pub async fn summarize(
@@ -143,8 +147,14 @@ mod tests {
             "Three.".to_string(),
         ];
         let out = build_transcript(&lines);
-        assert!(out.contains("01. Hello world."), "expected 01 line, got: {out}");
-        assert!(out.contains("02. How are you?"), "expected 02 line, got: {out}");
+        assert!(
+            out.contains("01. Hello world."),
+            "expected 01 line, got: {out}"
+        );
+        assert!(
+            out.contains("02. How are you?"),
+            "expected 02 line, got: {out}"
+        );
         assert!(out.contains("03. Three."), "expected 03 line, got: {out}");
         // Blank lines don't get numbered or included
         assert!(!out.contains("  ."));

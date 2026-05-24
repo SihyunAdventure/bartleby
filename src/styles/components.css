@@ -237,6 +237,7 @@
   color: var(--ink-2);
   cursor: default;
 }
+.side-item[role="button"] { cursor: pointer; }
 .side-item:hover { background: var(--paper-3); }
 .side-item[aria-selected="true"] {
   background: var(--paper);

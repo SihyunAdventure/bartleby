@@ -177,7 +177,10 @@ pub async fn finalize_session(
         .await
         .map_err(|e| format!("finalize read body: {e}"))?;
     if !status.is_success() {
-        return Err(format!("finalize HTTP {status}: {}", text.chars().take(300).collect::<String>()));
+        return Err(format!(
+            "finalize HTTP {status}: {}",
+            text.chars().take(300).collect::<String>()
+        ));
     }
 
     let envelope: serde_json::Value =

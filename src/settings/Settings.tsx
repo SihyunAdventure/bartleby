@@ -1,12 +1,11 @@
 import { useState } from "react";
 import KeysTab from "./KeysTab";
-import ModesTab from "./ModesTab";
+import RecordingTab from "./RecordingTab";
 import StorageTab from "./StorageTab";
-import ShortcutsTab from "./ShortcutsTab";
 import AboutTab from "./AboutTab";
 import styles from "./Settings.module.css";
 
-type TabId = "keys" | "modes" | "storage" | "shortcuts" | "about";
+type TabId = "keys" | "recording" | "storage" | "about";
 
 interface Tab {
   id: TabId;
@@ -15,9 +14,8 @@ interface Tab {
 
 const TABS: Tab[] = [
   { id: "keys", label: "Keys" },
-  { id: "modes", label: "Modes" },
+  { id: "recording", label: "Recording" },
   { id: "storage", label: "Storage" },
-  { id: "shortcuts", label: "Shortcuts" },
   { id: "about", label: "About" },
 ];
 
@@ -51,16 +49,15 @@ export default function Settings({ onClose, onChange }: Props) {
 
         <div className={styles.body}>
           {activeTab === "keys" && <KeysTab onChanged={onChange} />}
-          {activeTab === "modes" && <ModesTab />}
+          {activeTab === "recording" && <RecordingTab />}
           {activeTab === "storage" && <StorageTab />}
-          {activeTab === "shortcuts" && <ShortcutsTab />}
           {activeTab === "about" && <AboutTab />}
         </div>
 
         <div className={styles.footer}>
           {activeTab === "keys" && (
             <p className={styles.footnote}>
-              Both keys are stored in macOS Keychain. Bartleby never sees them outside this device.
+              Soniox hears speech. Upstage Solar Pro 3 writes Korean notes. Both keys are stored in macOS Keychain.
             </p>
           )}
           <div className={styles.closeRow}>
