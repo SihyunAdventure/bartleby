@@ -105,27 +105,21 @@
       }
       .button:hover { background: var(--primary-2); transform: translateY(-1px); }
       .subtle { color: var(--muted); font-size: 13px; }
-      .mock {
-        max-width: 860px;
-        margin: 38px auto 0;
+      .app-shot {
+        max-width: 980px;
+        margin: 42px auto 0;
         border: 1px solid var(--line);
-        border-radius: 28px;
-        background: rgba(255,255,255,.86);
-        box-shadow: 0 28px 90px rgba(24,24,27,.10);
+        border-radius: 30px;
+        background: #fff;
+        box-shadow: 0 32px 96px rgba(24,24,27,.12);
         overflow: hidden;
         text-align: left;
       }
-      .mock-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
-      .traffic { display: flex; gap: 7px; }
-      .traffic span { width: 11px; height: 11px; border-radius: 999px; background: #e4e4e7; }
-      .search { flex: 1; max-width: 520px; color: #a1a1aa; background: var(--soft); border-radius: 12px; padding: 10px 13px; font-size: 13px; }
-      .rows { display: grid; gap: 0; padding: 8px; }
-      .row { display: grid; grid-template-columns: 56px 1fr auto; gap: 16px; align-items: center; padding: 14px 12px; border-radius: 18px; }
-      .row:nth-child(1) { background: #f8fafc; }
-      .key { color: #a1a1aa; font-size: 12px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
-      .row strong { display: block; font-size: 15px; letter-spacing: -.015em; }
-      .row span { color: var(--muted); font-size: 13px; }
-      .pill { color: #52525b; background: var(--soft); border-radius: 999px; padding: 5px 9px; font-size: 12px; }
+      .app-shot img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
       section { padding: 76px 0 0; }
       .section-head { text-align: center; }
       h2 { margin: 0; font-size: clamp(34px, 5vw, 54px); line-height: 1.08; letter-spacing: -.055em; }
@@ -169,8 +163,6 @@
         .hero { padding-top: 52px; }
         .grid, .download-card { grid-template-columns: 1fr; }
         .download-card { text-align: center; }
-        .row { grid-template-columns: 44px 1fr; }
-        .row .pill { display: none; }
       }
     </style>
   </head>
@@ -200,18 +192,9 @@
             <div class="subtle">지금은 무료 · macOS 15 이상 · Apple Silicon + Intel · 서명·공증 완료</div>
           </div>
 
-          <div class="mock" aria-label="Bartleby meeting note preview">
-            <div class="mock-head">
-              <div class="traffic"><span></span><span></span><span></span></div>
-              <div class="search">Search meetings, transcripts, decisions…</div>
-            </div>
-            <div class="rows">
-              <div class="row"><div class="key">LIVE</div><div><strong>Weekly product call</strong><span>영어 발화를 실시간으로 받아 적는 중 · Soniox stt-rt-v4</span></div><div class="pill">Recording</div></div>
-              <div class="row"><div class="key">NOTE</div><div><strong>결정사항 3개 · 액션아이템 5개</strong><span>Upstage solar-pro3가 한국어 회의록으로 정리</span></div><div class="pill">Auto summary</div></div>
-              <div class="row"><div class="key">BYOK</div><div><strong>Soniox + Upstage keys in Keychain</strong><span>온보딩에서 권한과 API 키를 단계별로 설정</span></div><div class="pill">Private</div></div>
-              <div class="row"><div class="key">LOCAL</div><div><strong>Audio, transcript, notes stay on your Mac</strong><span>앱 데이터는 로컬 저장. 제공자 호출은 내 키로만 실행</span></div><div class="pill">macOS</div></div>
-            </div>
-          </div>
+          <figure class="app-shot" aria-label="Bartleby 실제 앱 화면">
+            <img src="/app-screenshot.png" alt="Bartleby 앱에서 회의 라이브러리와 한국어 회의 노트를 보여주는 화면" loading="eager" />
+          </figure>
         </section>
 
         <section>
