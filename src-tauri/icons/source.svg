@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Bartleby app icon">
+  <rect x="72" y="72" width="880" height="880" rx="232" fill="#fbfaf6"/>
+  <rect x="73" y="73" width="878" height="878" rx="231" fill="none" stroke="#ece8df" stroke-width="2"/>
+
+  <rect x="232" y="238" width="560" height="560" rx="100" fill="#ffffff" stroke="#e8e4da" stroke-width="18"/>
+  <path d="M792 622v176H616z" fill="#f6bf3f"/>
+  <path d="M616 798c0-97 79-176 176-176z" fill="#f9cd67"/>
+
+  <path d="M352 458h248" fill="none" stroke="#18181b" stroke-width="34" stroke-linecap="round"/>
+  <path d="M352 580c78-13 135 16 238 0" fill="none" stroke="#18181b" stroke-width="34" stroke-linecap="round"/>
+
+  <path d="M736 318c24 24 24 62 0 86L564 576l-102 42 42-102 172-172c24-24 62-24 86 0z" fill="#18181b"/>
+  <path d="M752 460l54-54" fill="none" stroke="#27c2cf" stroke-width="38" stroke-linecap="round"/>
+</svg>

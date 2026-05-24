@@ -8,7 +8,7 @@ import {
 } from "../update/updater";
 import styles from "./AboutTab.module.css";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 
 export default function AboutTab() {
   const [update, setUpdate] = useState<Update | null>(null);
