@@ -4,15 +4,30 @@
     {
       "source": "/latest.json",
       "headers": [
-        { "key": "Content-Type", "value": "application/json; charset=utf-8" },
-        { "key": "Cache-Control", "value": "public, max-age=60, stale-while-revalidate=300" }
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=60, stale-while-revalidate=300"
+        }
       ]
     },
     {
       "source": "/releases/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/downloads/Bartleby-0.1.0-universal.dmg",
+      "destination": "/releases/Bartleby_0.1.0_universal.dmg"
     }
   ]
 }

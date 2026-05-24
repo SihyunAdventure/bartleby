@@ -1,103 +1,254 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bartleby — Korean ears for English meetings</title>
-    <meta
-      name="description"
-      content="Bartleby records meetings on your Mac, transcribes with Soniox, and writes Korean notes with Upstage Solar Pro."
-    />
+    <title>Bartleby — 영어 회의를 한국어 노트로</title>
+    <meta name="description" content="Bartleby는 Mac에서 회의를 녹음하고 Soniox로 실시간 전사한 뒤 Upstage Solar Pro로 한국어 회의록을 정리하는 BYOK macOS 앱입니다." />
+    <meta property="og:title" content="Bartleby — 영어 회의를 한국어 노트로" />
+    <meta property="og:description" content="마이크와 시스템 오디오를 캡처하고, 영어 회의를 한국어 노트로 바꿉니다. Soniox + Upstage BYOK." />
+    <meta property="og:url" content="https://heybartleby.com" />
+    <meta property="og:site_name" content="Bartleby" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/app-icon.png" />
     <style>
       :root {
         color-scheme: light;
-        --paper: #f6f0e6;
-        --paper-2: #efe6d9;
-        --ink: #1f1c19;
-        --muted: #70685e;
-        --rule: #d9cdbc;
-        --accent: #2d2a26;
+        --bg: #ffffff;
+        --ink: #18181b;
+        --muted: #71717a;
+        --soft: #f4f4f5;
+        --line: #e4e4e7;
+        --primary: #18181b;
+        --primary-2: #3f3f46;
+        --blue: #dbeafe;
+        --violet: #f5d0fe;
+        --green: #dcfce7;
       }
       * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
       body {
         margin: 0;
-        background: var(--paper);
+        min-height: 100vh;
+        background: var(--bg);
         color: var(--ink);
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
-      main { max-width: 1120px; margin: 0 auto; padding: 72px 28px; }
-      .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: 48px; align-items: end; min-height: 70vh; }
-      .kicker, .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      h1 { margin: 18px 0 18px; font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.06em; line-height: .9; font-size: clamp(58px, 11vw, 140px); }
-      .lede { max-width: 680px; color: var(--muted); line-height: 1.7; font-size: 18px; }
-      .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
-      a.button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border: 1px solid var(--accent); border-radius: 999px; color: var(--paper); background: var(--accent); text-decoration: none; font-weight: 600; }
-      a.button.secondary { color: var(--ink); background: transparent; border-color: var(--rule); }
-      .card { border: 1px solid var(--rule); background: var(--paper-2); border-radius: 28px; padding: 28px; box-shadow: 0 20px 60px rgba(31,28,25,.08); }
-      .card h2, section h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 34px; letter-spacing: -.035em; font-weight: 500; }
-      .rows { display: grid; gap: 18px; margin-top: 26px; }
-      .row { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid var(--rule); padding-top: 16px; color: var(--muted); }
-      .row strong { color: var(--ink); }
-      section { margin-top: 88px; }
-      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 24px; }
-      .tile { border: 1px solid var(--rule); border-radius: 22px; background: rgba(255,255,255,.24); padding: 22px; }
-      .tile h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .tile p { margin: 0; color: var(--muted); line-height: 1.6; font-size: 14px; }
-      footer { margin-top: 88px; padding-top: 24px; border-top: 1px solid var(--rule); color: var(--muted); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-      footer a { color: inherit; }
-      @media (max-width: 820px) { .hero, .grid { grid-template-columns: 1fr; } main { padding-top: 44px; } }
+      a { color: inherit; text-decoration: none; }
+      .page { position: relative; min-height: 100vh; overflow: hidden; }
+      .glow-top {
+        pointer-events: none;
+        position: absolute;
+        inset: -280px auto auto 50%;
+        z-index: -2;
+        width: 1100px;
+        height: 700px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: radial-gradient(circle at 20% 35%, var(--blue), transparent 36%), radial-gradient(circle at 60% 35%, var(--violet), transparent 38%), radial-gradient(circle at 80% 60%, var(--green), transparent 34%);
+        opacity: .75;
+        filter: blur(52px);
+      }
+      .fade-top {
+        pointer-events: none;
+        position: absolute;
+        inset: 0 0 auto;
+        z-index: -1;
+        height: 800px;
+        background: linear-gradient(to bottom, #fafafa, #fff 70%);
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.02em; }
+      .brand img { width: 28px; height: 28px; border-radius: 8px; box-shadow: 0 8px 20px rgba(24,24,27,.12); }
+      nav { display: flex; align-items: center; gap: 22px; color: var(--muted); font-size: 14px; }
+      nav a:hover, footer a:hover { color: var(--ink); }
+      .nav-download { color: #fff; background: var(--primary); border-radius: 10px; padding: 7px 12px; font-weight: 650; }
+      .nav-download:hover { color: #fff; background: var(--primary-2); }
+      main { max-width: 1120px; margin: 0 auto; padding: 0 24px 72px; }
+      .hero { text-align: center; padding: 78px 0 64px; }
+      .hero-icon { width: 96px; height: 96px; border-radius: 28px; box-shadow: 0 22px 52px rgba(24,24,27,.18); }
+      h1 {
+        max-width: 800px;
+        margin: 36px auto 0;
+        font-size: clamp(48px, 8vw, 84px);
+        line-height: 1.04;
+        letter-spacing: -.065em;
+        font-weight: 760;
+      }
+      .dim { color: #a1a1aa; }
+      .lead { max-width: 640px; margin: 26px auto 0; color: var(--muted); font-size: 18px; line-height: 1.75; }
+      .actions { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 34px; }
+      .button {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: var(--primary);
+        color: white;
+        padding: 0 28px;
+        font-weight: 720;
+        box-shadow: 0 16px 32px rgba(24,24,27,.16);
+        transition: transform .16s ease, background .16s ease;
+      }
+      .button:hover { background: var(--primary-2); transform: translateY(-1px); }
+      .subtle { color: var(--muted); font-size: 13px; }
+      .mock {
+        max-width: 860px;
+        margin: 38px auto 0;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: rgba(255,255,255,.86);
+        box-shadow: 0 28px 90px rgba(24,24,27,.10);
+        overflow: hidden;
+        text-align: left;
+      }
+      .mock-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+      .traffic { display: flex; gap: 7px; }
+      .traffic span { width: 11px; height: 11px; border-radius: 999px; background: #e4e4e7; }
+      .search { flex: 1; max-width: 520px; color: #a1a1aa; background: var(--soft); border-radius: 12px; padding: 10px 13px; font-size: 13px; }
+      .rows { display: grid; gap: 0; padding: 8px; }
+      .row { display: grid; grid-template-columns: 56px 1fr auto; gap: 16px; align-items: center; padding: 14px 12px; border-radius: 18px; }
+      .row:nth-child(1) { background: #f8fafc; }
+      .key { color: #a1a1aa; font-size: 12px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+      .row strong { display: block; font-size: 15px; letter-spacing: -.015em; }
+      .row span { color: var(--muted); font-size: 13px; }
+      .pill { color: #52525b; background: var(--soft); border-radius: 999px; padding: 5px 9px; font-size: 12px; }
+      section { padding: 76px 0 0; }
+      .section-head { text-align: center; }
+      h2 { margin: 0; font-size: clamp(34px, 5vw, 54px); line-height: 1.08; letter-spacing: -.055em; }
+      .section-head p { max-width: 520px; margin: 18px auto 0; color: var(--muted); line-height: 1.7; }
+      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 34px; }
+      .card { border: 1px solid var(--line); border-radius: 24px; padding: 24px; background: rgba(250,250,250,.72); min-height: 190px; }
+      .badge { display: inline-flex; min-width: 42px; height: 30px; align-items: center; justify-content: center; border-radius: 999px; background: white; border: 1px solid var(--line); color: #71717a; font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+      h3 { margin: 18px 0 8px; font-size: 18px; letter-spacing: -.025em; }
+      .card p { margin: 0; color: var(--muted); line-height: 1.65; font-size: 14px; }
+      .download-card {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 24px;
+        margin: 84px auto 0;
+        max-width: 880px;
+        border: 1px solid var(--line);
+        border-radius: 30px;
+        padding: 30px;
+        background: linear-gradient(135deg, #fafafa, #fff);
+        box-shadow: 0 26px 70px rgba(24,24,27,.08);
+      }
+      .download-card h2 { font-size: clamp(30px, 4vw, 44px); }
+      .download-card p { color: var(--muted); line-height: 1.7; margin: 10px 0 0; }
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
+        max-width: 1120px;
+        margin: 80px auto 0;
+        padding: 24px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 13px;
+      }
+      footer nav { gap: 16px; font-size: 13px; }
+      @media (max-width: 820px) {
+        header { align-items: flex-start; }
+        nav { gap: 12px; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; }
+        .hero { padding-top: 52px; }
+        .grid, .download-card { grid-template-columns: 1fr; }
+        .download-card { text-align: center; }
+        .row { grid-template-columns: 44px 1fr; }
+        .row .pill { display: none; }
+      }
     </style>
   </head>
   <body>
-    <main>
-      <div class="hero">
-        <div>
-          <div class="kicker">Bartleby for macOS</div>
-          <h1>Korean ears for English meetings.</h1>
-          <p class="lede">
-            Capture microphone and system audio locally, transcribe realtime with Soniox stt-rt-v4, then turn the transcript into Korean notes with Upstage Solar Pro.
-          </p>
+    <div class="page">
+      <div class="fade-top"></div>
+      <div class="glow-top"></div>
+      <header>
+        <a class="brand" href="/" aria-label="Bartleby home">
+          <img src="/app-icon.png" alt="" />
+          <span>Bartleby</span>
+        </a>
+        <nav aria-label="Primary">
+          <a href="/pricing">Pricing</a>
+          <a href="/changelog">Changelog</a>
+          <a class="nav-download" href="/releases/Bartleby_0.1.0_universal.dmg" download>Download</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero" id="download">
+          <img class="hero-icon" src="/app-icon.png" alt="Bartleby" />
+          <h1>영어 회의를,<br /><span class="dim">한국어 노트로.</span></h1>
+          <p class="lead">마이크와 시스템 오디오를 함께 캡처하고, Soniox 실시간 전사를 Upstage Solar Pro 한국어 회의록으로 정리합니다. 모델 선택은 단순하게, 키는 내 계정으로.</p>
           <div class="actions">
-            <a class="button" href="/releases/Bartleby_0.1.0_universal.dmg">Download universal DMG</a>
-            <a class="button secondary" href="/latest.json">Updater feed</a>
+            <a class="button" href="/releases/Bartleby_0.1.0_universal.dmg" download>Download for Mac</a>
+            <div class="subtle">지금은 무료 · macOS 15 이상 · Apple Silicon + Intel · 서명·공증 완료</div>
           </div>
-        </div>
-        <aside class="card">
-          <div class="eyebrow">Release posture</div>
-          <h2>Private by default. BYOK by design.</h2>
-          <div class="rows">
-            <div class="row"><strong>Storage</strong><span>Audio + notes stay on your Mac</span></div>
-            <div class="row"><strong>STT</strong><span>Soniox stt-rt-v4</span></div>
-            <div class="row"><strong>LLM</strong><span>Upstage solar-pro3</span></div>
-            <div class="row"><strong>Updates</strong><span>Signed Tauri updater feed</span></div>
+
+          <div class="mock" aria-label="Bartleby meeting note preview">
+            <div class="mock-head">
+              <div class="traffic"><span></span><span></span><span></span></div>
+              <div class="search">Search meetings, transcripts, decisions…</div>
+            </div>
+            <div class="rows">
+              <div class="row"><div class="key">LIVE</div><div><strong>Weekly product call</strong><span>영어 발화를 실시간으로 받아 적는 중 · Soniox stt-rt-v4</span></div><div class="pill">Recording</div></div>
+              <div class="row"><div class="key">NOTE</div><div><strong>결정사항 3개 · 액션아이템 5개</strong><span>Upstage solar-pro3가 한국어 회의록으로 정리</span></div><div class="pill">Auto summary</div></div>
+              <div class="row"><div class="key">BYOK</div><div><strong>Soniox + Upstage keys in Keychain</strong><span>온보딩에서 권한과 API 키를 단계별로 설정</span></div><div class="pill">Private</div></div>
+              <div class="row"><div class="key">LOCAL</div><div><strong>Audio, transcript, notes stay on your Mac</strong><span>앱 데이터는 로컬 저장. 제공자 호출은 내 키로만 실행</span></div><div class="pill">macOS</div></div>
+            </div>
           </div>
+        </section>
+
+        <section>
+          <div class="section-head">
+            <h2>회의 녹음 앱의<br /><span class="dim">복잡함을 다시.</span></h2>
+            <p>유저가 헷갈릴 선택지는 줄이고, 실제로 필요한 설치·권한·BYOK 흐름만 첫 실행에서 끝냅니다.</p>
+          </div>
+          <div class="grid">
+            <article class="card"><span class="badge">01</span><h3>권한을 단계별로</h3><p>마이크와 화면 기록 권한을 한 번에 몰아 묻지 않고, 왜 필요한지 설명한 뒤 macOS 설정으로 안내합니다.</p></article>
+            <article class="card"><span class="badge">02</span><h3>모델 선택 없음</h3><p>현재 릴리즈는 Soniox stt-rt-v4와 Upstage solar-pro3만 사용합니다. 로컬 모델 다운로드나 불필요한 LLM 옵션은 없습니다.</p></article>
+            <article class="card"><span class="badge">03</span><h3>BYOK by design</h3><p>Soniox와 Upstage API 키를 온보딩에서 검증하고 macOS Keychain에 저장합니다. 사용량 비용은 제공자 계정으로 직접 관리합니다.</p></article>
+            <article class="card"><span class="badge">04</span><h3>실시간 전사</h3><p>회의 중 영어 발화를 바로 받아 적고, 세션별 오디오와 transcript를 로컬 라이브러리에 보관합니다.</p></article>
+            <article class="card"><span class="badge">05</span><h3>한국어 회의록</h3><p>결정사항, 액션아이템, 인용을 한국어 중심으로 정리해 회의 직후 바로 공유 가능한 형태로 만듭니다.</p></article>
+            <article class="card"><span class="badge">06</span><h3>조용한 업데이트</h3><p>서명된 Tauri updater feed로 다음 버전을 받을 수 있게 준비했습니다. DMG와 updater artifact는 모두 서명되어 배포됩니다.</p></article>
+          </div>
+        </section>
+
+        <aside class="download-card">
+          <div>
+            <h2>지금 다운로드.</h2>
+            <p>설치 후 첫 실행에서 권한을 열고, Soniox와 Upstage 키만 붙여넣으면 바로 녹음할 수 있습니다.</p>
+            <p class="subtle">v0.1.0 · 49MB · universal DMG · Apple notarized</p>
+          </div>
+          <a class="button" href="/releases/Bartleby_0.1.0_universal.dmg" download>Download for Mac · v0.1.0</a>
         </aside>
-      </div>
-
-      <section>
-        <div class="eyebrow">First run</div>
-        <h2>Onboarding asks only for what recording needs.</h2>
-        <div class="grid">
-          <div class="tile"><h3>Permissions</h3><p>Microphone and Screen Recording are requested step-by-step, with direct System Settings links for denied states.</p></div>
-          <div class="tile"><h3>Model setup</h3><p>No local model download. Bartleby automatically uses the pinned hosted models once keys are saved.</p></div>
-          <div class="tile"><h3>BYOK</h3><p>Soniox and Upstage keys are verified before saving to macOS Keychain.</p></div>
-        </div>
-      </section>
-
-      <section>
-        <div class="eyebrow">Download notes</div>
-        <h2>Install, grant permissions, paste keys, record.</h2>
-        <div class="grid">
-          <div class="tile"><h3>macOS</h3><p>Built for macOS 15+. The DMG is the public installer; signed updater artifacts are served separately through latest.json.</p></div>
-          <div class="tile"><h3>Costs</h3><p>You pay Soniox and Upstage directly. Bartleby does not mark up provider usage.</p></div>
-          <div class="tile"><h3>Updates</h3><p>Future releases are signed with the Bartleby Tauri updater key and installed from heybartleby.com.</p></div>
-        </div>
-      </section>
+      </main>
 
       <footer>
-        <span>© 2026 Notique · Bartleby</span>
-        <span><a href="https://github.com/heybartleby/bartleby">GitHub</a> · <a href="mailto:hello@heybartleby.com">hello@heybartleby.com</a></span>
+        <span>© 2026 notique. Built for macOS.</span>
+        <nav aria-label="Footer">
+          <a href="/pricing">Pricing</a>
+          <a href="/changelog">Changelog</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="https://github.com/SihyunAdventure/bartleby">GitHub</a>
+        </nav>
       </footer>
-    </main>
+    </div>
   </body>
 </html>
