@@ -39,11 +39,11 @@ Hosted mode lets a friend install the DMG, grant permissions, sign in or paste a
 
 AWS CLI is configured for `ap-northeast-2` and can reach two running EC2 hosts through SSM.
 
-Recommended target: **`notique-agent`**.
+Recommended target: **the existing shared `notique-agent` EC2 host**. Do not create a separate Bartleby instance for the friends beta, and do not rename the EC2 instance away from `notique-agent`. Bartleby should be recognizable through service/DNS names, not by taking over the shared host name.
 
 | Field | Value |
 |---|---|
-| Instance | `notique-agent` / `i-0eb065979dbad85b3` |
+| Shared host | `notique-agent` / `i-0eb065979dbad85b3` |
 | Region | `ap-northeast-2` Seoul |
 | Public IP | `3.37.71.254` Elastic IP |
 | Instance type | `t3.micro` |
@@ -53,7 +53,7 @@ Recommended target: **`notique-agent`**.
 | Disk | 24 GB gp3, about 7.8 GB free at inspection time |
 | Memory | 916 MiB RAM + 2 GiB swap |
 
-Why this host: it is clean, SSM-managed, has a stable Elastic IP, and is not already running Mongo/Node application workloads. The other running host, `MMC`, has multiple public ports and MongoDB already listening, so mixing a new API relay there is unnecessary risk.
+Why this host: it is the intended shared Notique agent box, SSM-managed, has a stable Elastic IP, and is currently lighter than the `MMC` host. Bartleby should run as a clearly named service on this shared host, alongside other Notique workloads, rather than as a dedicated EC2 instance.
 
 ## Cost estimate
 
@@ -103,16 +103,31 @@ The app should never receive Notique's Soniox or Upstage keys. Keys live only on
 
 ## EC2 deployment shape
 
-Recommended layout on `notique-agent`:
+Recommended layout on the shared `notique-agent` host:
 
 ```text
-api.heybartleby.com
-  → Route 53 / DNS A record to 3.37.71.254
+notique-agent shared EC2 host
+  → api.heybartleby.com DNS A record to 3.37.71.254
   → EC2 security group 80/443 inbound
-  → Caddy or nginx TLS reverse proxy
+  → Caddy or nginx TLS reverse proxy with host-based routing
   → 127.0.0.1:8787 bartleby-relay systemd service
   → Soniox / Upstage outbound HTTPS/WSS
 ```
+
+
+Naming convention on the shared host:
+
+| Resource | Name | Why |
+|---|---|---|
+| EC2 instance | `notique-agent` | Shared Notique box. Keep stable. |
+| DNS | `api.heybartleby.com` | Public API endpoint users/apps see. |
+| systemd service | `bartleby-relay.service` | Clear process ownership on the shared host. |
+| app directory | `/opt/notique/bartleby-relay` | Keeps Notique services grouped but separated. |
+| local user | `bartleby` | Least-privilege runtime user for the relay. |
+| logs | `journalctl -u bartleby-relay` | Easy ops/debug command. |
+| env file fallback | `/etc/bartleby-relay.env` | Root-only fallback if SSM injection is not ready. |
+
+The EC2 `Name` tag can remain `notique-agent`. If extra AWS tags are useful, add non-owning tags such as `Service=bartleby-relay` or `Product=Bartleby`; do not replace existing tags that may be used for other Notique workflows.
 
 Use SSM for deployment and emergency access. Avoid opening SSH broadly.
 
@@ -175,7 +190,7 @@ aws ssm put-parameter --region ap-northeast-2 --name /bartleby/prod/BETA_TOKEN -
 
 ### Phase H2, EC2 deploy
 
-- Deploy relay to `notique-agent` using SSM.
+- Deploy relay as `bartleby-relay.service` on the shared `notique-agent` host using SSM.
 - Add DNS `api.heybartleby.com`.
 - Add TLS reverse proxy.
 - Verify WebSocket upgrade and provider calls from a clean Mac.

@@ -152,7 +152,7 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 - Provider 변경 없음: Soniox `stt-rt-v4` + Upstage `solar-pro3` 유지.
 - 로컬/오픈소스 모델 자동 설치 없음.
 - EC2 relay 방식: `Bartleby app → api.heybartleby.com → Soniox/Upstage`.
-- 서버 target: AWS Seoul `notique-agent` (`i-0eb065979dbad85b3`, `t3.micro`, Elastic IP `3.37.71.254`, SSM online).
+- 서버 target: AWS Seoul shared host `notique-agent` (`i-0eb065979dbad85b3`, `t3.micro`, Elastic IP `3.37.71.254`, SSM online). EC2 이름은 유지하고, 내부 서비스 이름을 `bartleby-relay.service` 로 분리.
 - 자세한 계획: [HOSTED_API.md](./HOSTED_API.md).
 
 **구현 범위**:
@@ -197,7 +197,7 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 | ScreenCaptureKit binding | `screencapturekit` crate v2.0 (svtlabs) |
 | STT | Soniox `stt-rt-v4` streaming (v0.1.1 BYOK, friends beta hosted relay planned) |
 | 번역 / 요약 | Upstage `solar-pro3` direct API (v0.1.1 BYOK, friends beta hosted relay planned) |
-| Hosted API | planned EC2 relay on `notique-agent`; Notique pays provider API for friends beta |
+| Hosted API | planned `bartleby-relay.service` on shared `notique-agent`; Notique pays provider API for friends beta |
 | Local ML | 없음 — 공개 빌드에 model weights 번들/자동설치 금지 |
 | 최소 OS | macOS 15 Sequoia |
 | 저장 | 로컬 SQLite + audio segments |
