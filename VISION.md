@@ -6,7 +6,7 @@
 
 단일 dock 앱. 영어 라이브 미팅 에서
 **한국어 transcript + 요약**을 뽑아내는 note taker.
-봇 없음. 한국어 first. BYOK. 사용자 Mac 안에서 처리.
+봇 없음. 한국어 first. v0.1.1 은 BYOK. 지인 베타는 Notique-hosted relay 를 추가하되 사용자 Mac 로컬 저장 원칙을 유지.
 
 영어 미팅이 흐르는 곳이면 어디든 — Bartleby 가 들어 둡니다.
 
@@ -56,8 +56,8 @@ fork), UX/mental model 이 다르다 — 미팅 노트는 productivity, YouTube 
 이것은 **하지 않는다**:
 
 - **봇 입장 X** — 상대방이 미팅 봇을 인식하게 만들지 않는다. 모든 캡처는 사용자 자신의 Mac 에서.
-- **클라우드 SaaS X** — Bartleby 측 서버가 transcript 를 보관하거나 처리하지 않는다. 결과물은 사용자 Mac 에.
-- **BYOK** — Soniox (STT) + Upstage (LLM) 키를 사용자가 직접 소유. vendor lock 없음. macOS Keychain 보관.
+- **클라우드 library X** — Bartleby 측 서버가 meeting library 를 보관하지 않는다. 결과물은 사용자 Mac 에. 지인 베타 hosted mode 는 실시간 relay 만 허용하고 raw content logging 금지.
+- **BYOK 유지** — Soniox (STT) + Upstage (LLM) 키를 사용자가 직접 소유하는 path 유지. 지인 베타 hosted mode 는 Notique key 를 서버에만 보관하고 사용자가 provider 계정을 만들지 않아도 시작할 수 있게 한다.
 - **숨은 모델 X** — OpenRouter, Whisper/Ollama, Claude/Gemini/GPT fallback 은 공개 surface 가 아니다.
 - **한국어 ↔ 영어 pair 외 다국어 X** — 한국어 청자에게 집중한다. 다국어 지원은 PMF 이후.
 - **DRM 영상 X** — ScreenCaptureKit Apple 정책 차단. Netflix · Disney+ · Apple TV+ 등 재생 불가. Advertised non-feature.
@@ -81,16 +81,16 @@ fork), UX/mental model 이 다르다 — 미팅 노트는 productivity, YouTube 
 | 영역 | 선택 |
 |---|---|
 | Desktop | Tauri 2.0 (Rust + React + TS) |
-| STT | Soniox streaming (BYOK, EN/KO) |
-| LLM | Upstage `solar-pro3` direct API (BYOK) |
+| STT | Soniox streaming (v0.1.1 BYOK, hosted beta relay planned) |
+| LLM | Upstage `solar-pro3` direct API (v0.1.1 BYOK, hosted beta relay planned) |
 | 캡처 | ScreenCaptureKit (macOS 15+, mic + system audio) |
 | 저장 | 로컬 SQLite + audio segments |
-| 사용자 키 | macOS Keychain (Soniox + Upstage) |
+| 사용자 키 | macOS Keychain for BYOK; hosted beta secrets server-side only |
 
 ## Non-goals (v1)
 
 - 모바일 앱
-- 클라우드 sync (사용자가 Dropbox/iCloud 폴더 지정은 가능)
+- 클라우드 sync / server-side meeting library (사용자가 Dropbox/iCloud 폴더 지정은 가능)
 - 팀 / collaboration
 - 자동 미팅 감지
 - YouTube URL 더빙 (→ Rehear sibling repo)
@@ -138,3 +138,4 @@ fork), UX/mental model 이 다르다 — 미팅 노트는 productivity, YouTube 
   Live recording (미팅 노트) 구현 완료.
 - 2026-05-12: Wedge 2 분리 → Rehear sibling repo (`~/Dev/side/rehear/`).
   Bartleby = 미팅 노트 only. Phase 5+ 재정의.
+- 2026-05-26: v0.1.1 public beta shipped. 지인 베타 friction 제거를 위해 Notique-hosted API relay 계획 추가, BYOK fallback 유지.

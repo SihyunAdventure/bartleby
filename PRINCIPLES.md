@@ -34,11 +34,13 @@ Library 는 모든 source 의 노트를 통합한다 (`type: meeting / url / fil
 source 가 달라도 Read / Skim / Listen 세 출력 경로는 동일하다.
 새 feature 추가 시 "이 source 에만 의미 있는가, 아니면 모든 note 에 적용되는가" 먼저 판단.
 
-### BYOK + macOS Keychain
+### BYOK + macOS Keychain, hosted mode is explicit
 
-Soniox + Upstage 키는 macOS Keychain 에 저장. Bartleby 측 서버 없음.
-코드에서 키를 다른 곳에 저장하거나 logging 하는 것 금지.
-새 외부 API 추가 시 동일 패턴 적용.
+v0.1.1 의 BYOK path 에서는 Soniox + Upstage 키를 macOS Keychain 에 저장한다. 코드에서 키를 다른 곳에 저장하거나 logging 하는 것 금지.
+
+지인 베타 hosted mode 는 예외적으로 Notique EC2 relay 를 거친다. 이 경우 provider key 는 서버에만 있어야 하고 앱 bundle/client/log 에 노출되면 안 된다. UI 는 hosted 와 BYOK 의 data path 차이를 명시해야 한다.
+
+새 외부 API 추가 시 같은 원칙 적용: direct BYOK 는 Keychain, hosted 는 server-side secret only.
 
 ---
 
@@ -277,6 +279,7 @@ codex + designer agent 둘 다 critical 신호.
 - [README.md](./README.md) — 프로젝트 오리엔테이션
 - [VISION.md](./VISION.md) — 제품 비전·포지셔닝
 - [DESIGN.md](./DESIGN.md) — 디자인 시스템 high-level summary
-- [PLAN.md](./PLAN.md) — 실행 계획 (Phase 1-6)
+- [PLAN.md](./PLAN.md) — 실행 계획 (Phase 1-7)
+- [HOSTED_API.md](./HOSTED_API.md) — 지인 베타 hosted API relay 계획
 - [GALLERY.md](./GALLERY.md) — 섹션 매핑 표 (ship/polish gate)
 - [design-system/](./design-system/) ⭐ — Source of truth (절대 read-only)

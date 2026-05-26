@@ -3,7 +3,7 @@
 > "I would prefer not to take notes." — Let Bartleby.
 
 단일 dock macOS 앱. 영어 / 한국어 라이브 미팅에서
-**transcript + 요약 노트**. 봇 없음. 한국어 first. BYOK.
+**transcript + 요약 노트**. 봇 없음. 한국어 first. v0.1.1 은 BYOK, 지인 베타는 Notique-hosted relay 계획.
 
 ## 빠른 컨텍스트
 
@@ -11,7 +11,7 @@
 - **단일 surface**: dock Finder-like 앱. Library + Recording (live transcript + summary panel)
 - **타겟**: 매일 영어/한국어 미팅이 섞여 있는 한국 전문가
 - **첫 사용자**: Sihyun (본인 dogfood)
-- **상태**: Phase 6 dogfood build — capture infra + Soniox STT + Upstage Solar Pro 3 번역/최종 노트 + Library/Recording UI + SQLite persistence + 번역 toggle.
+- **상태**: v0.1.1 public beta — signed/notarized DMG, onboarding, Soniox STT, Upstage Solar Pro 3 번역/최종 노트, Library/Recording UI, SQLite persistence, Vercel landing page.
 - **타겟 출시**: 2026-08-13 ~ 2026-08-27 (12-14주)
 
 ## Sibling product — Rehear
@@ -29,6 +29,7 @@ YouTube URL → 한국어 (또는 다른 언어) 더빙 영상 재생성 은 별
 | [PRINCIPLES.md](./PRINCIPLES.md) | ⭐ 디자인 구현 원칙 — *작업 전 반드시 읽기* |
 | [GALLERY.md](./GALLERY.md) | 섹션 매핑 표 + ship/polish gate + 검증 워크플로우 |
 | [MODELS.md](./MODELS.md) | 공개 빌드에서 노출하는 STT/LLM 모델 surface |
+| [HOSTED_API.md](./HOSTED_API.md) | 지인 베타용 Notique-hosted API relay 계획 |
 | [PLAN.md](./PLAN.md) | Phase 1-7 실행 계획 |
 | [NEXT.md](./NEXT.md) | 내부 continuation log — 공개 모델 surface 는 MODELS.md 기준 |
 
@@ -36,9 +37,10 @@ YouTube URL → 한국어 (또는 다른 언어) 더빙 영상 재생성 은 별
 
 ```
 Desktop:   Tauri 2.0 (Rust + React + TypeScript)
-캡처:       ScreenCaptureKit (system audio, mic deferred)
-STT:       Soniox stt-rt-v4 streaming (BYOK, EN/KO multilingual auto-detect)
-LLM:       Upstage solar-pro3 direct API (BYOK, translation + final note)
+캡처:       ScreenCaptureKit (system audio + mic)
+STT:       Soniox stt-rt-v4 streaming (v0.1.1 BYOK direct, hosted relay planned)
+LLM:       Upstage solar-pro3 direct API (v0.1.1 BYOK direct, hosted relay planned)
+Hosted:    planned Notique EC2 relay for friends beta, BYOK remains fallback
 Local ML:  none bundled, none auto-installed
 저장:       SQLite via tauri-plugin-sql + local audio segments
 도메인:    heybartleby.com
@@ -52,8 +54,8 @@ Local ML:  none bundled, none auto-installed
 vs Granola / Otter / Fireflies:
 - **No-bot** — 상대방이 봇을 인식하게 만들지 않음
 - **한국어 first** — 한국어 native transcript + 요약 (자동 언어 분기)
-- **Local data ownership** — 노트는 로컬 storage (BYOK keys 외 cloud X)
-- **BYOK** — vendor lock 회피, Keychain 영구 저장
+- **Local data ownership** — 노트는 로컬 storage. Hosted relay 는 실시간 provider proxy 만 허용하고 server-side library 는 만들지 않음
+- **BYOK** — vendor lock 회피, Keychain 영구 저장. 지인 베타에서는 Notique-hosted relay 를 추가하되 BYOK fallback 유지
 - **No hidden models** — OpenRouter/Whisper/Ollama/GPT/Claude/Gemini 는 공개 surface 아님
 - **Character brand** — Melville 의 Bartleby, 정중하고 절제됨
 
@@ -67,4 +69,4 @@ Inter / Pretendard (sans body) + Cormorant + Gowun Batang (serif) +
 
 ## 다음 액션
 
-[MODELS.md](./MODELS.md) 기준으로 공개 모델 surface 를 유지하고, release plan 은 DMG/signing/web 구조를 Copy & Taste 방식으로 정리한다.
+[HOSTED_API.md](./HOSTED_API.md) 기준으로 지인 베타용 EC2 relay 를 구현한다. v0.1.1 public copy 는 BYOK 로 유지하고, hosted mode 는 app/relay/privacy copy 가 모두 준비된 뒤 켠다.

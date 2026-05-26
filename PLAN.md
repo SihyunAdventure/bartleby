@@ -3,6 +3,7 @@
 - 시작: 2026-05-07
 - Solo dev: 김시현
 - v1 acceptance: Live recording 노트 dogfood 안정화 + waitlist 100+
+- 2026-05-26 update: v0.1.1 public beta shipped. Next private-beta lane is Notique-hosted API relay on existing AWS EC2 so friends can use Bartleby without creating Soniox/Upstage accounts.
 
 ---
 
@@ -133,13 +134,46 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 - TTS dub — Live recording 노트 Listen 경로 옵션 (사용자 요청 시 생성)
 - Export (PDF / MD / SRT)
 - File upload note (로컬 audio/video 파일 → 동일 pipeline)
-- First-launch 온보딩 (3 steps: BYOK 키 입력 → 권한 → 첫 recording)
+- First-launch 온보딩 (provider mode/BYOK or invite token → 권한 → 첫 recording)
 - Settings UI refinement
 - DMG 빌드 + Developer ID 서명 + notarize
 - Landing page (`heybartleby.com`)
 - HN + PH launch
 
 **Phase 6 acceptance**: 실제 배포 + waitlist 100명.
+
+---
+
+## Phase 6.5 — Friends hosted API relay (next)
+
+**목표**: 지인 베타에서 BYOK friction 제거. 사용자는 DMG 설치 → 권한 → 초대 토큰만으로 녹음. Notique 가 Soniox/Upstage 비용을 부담하되 BYOK fallback 은 유지.
+
+**결정**:
+- Provider 변경 없음: Soniox `stt-rt-v4` + Upstage `solar-pro3` 유지.
+- 로컬/오픈소스 모델 자동 설치 없음.
+- EC2 relay 방식: `Bartleby app → api.heybartleby.com → Soniox/Upstage`.
+- 서버 target: AWS Seoul `notique-agent` (`i-0eb065979dbad85b3`, `t3.micro`, Elastic IP `3.37.71.254`, SSM online).
+- 자세한 계획: [HOSTED_API.md](./HOSTED_API.md).
+
+**구현 범위**:
+1. `bartleby-relay` 서버: `/health`, Soniox WebSocket proxy, Upstage summary/translation proxy.
+2. Auth: private beta bearer token, 이후 per-user invite token.
+3. Metering: duration seconds, byte counts, provider error class. Raw audio/transcript log 금지.
+4. App provider mode: `hosted` / `byok`. Hosted 는 지인 베타 default, BYOK 는 advanced fallback.
+5. Onboarding: hosted invite token 또는 BYOK keys → Microphone permission → Screen Recording permission → test recording.
+6. Settings: 현재 provider mode, hosted remaining minutes, BYOK advanced keys.
+7. Privacy/Terms: hosted mode 가 Notique relay 를 거친다는 문구 추가 후 public enable.
+
+**Cost ceiling**:
+- Existing EC2 baseline 약 `$15.33/month` before taxes (`t3.micro` + Elastic IP + 24GB gp3).
+- Recording cost 는 Soniox 2-stream 기준 약 `$0.24/hour` + Upstage 소액.
+- 10h/user/month 는 대략 `$2.50-$4.00` all-in 으로 보고, 지인 베타는 월 시간 cap 필수.
+
+**Acceptance**:
+- Notique provider keys 가 app bundle/log/client response 에 없음.
+- BYOK direct path 그대로 동작.
+- Hosted relay 로 10분 이상 실제 recording 성공.
+- 서버-side monthly minute cap, concurrent session cap, kill switch 있음.
 
 ---
 
@@ -161,12 +195,13 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 |---|---|
 | Desktop | Tauri 2.0 + React + TS |
 | ScreenCaptureKit binding | `screencapturekit` crate v2.0 (svtlabs) |
-| STT | Soniox `stt-rt-v4` streaming (BYOK, EN/KO) |
-| 번역 / 요약 | Upstage `solar-pro3` direct API (BYOK) |
+| STT | Soniox `stt-rt-v4` streaming (v0.1.1 BYOK, friends beta hosted relay planned) |
+| 번역 / 요약 | Upstage `solar-pro3` direct API (v0.1.1 BYOK, friends beta hosted relay planned) |
+| Hosted API | planned EC2 relay on `notique-agent`; Notique pays provider API for friends beta |
 | Local ML | 없음 — 공개 빌드에 model weights 번들/자동설치 금지 |
 | 최소 OS | macOS 15 Sequoia |
-| 저장 | 로컬 markdown (`sessions/{uuid}/`) |
-| 사용자 키 | macOS Keychain |
+| 저장 | 로컬 SQLite + audio segments |
+| 사용자 키 | macOS Keychain for BYOK; hosted relay secrets server-side only |
 | 배포 | Developer ID 직접 DMG + Tauri Updater plugin |
 
 ---
@@ -197,6 +232,8 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 |---|---|---|
 | Soniox 정확도 부족 | 35% | 공개 surface 변경 없이 dogfood 데이터로 튜닝; provider swap 은 별도 결정 |
 | Solar Pro 3 번역 품질 | 35% | prompt/UX 개선 우선; fallback provider 는 public v1 이후 별도 결정 |
+| Hosted API 비용 폭주 | 30% | per-token monthly minute cap, concurrent session cap, kill switch, BYOK fallback |
+| Relay privacy 혼동 | 30% | onboarding/Privacy 에 hosted vs BYOK data path 명시, raw content logging 금지 |
 | Apple Developer 승인 지연 | 20% | Day 1 신청, 1주 lead time |
 | Timeline slip | 40% | Phase 6/7 scope cut buffer |
 
@@ -204,6 +241,8 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 
 ## Next Decision Points
 
+- Hosted relay MVP 구현 순서: server 먼저, app provider abstraction 다음
+- `api.heybartleby.com` DNS + TLS cutover 시점
 - SQLite 마이그레이션 시점 (Phase 5 vs Phase 6)
 - TTS provider 선정 (Phase 6 시작 전 — live recording Listen 경로용)
 - 오픈소스 vs source-available (Phase 6 전)
