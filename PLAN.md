@@ -159,9 +159,9 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 1. `bartleby-relay` 서버: `/health`, Soniox WebSocket proxy, Upstage summary/translation proxy. ✅ server MVP deployed
 2. Auth: private beta bearer token, 이후 per-user invite token. ✅ shared beta token live, per-user token later
 3. Metering: duration seconds, byte counts, provider error class. Raw audio/transcript log 금지. ✅ metadata-only logs live
-4. App provider mode: `hosted` / `byok`. Hosted 는 지인 베타 default, BYOK 는 advanced fallback. ← next
-5. Onboarding: hosted invite token 또는 BYOK keys → Microphone permission → Screen Recording permission → test recording.
-6. Settings: 현재 provider mode, hosted remaining minutes, BYOK advanced keys.
+4. App provider mode: `hosted` / `byok`. Hosted 는 지인 베타 default, BYOK 는 advanced fallback. ✅
+5. Onboarding/Settings: hosted invite token 또는 BYOK keys + Microphone/Screen Recording permission copy. ✅
+6. Settings: 현재 provider mode + hosted token/BYOK advanced keys. Hosted remaining minutes 는 quota endpoint 후 추가.
 7. Privacy/Terms: hosted mode 가 Notique relay 를 거친다는 문구 추가 후 public enable.
 
 **Cost ceiling**:
@@ -195,9 +195,9 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 |---|---|
 | Desktop | Tauri 2.0 + React + TS |
 | ScreenCaptureKit binding | `screencapturekit` crate v2.0 (svtlabs) |
-| STT | Soniox `stt-rt-v4` streaming (v0.1.1 BYOK, friends beta hosted relay planned) |
-| 번역 / 요약 | Upstage `solar-pro3` direct API (v0.1.1 BYOK, friends beta hosted relay planned) |
-| Hosted API | planned `bartleby-relay.service` on shared `notique-agent`; Notique pays provider API for friends beta |
+| STT | Soniox `stt-rt-v4` streaming (Hosted relay or BYOK direct) |
+| 번역 / 요약 | Upstage `solar-pro3` (Hosted relay or BYOK direct) |
+| Hosted API | `bartleby-relay.service` on shared `notique-agent`; Notique pays provider API for friends beta |
 | Local ML | 없음 — 공개 빌드에 model weights 번들/자동설치 금지 |
 | 최소 OS | macOS 15 Sequoia |
 | 저장 | 로컬 SQLite + audio segments |
@@ -241,7 +241,7 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 
 ## Next Decision Points
 
-- App hosted/BYOK provider abstraction 구현
+- Signed private beta DMG에 hosted/BYOK provider abstraction 포함
 - Hosted onboarding invite token 입력 + Settings mode 표시
 - SQLite 마이그레이션 시점 (Phase 5 vs Phase 6)
 - TTS provider 선정 (Phase 6 시작 전 — live recording Listen 경로용)

@@ -6,6 +6,18 @@ test("buildTranscript accepts transcript string", () => {
   assert.equal(buildTranscript({ transcript: " hello " }), "hello");
 });
 
+test("buildTranscript renders indexed app transcript rows", () => {
+  assert.equal(
+    buildTranscript({
+      transcript: [
+        { id: 7, time: "00:00:01", speaker: "system", enText: "Hello.", koText: "안녕." },
+        { id: 8, time: "00:00:04", speaker: "mic", enText: "   " },
+      ],
+    }),
+    "[id=7 | 00:00:01 | system] Hello.\n    └ 안녕.",
+  );
+});
+
 test("buildTranscript numbers finals and skips blanks", () => {
   assert.equal(buildTranscript({ finals: ["One", " ", "Two"] }), "01. One\n02. Two");
 });
@@ -23,10 +35,11 @@ test("buildTranslateRequest supports streaming flag", () => {
   assert.equal(req.stream, true);
 });
 
-test("parseSummaryContent accepts fenced JSON", () => {
-  assert.deepEqual(parseSummaryContent('```json\n{"working_title":"x","themes":[],"quote_candidate":null}\n```'), {
-    working_title: "x",
-    themes: [],
-    quote_candidate: null,
+test("parseSummaryContent accepts fenced finalize JSON", () => {
+  assert.deepEqual(parseSummaryContent('```json\n{"tldr":"x","outline":[],"onepager":"","quote":null}\n```'), {
+    tldr: "x",
+    outline: [],
+    onepager: "",
+    quote: null,
   });
 });

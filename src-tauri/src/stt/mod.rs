@@ -28,6 +28,28 @@ use ring::AudioRing;
 pub use soniox::SttSource;
 use soniox::{SessionEnd, SttError};
 
+#[derive(Clone, Debug)]
+pub struct SttRoute {
+    pub ws_url: String,
+    pub authorization: Option<String>,
+}
+
+impl SttRoute {
+    pub fn direct() -> Self {
+        Self {
+            ws_url: soniox::SONIOX_WS_URL.to_string(),
+            authorization: None,
+        }
+    }
+
+    pub fn hosted(ws_url: String, token: String) -> Self {
+        Self {
+            ws_url,
+            authorization: Some(format!("Bearer {token}")),
+        }
+    }
+}
+
 /// Cap on consecutive reconnect attempts before giving up. With backoff
 /// 1→2→4→8→16→30→30→30→30→30s this gives ~3.3 min of recovery window.
 const MAX_RECONNECT_ATTEMPTS: u32 = 10;
@@ -53,6 +75,7 @@ pub struct SttSession {
 /// pipeline (Day 16a).
 pub fn start(
     api_key: String,
+    route: SttRoute,
     app: AppHandle,
     source: SttSource,
     final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
@@ -98,6 +121,7 @@ pub fn start(
 
             run_with_reconnect(
                 api_key,
+                route,
                 app,
                 chunk_rx,
                 stop_for_thread,
@@ -122,6 +146,7 @@ pub fn start(
 /// the new session doesn't double-send what's already in the ring.
 async fn run_with_reconnect(
     api_key: String,
+    route: SttRoute,
     app: AppHandle,
     mut chunk_rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
     stop: Arc<AtomicBool>,
@@ -137,6 +162,7 @@ async fn run_with_reconnect(
 
         let outcome = soniox::run_session(
             &api_key,
+            &route,
             &app,
             &mut chunk_rx,
             &stop,

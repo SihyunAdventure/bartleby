@@ -5,6 +5,7 @@ Hosted API relay for the friends beta. It keeps Notique-owned Soniox and Upstage
 ## Endpoints
 
 - `GET /health`, unauthenticated health check.
+- `GET /v1/auth/check`, authenticated no-cost token verification.
 - `GET /v1/stt/realtime`, WebSocket proxy to Soniox `stt-rt-v4`.
 - `POST /v1/summary/finalize`, Upstage `solar-pro3` final note proxy.
 - `POST /v1/translate`, Upstage `solar-pro3` translation proxy. Add `?stream=1` to pass through SSE.
@@ -42,6 +43,7 @@ Quick checks:
 
 ```sh
 curl https://api.heybartleby.com/health
+curl -H "authorization: Bearer $BARTLEBY_RELAY_TOKEN" https://api.heybartleby.com/v1/auth/check
 journalctl -u bartleby-relay -f
 ```
 

@@ -3,6 +3,7 @@ import KeysTab from "./KeysTab";
 import RecordingTab from "./RecordingTab";
 import StorageTab from "./StorageTab";
 import AboutTab from "./AboutTab";
+import { loadPrefs } from "./prefs";
 import styles from "./Settings.module.css";
 
 type TabId = "keys" | "recording" | "storage" | "about";
@@ -26,6 +27,12 @@ interface Props {
 
 export default function Settings({ onClose, onChange }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("keys");
+  const [providerMode, setProviderMode] = useState(() => loadPrefs().provider_mode);
+
+  const handleChange = () => {
+    setProviderMode(loadPrefs().provider_mode);
+    onChange();
+  };
 
   return (
     <div className={styles.backdrop} onClick={onClose}>
@@ -48,7 +55,7 @@ export default function Settings({ onClose, onChange }: Props) {
         </div>
 
         <div className={styles.body}>
-          {activeTab === "keys" && <KeysTab onChanged={onChange} />}
+          {activeTab === "keys" && <KeysTab onChanged={handleChange} />}
           {activeTab === "recording" && <RecordingTab />}
           {activeTab === "storage" && <StorageTab />}
           {activeTab === "about" && <AboutTab />}
@@ -57,7 +64,9 @@ export default function Settings({ onClose, onChange }: Props) {
         <div className={styles.footer}>
           {activeTab === "keys" && (
             <p className={styles.footnote}>
-              Soniox hears speech. Upstage Solar Pro 3 writes Korean notes. Both keys are stored in macOS Keychain.
+              {providerMode === "hosted"
+                ? "Hosted beta uses a Bartleby relay token in Keychain; Notique pays Soniox and Upstage for this release."
+                : "Soniox hears speech. Upstage Solar Pro 3 writes Korean notes. Both keys are stored in macOS Keychain."}
             </p>
           )}
           <div className={styles.closeRow}>

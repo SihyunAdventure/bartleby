@@ -1,0 +1,97 @@
+.modeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.modeCard {
+  text-align: left;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  cursor: pointer;
+  color: var(--ink-3);
+}
+
+.modeCard:hover {
+  border-color: var(--rule-strong);
+  color: var(--ink-2);
+}
+
+.modeActive {
+  background: var(--paper);
+  border-color: var(--ink-4);
+  color: var(--ink);
+}
+
+.modeTitle,
+.badge,
+.sectionTitle {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+}
+
+.modeTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.modeTitle {
+  color: var(--ink-2);
+}
+
+.badge {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--ink-4);
+  white-space: nowrap;
+}
+
+.modeActive .badge {
+  color: var(--ink);
+  border-color: var(--rule-strong);
+}
+
+.modeCard p,
+.notice {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--rule);
+}
+
+.sectionTitle {
+  color: var(--ink-2);
+}
+
+.notice {
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper-2);
+  padding: var(--s-3) var(--s-4);
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .modeGrid {
+    grid-template-columns: 1fr;
+  }
+}

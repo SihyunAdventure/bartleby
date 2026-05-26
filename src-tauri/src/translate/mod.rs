@@ -16,6 +16,24 @@ use std::time::Duration;
 use tauri::AppHandle;
 use tokio::sync::mpsc::UnboundedSender;
 
+#[derive(Clone, Debug)]
+pub enum TranslateRoute {
+    Direct,
+    Hosted { base_url: String },
+}
+
+impl TranslateRoute {
+    pub fn direct() -> Self {
+        Self::Direct
+    }
+
+    pub fn hosted(base_url: String) -> Self {
+        Self::Hosted {
+            base_url: base_url.trim_end_matches('/').to_string(),
+        }
+    }
+}
+
 pub struct TranslatorSession {
     /// Bridge thread + tokio runtime — joined on capture stop.
     pub join: std::thread::JoinHandle<()>,
@@ -24,7 +42,11 @@ pub struct TranslatorSession {
 /// Start a translator session and return the English-final sender alongside
 /// the session handle. The sender is moved into the STT module so each
 /// `stt_final` text goes through us before falling on the floor.
-pub fn start(api_key: String, app: AppHandle) -> (UnboundedSender<String>, TranslatorSession) {
+pub fn start(
+    api_key: String,
+    route: TranslateRoute,
+    app: AppHandle,
+) -> (UnboundedSender<String>, TranslatorSession) {
     let (final_tx, mut final_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let join = std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -46,7 +68,7 @@ pub fn start(api_key: String, app: AppHandle) -> (UnboundedSender<String>, Trans
 
             println!("[translate] ready (model=solar-pro3, streaming, sequential depth=1)");
             while let Some(en) = final_rx.recv().await {
-                upstage::translate_and_emit(&client, &api_key, &app, en).await;
+                upstage::translate_and_emit(&client, &api_key, &route, &app, en).await;
             }
             println!("[translate] session ended");
         });

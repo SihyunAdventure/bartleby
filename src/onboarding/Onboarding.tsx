@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import KeysTab from "../settings/KeysTab";
-import { setPref } from "../settings/prefs";
+import { loadPrefs, setPref } from "../settings/prefs";
 import styles from "./Onboarding.module.css";
 
 type StepId = "welcome" | "permissions" | "models" | "keys" | "finish";
@@ -22,7 +22,7 @@ const STEPS: Array<{ id: StepId; label: string }> = [
   { id: "welcome", label: "Start" },
   { id: "permissions", label: "Permissions" },
   { id: "models", label: "Models" },
-  { id: "keys", label: "BYOK" },
+  { id: "keys", label: "Access" },
   { id: "finish", label: "Ready" },
 ];
 
@@ -209,12 +209,12 @@ function WelcomeStep() {
         Set up meeting capture in four calm steps.
       </h1>
       <p className={styles.lede}>
-        Bartleby stores audio and notes on your Mac, then calls Soniox and Upstage directly with your own keys. No bundled local LLM, no OpenRouter, no hidden Gemini or Whisper path.
+        Bartleby stores audio and notes on your Mac. Friends beta can use a hosted Bartleby relay token; advanced users can switch to direct Soniox/Upstage BYOK. No bundled local LLM, no OpenRouter, no hidden Gemini or Whisper path.
       </p>
       <div className={styles.summaryGrid}>
         <SummaryCard title="1 · Permissions" body="Microphone and Screen Recording are requested one by one, with System Settings links if macOS needs a manual toggle." />
         <SummaryCard title="2 · Models" body="There is nothing heavy to download. Bartleby pins Soniox stt-rt-v4 and Upstage solar-pro3 for this release." />
-        <SummaryCard title="3 · BYOK" body="Paste and verify Soniox/Upstage keys. They are stored through the existing macOS Keychain flow." />
+        <SummaryCard title="3 · Access" body="Default to a Bartleby hosted beta token, or switch to BYOK for direct Soniox/Upstage billing. Secrets are stored in macOS Keychain." />
         <SummaryCard title="4 · Updates" body="The DMG build can check heybartleby.com/latest.json and install signed updates automatically." />
       </div>
     </div>
@@ -286,7 +286,7 @@ function ModelsStep() {
     <div className={styles.stepPanel}>
       <h1 className={styles.title}>Model setup is automatic in this release.</h1>
       <p className={styles.lede}>
-        To avoid local storage bloat and user confusion, Bartleby does not install local LLM/STT files on first launch. The “install” step is simply making the provider routes explicit and ready.
+        To avoid local storage bloat and user confusion, Bartleby does not install local LLM/STT files on first launch. Hosted mode uses the Bartleby relay; BYOK mode calls the same providers directly.
       </p>
       <div className={styles.modelGrid}>
         <ProviderCard
@@ -294,7 +294,7 @@ function ModelsStep() {
           provider="Soniox"
           model="stt-rt-v4"
           required="Required for realtime transcript"
-          body="Streams mic + system audio chunks directly to Soniox. Two STT sessions keep system and microphone endpointing separate."
+          body="Streams mic + system audio chunks to Soniox stt-rt-v4, either through the hosted relay or directly in BYOK mode. Two sessions keep system and microphone endpointing separate."
           primaryHref="https://soniox.com/"
           secondaryHref="https://soniox.com/pricing"
           primaryLabel="Get Soniox key"
@@ -305,7 +305,7 @@ function ModelsStep() {
           provider="Upstage"
           model="solar-pro3"
           required="Required for Korean notes"
-          body="Generates Korean translation, TL;DR, outline, one-pager, quote, and final meeting summary through Upstage direct API."
+          body="Generates Korean translation, TL;DR, outline, one-pager, quote, and final note through Upstage Solar Pro 3 via hosted relay or direct BYOK."
           primaryHref="https://console.upstage.ai/"
           secondaryHref="https://www.upstage.ai/pricing"
           primaryLabel="Get Upstage key"
@@ -315,7 +315,7 @@ function ModelsStep() {
       <div className={styles.costBox}>
         <span className={styles.costTitle}>No local model download</span>
         <p>
-          There are no hidden Ollama, Whisper, Gemini, OpenRouter, or bundled open-source models in this build. Users only need network access and their own Soniox/Upstage keys.
+          There are no hidden Ollama, Whisper, Gemini, OpenRouter, or bundled open-source models in this build. Users only need network access plus either a Bartleby relay token or their own Soniox/Upstage keys.
         </p>
       </div>
     </div>
@@ -325,15 +325,15 @@ function ModelsStep() {
 function KeysStep({ keysOk, onKeysChanged }: { keysOk: boolean; onKeysChanged: () => void }) {
   return (
     <div className={styles.stepPanel}>
-      <h1 className={styles.title}>Bring your own keys.</h1>
+      <h1 className={styles.title}>Choose hosted access or BYOK.</h1>
       <p className={styles.lede}>
-        Verify each key before saving. Bartleby stores secrets in macOS Keychain and falls back to environment variables only for development launches.
+        Friends beta should use the Bartleby hosted token. Power users can switch to BYOK and verify Soniox/Upstage keys directly. Everything is stored in macOS Keychain.
       </p>
       <div className={styles.keysPanel}>
         <div className={styles.keysHeader}>
-          <span className={styles.keysTitle}>Connect providers</span>
+          <span className={styles.keysTitle}>Connect access</span>
           <span className={`${styles.status} ${keysOk ? styles.ready : styles.missing}`}>
-            {keysOk ? "ready" : "keys needed"}
+            {keysOk ? "ready" : "token or keys needed"}
           </span>
         </div>
         <KeysTab onChanged={onKeysChanged} />
@@ -347,11 +347,11 @@ function FinishStep({ keysOk, permissionsOk }: { keysOk: boolean; permissionsOk:
     <div className={styles.stepPanel}>
       <h1 className={styles.title}>Bartleby is ready enough to ship.</h1>
       <p className={styles.lede}>
-        You can revisit keys and storage from Settings. Recording is best after both macOS permissions are granted and both BYOK providers are saved.
+        You can revisit access, provider keys, and storage from Settings. Recording is best after macOS permissions are granted and provider access is ready.
       </p>
       <div className={styles.finishList}>
         <CheckLine ok={permissionsOk} label="Recording permissions" detail="Microphone + Screen Recording" />
-        <CheckLine ok={keysOk} label="Provider keys" detail="Soniox + Upstage in Keychain or env" />
+        <CheckLine ok={keysOk} label="Provider access" detail={loadPrefs().provider_mode === "hosted" ? "Bartleby hosted token in Keychain or env" : "Soniox + Upstage in Keychain or env"} />
         <CheckLine ok label="Model routing" detail="Soniox stt-rt-v4 + Upstage solar-pro3" />
         <CheckLine ok label="Updates" detail="Signed Tauri updater feed configured" />
       </div>

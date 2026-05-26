@@ -39,33 +39,54 @@ struct AppState {
     capture: Mutex<Option<CaptureSession>>,
 }
 
-/// Resolve a BYOK key by name. Tries macOS Keychain first (Settings UI
-/// surface, §16), then ENV (dev convenience). Returns `None` if neither
-/// source has a non-empty value. Logs which source resolved so a curious
-/// developer can see precedence at a glance.
-fn resolve_key(name: &str) -> Option<String> {
-    if let Ok(Some(v)) = secrets::load(name) {
-        if !v.is_empty() {
-            println!("[secrets] {name} resolved from Keychain");
-            return Some(v);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProviderMode {
+    Hosted,
+    Byok,
+}
+
+impl ProviderMode {
+    fn from_option(value: Option<String>) -> Self {
+        match value.as_deref().map(|v| v.trim().to_ascii_lowercase()) {
+            Some(v) if v == "byok" => Self::Byok,
+            _ => Self::Hosted,
         }
     }
-    if let Ok(v) = std::env::var(name) {
-        if !v.is_empty() {
-            println!("[secrets] {name} resolved from ENV");
-            return Some(v);
-        }
-    }
-    // Dev fallback — read $HOME/.config/secrets/<service>.env directly.
-    // dev-run.sh sources these into the shell, but if the user launches
-    // Bartleby via Spotlight/Finder/menu-bar instead of the script the
-    // ENV isn't there. Reading the file directly closes that gap so the
-    // user doesn't lose Keys verified every time they re-launch.
-    let file = match name {
-        "SONIOX_API_KEY" => "soniox.env",
-        "UPSTAGE_API_KEY" => "upstage.env",
-        _ => return None,
+}
+
+const DEFAULT_RELAY_BASE_URL: &str = "https://api.heybartleby.com";
+
+fn relay_base_url() -> String {
+    std::env::var("BARTLEBY_RELAY_URL")
+        .ok()
+        .map(|v| v.trim().trim_end_matches('/').to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| DEFAULT_RELAY_BASE_URL.to_string())
+}
+
+fn relay_ws_url() -> String {
+    let base = relay_base_url();
+    let ws_base = if let Some(rest) = base.strip_prefix("https://") {
+        format!("wss://{rest}")
+    } else if let Some(rest) = base.strip_prefix("http://") {
+        format!("ws://{rest}")
+    } else {
+        base
     };
+    format!("{ws_base}/v1/stt/realtime")
+}
+
+fn secret_file_for(name: &str) -> Option<&'static str> {
+    match name {
+        "SONIOX_API_KEY" => Some("soniox.env"),
+        "UPSTAGE_API_KEY" => Some("upstage.env"),
+        "BARTLEBY_RELAY_TOKEN" => Some("bartleby-relay.env"),
+        _ => None,
+    }
+}
+
+fn load_secret_file(name: &str) -> Option<String> {
+    let file = secret_file_for(name)?;
     let Some(home) = std::env::var_os("HOME") else {
         return None;
     };
@@ -91,6 +112,31 @@ fn resolve_key(name: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Resolve a BYOK key by name. Tries macOS Keychain first (Settings UI
+/// surface, §16), then ENV (dev convenience). Returns `None` if neither
+/// source has a non-empty value. Logs which source resolved so a curious
+/// developer can see precedence at a glance.
+fn resolve_key(name: &str) -> Option<String> {
+    if let Ok(Some(v)) = secrets::load(name) {
+        if !v.is_empty() {
+            println!("[secrets] {name} resolved from Keychain");
+            return Some(v);
+        }
+    }
+    if let Ok(v) = std::env::var(name) {
+        if !v.is_empty() {
+            println!("[secrets] {name} resolved from ENV");
+            return Some(v);
+        }
+    }
+    // Dev fallback — read $HOME/.config/secrets/<service>.env directly.
+    // dev-run.sh sources these into the shell, but if the user launches
+    // Bartleby via Spotlight/Finder/menu-bar instead of the script the
+    // ENV isn't there. Reading the file directly closes that gap so the
+    // user doesn't lose Keys verified every time they re-launch.
+    load_secret_file(name)
 }
 
 /// Phase 6 S5 debug — surface frontend console messages into the Rust
@@ -304,20 +350,42 @@ fn spawn_capture(
     app: tauri::AppHandle,
     max_seconds: Option<u64>,
     translate_enabled: bool,
+    provider_mode: ProviderMode,
 ) -> CaptureSession {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_for_thread = Arc::clone(&stop);
 
-    // BYOK key resolution — Keychain first (Settings UI from Day 18a), ENV
-    // fallback (dev convenience: `source ~/.config/secrets/{soniox,upstage}.env`).
-    // Both keys log their resolved source so the dev console makes the
-    // precedence visible.
+    // Provider access resolution — Keychain first (Settings UI from Day 18a),
+    // ENV fallback (dev convenience), then local secret-file fallback for dev
+    // launches from Finder/Spotlight. Hosted mode uses a Bartleby relay token;
+    // BYOK mode uses direct Soniox/Upstage keys.
     //
     // Upstage direct (not OpenRouter) — OpenRouter's pooled Upstage account
     // ran out of credit 2026-05-08, indefinite outage. Direct API has same
     // pricing and avoids the routing dependency.
-    let stt_key = resolve_key("SONIOX_API_KEY");
-    let upstage_key = resolve_key("UPSTAGE_API_KEY");
+    let relay_token = if provider_mode == ProviderMode::Hosted {
+        resolve_key("BARTLEBY_RELAY_TOKEN")
+    } else {
+        None
+    };
+    let stt_key = match provider_mode {
+        ProviderMode::Hosted => relay_token.as_ref().map(|_| "relay".to_string()),
+        ProviderMode::Byok => resolve_key("SONIOX_API_KEY"),
+    };
+    let upstage_key = match provider_mode {
+        ProviderMode::Hosted => relay_token.clone(),
+        ProviderMode::Byok => resolve_key("UPSTAGE_API_KEY"),
+    };
+    let stt_route = match provider_mode {
+        ProviderMode::Hosted => relay_token
+            .as_ref()
+            .map(|token| stt::SttRoute::hosted(relay_ws_url(), token.clone())),
+        ProviderMode::Byok => Some(stt::SttRoute::direct()),
+    };
+    let translate_route = match provider_mode {
+        ProviderMode::Hosted => translate::TranslateRoute::hosted(relay_base_url()),
+        ProviderMode::Byok => translate::TranslateRoute::direct(),
+    };
 
     // Translator is the upstream consumer of STT finals — start it first so
     // STT can hand it the final-text sender at construction.
@@ -325,7 +393,7 @@ fn spawn_capture(
     // translator session 안 띄움 + final_tx None → STT 가 finals 만 event 로 emit.
     let (final_tx, translator_session) = match (&stt_key, &upstage_key, translate_enabled) {
         (Some(_), Some(up_key), true) => {
-            let (tx, sess) = translate::start(up_key.clone(), app.clone());
+            let (tx, sess) = translate::start(up_key.clone(), translate_route.clone(), app.clone());
             (Some(tx), Some(sess))
         }
         (Some(_), Some(_), false) => {
@@ -360,23 +428,32 @@ fn spawn_capture(
     // single endpoint detector — empirically observed: finals lag ~7s when
     // streams are merged. Two parallel sessions cost 2x ($0.0072/min) but
     // keep endpointing per-source.
-    let (stt_sys_sender, stt_sys_session, stt_mic_sender, stt_mic_session) = match &stt_key {
-        Some(key) => {
-            let (sys_tx, sys_sess) =
-                stt::start(key.clone(), app.clone(), stt::SttSource::Sys, final_tx);
-            let (mic_tx, mic_sess) = stt::start(
-                key.clone(),
-                app.clone(),
-                stt::SttSource::Mic,
-                None, // mic finals stay in their own language; no translate path
-            );
-            (Some(sys_tx), Some(sys_sess), Some(mic_tx), Some(mic_sess))
-        }
-        None => {
-            println!("[capture] SONIOX_API_KEY not set — STT disabled (caption unavailable)");
-            (None, None, None, None)
-        }
-    };
+    let (stt_sys_sender, stt_sys_session, stt_mic_sender, stt_mic_session) =
+        match (&stt_key, &stt_route) {
+            (Some(key), Some(route)) => {
+                let (sys_tx, sys_sess) = stt::start(
+                    key.clone(),
+                    route.clone(),
+                    app.clone(),
+                    stt::SttSource::Sys,
+                    final_tx,
+                );
+                let (mic_tx, mic_sess) = stt::start(
+                    key.clone(),
+                    route.clone(),
+                    app.clone(),
+                    stt::SttSource::Mic,
+                    None, // mic finals stay in their own language; no translate path
+                );
+                (Some(sys_tx), Some(sys_sess), Some(mic_tx), Some(mic_sess))
+            }
+            _ => {
+                println!(
+                    "[capture] provider STT token/key not set — STT disabled (caption unavailable)"
+                );
+                (None, None, None, None)
+            }
+        };
 
     let handle = std::thread::spawn(move || {
         let timestamp = std::time::SystemTime::now()
@@ -452,6 +529,7 @@ async fn start_capture(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     translate_enabled: bool,
+    provider_mode: Option<String>,
 ) -> Result<(), String> {
     if !capture::permission::recording_ready() {
         return Err(
@@ -464,7 +542,26 @@ async fn start_capture(
     if guard.is_some() {
         return Err("Capture already in progress".into());
     }
-    *guard = Some(spawn_capture(app, None, translate_enabled));
+    let provider_mode = ProviderMode::from_option(provider_mode);
+    match provider_mode {
+        ProviderMode::Hosted if resolve_key("BARTLEBY_RELAY_TOKEN").is_none() => {
+            return Err(
+                "Bartleby hosted token is missing. Add it in Settings → Keys, or switch to BYOK."
+                    .into(),
+            );
+        }
+        ProviderMode::Byok
+            if resolve_key("SONIOX_API_KEY").is_none()
+                || resolve_key("UPSTAGE_API_KEY").is_none() =>
+        {
+            return Err(
+                "Soniox and Upstage keys are required in BYOK mode. Add them in Settings → Keys."
+                    .into(),
+            );
+        }
+        _ => {}
+    }
+    *guard = Some(spawn_capture(app, None, translate_enabled, provider_mode));
     Ok(())
 }
 
@@ -528,6 +625,12 @@ fn api_key_status(name: String) -> Result<KeyStatus, String> {
             });
         }
     }
+    if load_secret_file(&name).is_some() {
+        return Ok(KeyStatus {
+            present: true,
+            source: Some("file"),
+        });
+    }
     Ok(KeyStatus {
         present: false,
         source: None,
@@ -555,21 +658,64 @@ async fn verify_api_key(name: String, value: String) -> Result<(), String> {
     match name.as_str() {
         "SONIOX_API_KEY" => stt::soniox::verify_key(&value).await,
         "UPSTAGE_API_KEY" => translate::upstage::verify_key(&value).await,
+        "BARTLEBY_RELAY_TOKEN" => verify_relay_token(&value).await,
         other => Err(format!("Unknown key: {other}")),
     }
+}
+
+async fn verify_relay_token(token: &str) -> Result<(), String> {
+    let url = format!("{}/v1/auth/check", relay_base_url());
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("http client: {e}"))?
+        .get(url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {e}"))?;
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return Err("Bartleby relay rejected the token (401)".into());
+    }
+    let body_text = resp.text().await.unwrap_or_default();
+    Err(format!(
+        "HTTP {}: {}",
+        status,
+        body_text.chars().take(200).collect::<String>()
+    ))
 }
 
 #[tauri::command]
 async fn finalize_session(
     transcript: Vec<summary::finalize::InputUtterance>,
+    provider_mode: Option<String>,
 ) -> Result<summary::finalize::FinalizeResult, String> {
-    let api_key =
-        resolve_key("UPSTAGE_API_KEY").ok_or_else(|| "UPSTAGE_API_KEY not set".to_string())?;
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()
         .map_err(|e| format!("http client: {e}"))?;
-    summary::finalize::finalize_session(&client, &api_key, &transcript).await
+    match ProviderMode::from_option(provider_mode) {
+        ProviderMode::Hosted => {
+            let token = resolve_key("BARTLEBY_RELAY_TOKEN")
+                .ok_or_else(|| "BARTLEBY_RELAY_TOKEN not set".to_string())?;
+            summary::finalize::finalize_session_hosted(
+                &client,
+                &relay_base_url(),
+                &token,
+                &transcript,
+            )
+            .await
+        }
+        ProviderMode::Byok => {
+            let api_key = resolve_key("UPSTAGE_API_KEY")
+                .ok_or_else(|| "UPSTAGE_API_KEY not set".to_string())?;
+            summary::finalize::finalize_session(&client, &api_key, &transcript).await
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

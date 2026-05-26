@@ -25,8 +25,11 @@ export default function RecordingControls({
     try {
       // pref 를 매 start 시점에 읽음 — 사용자가 Settings 에서 토글한 뒤 바로
       // Start 누르면 그 값으로 capture 가 시작됨.
-      const { translate_enabled } = loadPrefs();
-      await invoke("start_capture", { translateEnabled: translate_enabled });
+      const { translate_enabled, provider_mode } = loadPrefs();
+      await invoke("start_capture", {
+        translateEnabled: translate_enabled,
+        providerMode: provider_mode,
+      });
       onStart();
     } catch (err) {
       onError(`Error: ${String(err)}`);

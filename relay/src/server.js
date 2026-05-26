@@ -57,6 +57,12 @@ async function route(req, res) {
   }
 
   try {
+    if (url.pathname === "/v1/auth/check") {
+      if (req.method !== "GET") return methodNotAllowed(res);
+      json(res, 200, { ok: true, service: "bartleby-relay" });
+      return;
+    }
+
     if (url.pathname === "/v1/summary/finalize") {
       if (req.method !== "POST") return methodNotAllowed(res);
       const body = await readJson(req, 2 * 1024 * 1024);

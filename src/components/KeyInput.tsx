@@ -10,7 +10,7 @@ interface Props {
   label: string;
   helper: string;
   /// Whether a key is already stored (controls placeholder + initial state).
-  storedSource: "keychain" | "env" | null;
+  storedSource: "keychain" | "env" | "file" | null;
   onSaved: () => void;
   onCleared: () => void;
 }
@@ -89,7 +89,9 @@ export default function KeyInput({
       ? "•••••••••••••••••••• stored in Keychain"
       : storedSource === "env"
         ? "loaded from ENV (override by saving here)"
-        : "paste key";
+        : storedSource === "file"
+          ? "loaded from local dev secret file"
+          : "paste key";
 
   let statusBadge: React.ReactNode = null;
   if (status === "verifying") statusBadge = <span className={styles.statusVerifying}>verifying…</span>;

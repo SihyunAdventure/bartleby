@@ -73,7 +73,7 @@ pub struct FinalizeResult {
 }
 
 /// Shape of a single utterance row passed in from the frontend.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputUtterance {
     pub id: i64,
     pub time: String,
@@ -82,6 +82,11 @@ pub struct InputUtterance {
     pub en_text: String,
     #[serde(rename = "koText")]
     pub ko_text: Option<String>,
+}
+
+#[derive(Serialize)]
+struct HostedFinalizeRequest<'a> {
+    transcript: &'a [InputUtterance],
 }
 
 /// Render the utterance list as a transcript block the model can scan and
@@ -191,6 +196,59 @@ pub async fn finalize_session(
         .ok_or_else(|| "finalize: choices[0].message.content missing".to_string())?;
 
     parse_response(content)
+}
+
+/// Hosted-relay finalize call. The app sends only the transcript plus the
+/// Bartleby relay token; the relay injects the server-side Upstage key and
+/// applies the same Bartleby final-note schema.
+pub async fn finalize_session_hosted(
+    client: &reqwest::Client,
+    relay_base_url: &str,
+    token: &str,
+    utterances: &[InputUtterance],
+) -> Result<FinalizeResult, String> {
+    let transcript = build_transcript_indexed(utterances);
+    if transcript.trim().is_empty() {
+        return Ok(FinalizeResult {
+            tldr: String::new(),
+            outline: Vec::new(),
+            onepager: String::new(),
+            quote: None,
+        });
+    }
+
+    let url = format!(
+        "{}/v1/summary/finalize",
+        relay_base_url.trim_end_matches('/')
+    );
+    let resp = client
+        .post(url)
+        .bearer_auth(token)
+        .json(&HostedFinalizeRequest {
+            transcript: utterances,
+        })
+        .send()
+        .await
+        .map_err(|e| format!("hosted finalize network: {e}"))?;
+
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("hosted finalize read body: {e}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "hosted finalize HTTP {status}: {}",
+            text.chars().take(300).collect::<String>()
+        ));
+    }
+
+    serde_json::from_str::<FinalizeResult>(&text).map_err(|e| {
+        format!(
+            "hosted finalize JSON parse: {e} | body={}",
+            text.chars().take(200).collect::<String>()
+        )
+    })
 }
 
 #[cfg(test)]

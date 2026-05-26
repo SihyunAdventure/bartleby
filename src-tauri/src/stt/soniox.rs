@@ -19,11 +19,15 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, http::HeaderValue, Message},
+};
 
 use super::ring::AudioRing;
+use super::SttRoute;
 
-const SONIOX_WS_URL: &str = "wss://stt-rt.soniox.com/transcribe-websocket";
+pub const SONIOX_WS_URL: &str = "wss://stt-rt.soniox.com/transcribe-websocket";
 const TARGET_SAMPLE_RATE: u32 = 16_000;
 
 /// Which audio source a Soniox session is transcribing. Frontend uses this
@@ -98,6 +102,32 @@ struct ServerMessage {
     error_message: Option<String>,
 }
 
+async fn connect_route(
+    route: &SttRoute,
+) -> Result<(
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    tokio_tungstenite::tungstenite::handshake::client::Response,
+)> {
+    if let Some(auth) = &route.authorization {
+        let mut req = route
+            .ws_url
+            .as_str()
+            .into_client_request()
+            .context("Soniox relay WebSocket request build failed")?;
+        req.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_str(auth).context("Soniox relay auth header invalid")?,
+        );
+        connect_async(req)
+            .await
+            .context("Soniox relay WebSocket connect failed")
+    } else {
+        connect_async(route.ws_url.as_str())
+            .await
+            .context("Soniox WebSocket connect failed")
+    }
+}
+
 /// Run one websocket session. Returns when the stream ends (cleanly or with
 /// a drop). Caller is responsible for reconnect / backoff decisions.
 ///
@@ -110,6 +140,7 @@ struct ServerMessage {
 /// emit, so a downstream Solar Pro 3 worker can translate it.
 pub async fn run_session(
     api_key: &str,
+    route: &SttRoute,
     app: &AppHandle,
     chunk_rx: &mut UnboundedReceiver<Vec<u8>>,
     stop: &Arc<AtomicBool>,
@@ -117,9 +148,7 @@ pub async fn run_session(
     ring: &Arc<Mutex<AudioRing>>,
     source: SttSource,
 ) -> Result<SessionEnd> {
-    let (ws, _resp) = connect_async(SONIOX_WS_URL)
-        .await
-        .context("Soniox WebSocket connect failed")?;
+    let (ws, _resp) = connect_route(route).await?;
     let (mut sink, mut stream) = ws.split();
 
     let config = json!({
@@ -133,7 +162,7 @@ pub async fn run_session(
         "enable_language_identification": true,
     });
     sink.send(Message::Text(config.to_string())).await?;
-    println!("[stt] connected to Soniox stt-rt-v4");
+    println!("[stt] connected to Soniox stt-rt-v4 via {}", route.ws_url);
 
     // Ring replay — drain whatever the bridge has already buffered. On the
     // first session this is whatever audio arrived before the websocket was

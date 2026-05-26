@@ -1,26 +1,74 @@
 export const UPSTAGE_URL = "https://api.upstage.ai/v1/chat/completions";
 export const MODEL = "solar-pro3";
 
-const SUMMARY_SYSTEM_PROMPT = `You are Bartleby, a literary scrivener summarising a live meeting transcript. Output ONLY valid JSON matching this exact schema:
-{"working_title": string, "themes": [string], "quote_candidate": string | null}
+const FINALIZE_SYSTEM_PROMPT = `You are Bartleby, a literary scrivener finalising a recorded note. The source may be a meeting, a lecture, a video, a podcast, or any spoken material — NEVER assume it's a meeting. Infer the format from the content itself; narrate the substance directly without naming the format.
 
-Rules:
-- working_title: 8 단어 이하의 짧은 편집자 제목 (Korean 우선, 영어도 허용).
-- themes: 3-5개의 한국어 thematic 문장. 작은 fact nuggets 보다는 회의에서 떠오른 주제·논점·합의·갈등.
-- quote_candidate: 회의에서 *그대로* 발화된 가장 인사이트 짙거나 감정적으로 울리는 한 줄 (60자 이내). 영어 발화면 영어 그대로 인용. 인용할 만한 게 없으면 null.
+Output ONLY valid JSON matching this exact schema:
+{
+  "tldr": string,
+  "outline": [{"topic_title": string, "bullets": [string], "ref_utterance_ids": [int, int]}],
+  "onepager": string,
+  "quote": string | null
+}
 
-회의가 너무 짧아서 요약 불가능하면 themes: [], quote_candidate: null 반환.`;
+Voice & style:
+- Korean declarative style: -했음 / -였다 / -이다. **Never** use -했습니다 / -입니다 (사무관 voice).
+- Avoid generic / format-naming headings. Forbidden topic_title strings (Korean and English): 개요, 회의 요약, 회의 진행, 참석자, 결론, 미팅 시작, 미팅 종료, 영상 요약, 강의 요약, podcast 요약, 본 영상, 본 회의, Overview, Summary, Introduction, Participants, Conclusion.
+- No action-items / decisions / participants sections anywhere. Bartleby does not enumerate tasks.
+
+Field rules:
+- tldr: 1-2 sentences narrating what the recording actually engaged with — the topic itself, not the format. **Do not start with format-naming phrases** like '이번 회의는', '이 영상은', '본 강의는', '이 podcast 는', '이번 미팅에서는'. Avoid cliché openers '이번', '본', '이 자료는'. Open with the topic, a verb, or the speaker's claim. Example tones: 'X와 Y의 차이를 논의하며 Z에 도달했다.' / '신경망 학습이 verifiable 영역에 편향된 이유를 설명한다.'
+- outline: 3-7 chronological topic chunks. Each chunk has:
+  - topic_title: short Korean phrase, topic-specific (avoid blocklist above; never name the source format).
+  - bullets: 2-5 declarative facts about that topic.
+  - ref_utterance_ids: [first_utterance_id, last_utterance_id] from the transcript that backs this chunk. Use the literal id field from the input transcript. If you genuinely cannot map the chunk to ids, return [0, 0] — the renderer disables the jump gracefully.
+- onepager: markdown. Begin with one overview paragraph (no heading; same no-format-naming rule). Then 2-4 ## H2 sections (specific titles, blocklist applies) with body paragraphs. Use blank lines between paragraphs. Same -했음 / -였다 style throughout.
+- quote: a single most-striking utterance from the transcript, verbatim, in the original language (English audio → English quote). ≤80 characters. null if nothing stands out.
+
+If the transcript is too short / sparse to produce a meaningful note, return:
+{"tldr": "", "outline": [], "onepager": "", "quote": null}`;
 
 const TRANSLATE_SYSTEM_PROMPT = "You translate English speech to natural Korean. Output ONLY the Korean translation — no explanation, no quotes, no English, no romanization. Match the conversational register and tone of the source. Preserve technical terms when no clean Korean equivalent exists.";
 
+export const EMPTY_FINALIZE_RESULT = {
+  tldr: "",
+  outline: [],
+  onepager: "",
+  quote: null,
+};
+
+function cleanString(value) {
+  return String(value || "").trim();
+}
+
+function numberedLines(lines) {
+  return lines
+    .map((line) => cleanString(line))
+    .filter(Boolean)
+    .map((line, index) => `${String(index + 1).padStart(2, "0")}. ${line}`)
+    .join("\n");
+}
+
 export function buildTranscript(body) {
   if (typeof body?.transcript === "string") return body.transcript.trim();
+
+  if (Array.isArray(body?.transcript)) {
+    const rows = [];
+    for (const item of body.transcript) {
+      const en = cleanString(item?.enText ?? item?.en_text ?? item?.text);
+      if (!en) continue;
+      const id = Number.isFinite(Number(item?.id)) ? Number(item.id) : rows.length + 1;
+      const time = cleanString(item?.time) || "00:00:00";
+      const speaker = cleanString(item?.speaker) || "system";
+      rows.push(`[id=${id} | ${time} | ${speaker}] ${en}`);
+      const ko = cleanString(item?.koText ?? item?.ko_text);
+      if (ko) rows.push(`    └ ${ko}`);
+    }
+    return rows.join("\n");
+  }
+
   if (Array.isArray(body?.finals)) {
-    return body.finals
-      .map((line) => String(line || "").trim())
-      .filter(Boolean)
-      .map((line, index) => `${String(index + 1).padStart(2, "0")}. ${line}`)
-      .join("\n");
+    return numberedLines(body.finals);
   }
   return "";
 }
@@ -29,10 +77,10 @@ export function buildSummaryRequest(transcript) {
   return {
     model: MODEL,
     messages: [
-      { role: "system", content: SUMMARY_SYSTEM_PROMPT },
+      { role: "system", content: FINALIZE_SYSTEM_PROMPT },
       {
         role: "user",
-        content: `회의 진행 중 transcript 입니다. JSON 으로 요약해주세요.\n\nTranscript:\n${transcript}\n\nJSON:`,
+        content: `다음은 방금 종료된 녹취의 전체 transcript 입니다 (utterance id 포함). source 가 회의/강의/영상/podcast 어느 것이든 가능 — 내용에서 추론하되 포맷 이름을 직접 부르지 말 것. JSON schema 그대로 Bartleby voice 로 정리.\n\nTranscript:\n${transcript}\n\nJSON:`,
       },
     ],
     stream: false,
@@ -83,9 +131,7 @@ async function callUpstage(apiKey, body) {
 export async function summarize(apiKey, requestBody) {
   const transcript = buildTranscript(requestBody);
   if (!transcript) {
-    const err = new Error("empty transcript");
-    err.status = 400;
-    throw err;
+    return EMPTY_FINALIZE_RESULT;
   }
   const resp = await callUpstage(apiKey, buildSummaryRequest(transcript));
   if (!resp.ok) {

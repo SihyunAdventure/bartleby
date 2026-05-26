@@ -8,9 +8,15 @@ import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 const STORAGE_KEY = "bartleby.prefs.v1";
 const EVENT_NAME = "prefs_changed";
 
+export type ProviderMode = "hosted" | "byok";
+
 export interface Prefs {
   // Onboarding
   onboarding_completed: boolean;
+
+  // Provider access
+  // hosted = Notique/Bartleby relay token (friends beta), byok = user's own Soniox/Upstage keys.
+  provider_mode: ProviderMode;
 
   // Meeting mode
   auto_summarize: boolean;
@@ -24,6 +30,8 @@ export interface Prefs {
 
 export const DEFAULT_PREFS: Prefs = {
   onboarding_completed: false,
+
+  provider_mode: "hosted",
 
   auto_summarize: true,
   // 한국어 미팅 위주 user 가 default. 영어 시청 / 영어 client call 시
@@ -39,7 +47,11 @@ export function loadPrefs(): Prefs {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_PREFS;
     const parsed = JSON.parse(raw) as Partial<Prefs>;
-    return { ...DEFAULT_PREFS, ...parsed };
+    const merged = { ...DEFAULT_PREFS, ...parsed };
+    if (merged.provider_mode !== "hosted" && merged.provider_mode !== "byok") {
+      merged.provider_mode = DEFAULT_PREFS.provider_mode;
+    }
+    return merged;
   } catch {
     return DEFAULT_PREFS;
   }

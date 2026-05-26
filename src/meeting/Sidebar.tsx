@@ -1,3 +1,4 @@
+import { loadPrefs } from "../settings/prefs";
 import styles from "./Sidebar.module.css";
 
 export type LibraryFilter = "all" | "today" | "week";
@@ -76,6 +77,11 @@ export default function Sidebar({
   libraryFilter,
   onSelectFilter,
 }: Props) {
+  const providerMode = loadPrefs().provider_mode;
+  const readyLabel = providerMode === "hosted" ? "Hosted token ready" : "Keys verified";
+  const missingLabel = providerMode === "hosted" ? "Hosted token missing" : "Keys missing";
+  const providerMeta = providerMode === "hosted" ? "HOSTED RELAY" : "SONIOX · UPSTAGE";
+
   return (
     <aside className={styles.sidebar}>
       <div className={styles.brand}>
@@ -120,10 +126,10 @@ export default function Sidebar({
         <div className="row gap-2">
           <span className={`dot ${keysOk ? "dot-ok" : "dot-warn"}`} />
           <span className={styles.footerText}>
-            {keysOk ? "Keys verified" : "Keys missing"}
+            {keysOk ? readyLabel : missingLabel}
           </span>
         </div>
-        <div className={styles.footerMeta}>SONIOX · UPSTAGE</div>
+        <div className={styles.footerMeta}>{providerMeta}</div>
         {captureRunning && (
           <div className={styles.footerRec}>
             <span className="dot dot-rec" />

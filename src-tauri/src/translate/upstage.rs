@@ -25,6 +25,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
 
+use super::TranslateRoute;
+
 const UPSTAGE_URL: &str = "https://api.upstage.ai/v1/chat/completions";
 const MODEL: &str = "solar-pro3";
 
@@ -70,6 +72,7 @@ struct StreamChunk {
 pub async fn translate_and_emit(
     client: &reqwest::Client,
     api_key: &str,
+    route: &TranslateRoute,
     app: &AppHandle,
     en: String,
 ) {
@@ -78,20 +81,7 @@ pub async fn translate_and_emit(
         return;
     }
 
-    let body = json!({
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": trimmed},
-        ],
-        "stream": true,
-        "temperature": 0.3,
-    });
-
-    let resp = match client
-        .post(UPSTAGE_URL)
-        .bearer_auth(api_key)
-        .json(&body)
+    let resp = match translation_request(client, api_key, route, trimmed)
         .send()
         .await
     {
@@ -216,6 +206,35 @@ pub async fn translate_and_emit(
             translation: final_ko,
         },
     );
+}
+
+fn translation_request(
+    client: &reqwest::Client,
+    api_key: &str,
+    route: &TranslateRoute,
+    text: &str,
+) -> reqwest::RequestBuilder {
+    match route {
+        TranslateRoute::Direct => {
+            let body = json!({
+                "model": MODEL,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": text},
+                ],
+                "stream": true,
+                "temperature": 0.3,
+            });
+            client.post(UPSTAGE_URL).bearer_auth(api_key).json(&body)
+        }
+        TranslateRoute::Hosted { base_url } => {
+            let body = json!({ "text": text });
+            client
+                .post(format!("{base_url}/v1/translate?stream=1"))
+                .bearer_auth(api_key)
+                .json(&body)
+        }
+    }
 }
 
 /// Returns the index of the first byte of `\n\n` in `buf`, if present.

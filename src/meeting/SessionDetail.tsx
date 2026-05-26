@@ -105,7 +105,7 @@ export default function SessionDetail({
     try {
       const result = await invoke<Omit<FinalSummary, "generatedAt">>(
         "finalize_session",
-        { transcript: session.transcript }
+        { transcript: session.transcript, providerMode: loadPrefs().provider_mode }
       );
       const stamped: FinalSummary = {
         ...result,

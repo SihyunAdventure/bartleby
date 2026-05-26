@@ -17,7 +17,7 @@ const isGallery = params.has("gallery");
 
 interface KeyStatus {
   present: boolean;
-  source: "keychain" | "env" | null;
+  source: "keychain" | "env" | "file" | null;
 }
 
 function App() {
@@ -52,11 +52,14 @@ function App() {
 
   const refreshKeyStatus = async (): Promise<boolean> => {
     try {
-      const [s, u] = await Promise.all([
-        invoke<KeyStatus>("api_key_status", { name: "SONIOX_API_KEY" }),
-        invoke<KeyStatus>("api_key_status", { name: "UPSTAGE_API_KEY" }),
-      ]);
-      const ready = s.present && u.present;
+      const prefs = loadPrefs();
+      const ready =
+        prefs.provider_mode === "hosted"
+          ? (await invoke<KeyStatus>("api_key_status", { name: "BARTLEBY_RELAY_TOKEN" })).present
+          : (await Promise.all([
+              invoke<KeyStatus>("api_key_status", { name: "SONIOX_API_KEY" }),
+              invoke<KeyStatus>("api_key_status", { name: "UPSTAGE_API_KEY" }),
+            ])).every((status) => status.present);
       setKeysMissing(!ready);
       return ready;
     } catch {

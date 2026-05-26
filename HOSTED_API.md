@@ -1,31 +1,32 @@
 # Bartleby hosted API beta plan
 
-Status: relay MVP deployed; app hosted mode not active in v0.1.1.
+Status: relay deployed; app hosted/BYOK mode implemented for the next beta build.
 Decision date: 2026-05-26.
 Deployment date: 2026-05-26.
 
 ## Deployment status, 2026-05-26
 
-Relay MVP is live for server-side testing. The desktop app still uses BYOK until hosted client mode is implemented.
+Relay is live and the desktop app now has hosted/BYOK provider mode in source. The next signed DMG can default friends to hosted access.
 
 | Item | Status |
 |---|---|
-| Code | `relay/` package committed and pushed in `792576e` |
+| Code | `relay/` package plus app hosted mode implemented; relay MVP landed in `792576e` |
 | DNS | `api.heybartleby.com` A record points to `3.37.71.254` |
 | TLS | nginx + Let's Encrypt certificate active |
 | Service | `bartleby-relay.service` active on shared `notique-agent` host |
 | Health | `https://api.heybartleby.com/health` returns `ok: true` |
 | Secrets | `/bartleby/prod/*` SecureString parameters in AWS SSM Parameter Store |
-| Auth | `/v1/*` requires private bearer token |
+| Auth | `/v1/*` requires private bearer token; `/v1/auth/check` verifies tokens without provider cost |
 
 Verified probes:
 
 - unauthenticated `/v1/translate` returns `401`.
 - authenticated `/v1/translate` returns an Upstage translation.
 - authenticated `wss://api.heybartleby.com/v1/stt/realtime` opens and reaches Soniox upstream.
+- `/v1/auth/check` is the app's cheap token verification endpoint.
 - `journalctl -u bartleby-relay` shows metadata-only session logs: duration and byte counts, not content.
 
-Next implementation step is app integration, not more server setup: add hosted/BYOK provider mode and point hosted STT/Upstage calls at this relay.
+Next implementation step is signing a private beta DMG that includes the hosted/BYOK app mode.
 
 ## Decision
 
@@ -108,6 +109,7 @@ Minimum API surface:
 
 ```text
 GET  /health
+GET  /v1/auth/check          Authenticated no-cost token verification
 GET  /v1/stt/realtime        WebSocket proxy to Soniox realtime STT
 POST /v1/summary/finalize    Upstage final meeting note proxy
 POST /v1/translate           Upstage transcript translation proxy, only if live translation remains enabled
@@ -175,28 +177,24 @@ aws ssm put-parameter --region ap-northeast-2 --name /bartleby/prod/UPSTAGE_API_
 aws ssm put-parameter --region ap-northeast-2 --name /bartleby/prod/BETA_TOKEN --type SecureString --value '...'
 ```
 
-## App changes required
+## App changes implemented
 
-1. Add provider mode preference:
-   - `hosted` for friends beta default.
-   - `byok` for direct Soniox/Upstage keys.
-2. Onboarding:
-   - Step 1: choose hosted beta or BYOK.
-   - Step 2: hosted invite token or BYOK keys.
-   - Step 3: microphone permission.
-   - Step 4: screen/system audio permission.
-   - Step 5: test recording.
-3. Settings:
-   - Show current mode clearly.
-   - Show remaining hosted minutes when metering endpoint exists.
-   - Keep BYOK key fields, but hide them behind advanced mode when hosted is selected.
-4. Rust networking:
-   - Abstract STT and Upstage calls behind provider clients.
-   - Direct BYOK client keeps current code path.
-   - Hosted client calls Notique relay and never sees provider keys.
-5. Privacy copy:
-   - Current BYOK copy remains true only for BYOK mode.
-   - Hosted mode must say provider calls go through Notique's relay.
+1. Provider mode preference:
+   - `hosted` is the friends beta default.
+   - `byok` keeps direct Soniox/Upstage keys as advanced fallback.
+2. Onboarding and Settings:
+   - The Keys/Access step lets users choose Hosted beta or BYOK.
+   - Hosted asks for `BARTLEBY_RELAY_TOKEN`; BYOK asks for Soniox + Upstage.
+   - Permission steps remain Microphone and Screen Recording.
+3. Rust networking:
+   - Hosted STT connects to `wss://api.heybartleby.com/v1/stt/realtime` with relay bearer auth.
+   - Hosted translation/finalize call `https://api.heybartleby.com/v1/*`.
+   - BYOK direct clients keep the existing Soniox/Upstage path.
+4. Privacy copy:
+   - Hosted mode says provider calls go through Notique's relay.
+   - BYOK copy remains direct provider billing.
+
+Remaining beta-ops work: per-token minute display/caps, public privacy terms, and signed DMG rollout.
 
 ## Rollout plan
 
@@ -219,12 +217,13 @@ aws ssm put-parameter --region ap-northeast-2 --name /bartleby/prod/BETA_TOKEN -
 - Added nginx + Let's Encrypt TLS reverse proxy.
 - Verified WebSocket upgrade, Soniox upstream connection, and Upstage translation proxy.
 
-### Phase H3, app hosted mode
+### Phase H3, app hosted mode ✅
 
-- Add hosted/BYOK mode switch.
-- Update onboarding and Settings.
-- Keep direct BYOK path as fallback.
-- Ship a signed private beta DMG.
+- Added hosted/BYOK mode switch.
+- Updated onboarding and Settings.
+- Kept direct BYOK path as fallback.
+- Routed hosted STT, translation, and final note generation through the relay.
+- Next: ship a signed private beta DMG.
 
 ### Phase H4, quota and beta operations
 

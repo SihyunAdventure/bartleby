@@ -3,7 +3,7 @@
 > "I would prefer not to take notes." — Let Bartleby.
 
 단일 dock macOS 앱. 영어 / 한국어 라이브 미팅에서
-**transcript + 요약 노트**. 봇 없음. 한국어 first. v0.1.1 은 BYOK, 지인 베타는 Notique-hosted relay 계획.
+**transcript + 요약 노트**. 봇 없음. 한국어 first. v0.1.1 이후 지인 베타는 Hosted token 기본, BYOK fallback.
 
 ## 빠른 컨텍스트
 
@@ -38,9 +38,9 @@ YouTube URL → 한국어 (또는 다른 언어) 더빙 영상 재생성 은 별
 ```
 Desktop:   Tauri 2.0 (Rust + React + TypeScript)
 캡처:       ScreenCaptureKit (system audio + mic)
-STT:       Soniox stt-rt-v4 streaming (v0.1.1 BYOK direct, hosted relay planned)
-LLM:       Upstage solar-pro3 direct API (v0.1.1 BYOK direct, hosted relay planned)
-Hosted:    planned Notique EC2 relay for friends beta, BYOK remains fallback
+STT:       Soniox stt-rt-v4 streaming (Hosted relay or BYOK direct)
+LLM:       Upstage solar-pro3 (Hosted relay or BYOK direct)
+Hosted:    Notique EC2 relay for friends beta, BYOK remains fallback
 Local ML:  none bundled, none auto-installed
 저장:       SQLite via tauri-plugin-sql + local audio segments
 도메인:    heybartleby.com
@@ -55,7 +55,7 @@ vs Granola / Otter / Fireflies:
 - **No-bot** — 상대방이 봇을 인식하게 만들지 않음
 - **한국어 first** — 한국어 native transcript + 요약 (자동 언어 분기)
 - **Local data ownership** — 노트는 로컬 storage. Hosted relay 는 실시간 provider proxy 만 허용하고 server-side library 는 만들지 않음
-- **BYOK** — vendor lock 회피, Keychain 영구 저장. 지인 베타에서는 Notique-hosted relay 를 추가하되 BYOK fallback 유지
+- **BYOK** — vendor lock 회피, Keychain 영구 저장. 지인 베타에서는 Notique-hosted relay 가 기본이고 BYOK fallback 유지
 - **No hidden models** — OpenRouter/Whisper/Ollama/GPT/Claude/Gemini 는 공개 surface 아님
 - **Character brand** — Melville 의 Bartleby, 정중하고 절제됨
 
@@ -69,4 +69,4 @@ Inter / Pretendard (sans body) + Cormorant + Gowun Batang (serif) +
 
 ## 다음 액션
 
-[HOSTED_API.md](./HOSTED_API.md) 기준으로 지인 베타용 EC2 relay 를 구현한다. v0.1.1 public copy 는 BYOK 로 유지하고, hosted mode 는 app/relay/privacy copy 가 모두 준비된 뒤 켠다.
+[HOSTED_API.md](./HOSTED_API.md) 기준으로 지인 베타용 EC2 relay 와 앱 hosted/BYOK mode 를 구현했다. 다음은 signed private beta DMG 와 usage cap/terms 정리다.
