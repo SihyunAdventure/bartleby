@@ -1,7 +1,31 @@
 # Bartleby hosted API beta plan
 
-Status: planned, not active in v0.1.1.
+Status: relay MVP deployed; app hosted mode not active in v0.1.1.
 Decision date: 2026-05-26.
+Deployment date: 2026-05-26.
+
+## Deployment status, 2026-05-26
+
+Relay MVP is live for server-side testing. The desktop app still uses BYOK until hosted client mode is implemented.
+
+| Item | Status |
+|---|---|
+| Code | `relay/` package committed and pushed in `792576e` |
+| DNS | `api.heybartleby.com` A record points to `3.37.71.254` |
+| TLS | nginx + Let's Encrypt certificate active |
+| Service | `bartleby-relay.service` active on shared `notique-agent` host |
+| Health | `https://api.heybartleby.com/health` returns `ok: true` |
+| Secrets | `/bartleby/prod/*` SecureString parameters in AWS SSM Parameter Store |
+| Auth | `/v1/*` requires private bearer token |
+
+Verified probes:
+
+- unauthenticated `/v1/translate` returns `401`.
+- authenticated `/v1/translate` returns an Upstage translation.
+- authenticated `wss://api.heybartleby.com/v1/stt/realtime` opens and reaches Soniox upstream.
+- `journalctl -u bartleby-relay` shows metadata-only session logs: duration and byte counts, not content.
+
+Next implementation step is app integration, not more server setup: add hosted/BYOK provider mode and point hosted STT/Upstage calls at this relay.
 
 ## Decision
 
@@ -182,18 +206,18 @@ aws ssm put-parameter --region ap-northeast-2 --name /bartleby/prod/BETA_TOKEN -
 - Keep public v0.1.1 copy as BYOK until code ships.
 - Confirm EC2 target and cost ceiling.
 
-### Phase H1, relay MVP
+### Phase H1, relay MVP ✅
 
-- Build `bartleby-relay` with `/health`, Soniox WebSocket proxy, Upstage summary proxy, bearer-token auth, and no content logging.
-- Add duration metering in server logs.
-- Run locally against current app test keys.
+- Built `bartleby-relay` with `/health`, Soniox WebSocket proxy, Upstage summary/translation proxy, bearer-token auth, and no content logging.
+- Added duration and byte-count metadata logs.
+- Ran local unit tests and smoke health check.
 
-### Phase H2, EC2 deploy
+### Phase H2, EC2 deploy ✅
 
-- Deploy relay as `bartleby-relay.service` on the shared `notique-agent` host using SSM.
-- Add DNS `api.heybartleby.com`.
-- Add TLS reverse proxy.
-- Verify WebSocket upgrade and provider calls from a clean Mac.
+- Deployed relay as `bartleby-relay.service` on the shared `notique-agent` host using SSM.
+- Added DNS `api.heybartleby.com`.
+- Added nginx + Let's Encrypt TLS reverse proxy.
+- Verified WebSocket upgrade, Soniox upstream connection, and Upstage translation proxy.
 
 ### Phase H3, app hosted mode
 

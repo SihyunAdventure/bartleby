@@ -32,3 +32,17 @@ npm start
 - logs: `journalctl -u bartleby-relay -f`
 
 Do not log raw audio, transcripts, summaries, or provider keys.
+
+
+## Live beta endpoint
+
+`https://api.heybartleby.com` is deployed on the shared `notique-agent` EC2 host.
+
+Quick checks:
+
+```sh
+curl https://api.heybartleby.com/health
+journalctl -u bartleby-relay -f
+```
+
+Secrets are stored in AWS SSM Parameter Store under `/bartleby/prod/*` and rendered into `/etc/bartleby-relay.env` during deployment. Do not commit or print that env file.

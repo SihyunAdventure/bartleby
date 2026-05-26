@@ -156,10 +156,10 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 - 자세한 계획: [HOSTED_API.md](./HOSTED_API.md).
 
 **구현 범위**:
-1. `bartleby-relay` 서버: `/health`, Soniox WebSocket proxy, Upstage summary/translation proxy.
-2. Auth: private beta bearer token, 이후 per-user invite token.
-3. Metering: duration seconds, byte counts, provider error class. Raw audio/transcript log 금지.
-4. App provider mode: `hosted` / `byok`. Hosted 는 지인 베타 default, BYOK 는 advanced fallback.
+1. `bartleby-relay` 서버: `/health`, Soniox WebSocket proxy, Upstage summary/translation proxy. ✅ server MVP deployed
+2. Auth: private beta bearer token, 이후 per-user invite token. ✅ shared beta token live, per-user token later
+3. Metering: duration seconds, byte counts, provider error class. Raw audio/transcript log 금지. ✅ metadata-only logs live
+4. App provider mode: `hosted` / `byok`. Hosted 는 지인 베타 default, BYOK 는 advanced fallback. ← next
 5. Onboarding: hosted invite token 또는 BYOK keys → Microphone permission → Screen Recording permission → test recording.
 6. Settings: 현재 provider mode, hosted remaining minutes, BYOK advanced keys.
 7. Privacy/Terms: hosted mode 가 Notique relay 를 거친다는 문구 추가 후 public enable.
@@ -241,8 +241,8 @@ YouTube URL → 한국어 더빙 pipeline 은 별개 sibling product Rehear 로 
 
 ## Next Decision Points
 
-- Hosted relay MVP 구현 순서: server 먼저, app provider abstraction 다음
-- `api.heybartleby.com` DNS + TLS cutover 시점
+- App hosted/BYOK provider abstraction 구현
+- Hosted onboarding invite token 입력 + Settings mode 표시
 - SQLite 마이그레이션 시점 (Phase 5 vs Phase 6)
 - TTS provider 선정 (Phase 6 시작 전 — live recording Listen 경로용)
 - 오픈소스 vs source-available (Phase 6 전)
