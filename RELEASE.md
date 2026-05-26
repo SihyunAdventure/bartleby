@@ -22,7 +22,7 @@ Bartleby follows the Copy & Taste release shape, adapted from Sparkle/appcast to
 ## Build a release
 
 ```sh
-export TAURI_SIGNING_PRIVATE_KEY_PATH="$HOME/.config/secrets/bartleby-updater.key"
+export TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.config/secrets/bartleby-updater.key")"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 
 pnpm install
@@ -42,6 +42,17 @@ Tauri v2 generates updater artifacts when `bundle.createUpdaterArtifacts` is tru
 - updater archive: `Bartleby.app.tar.gz`
 - updater signature: `Bartleby.app.tar.gz.sig`
 - public installer: `src-tauri/target/<target>/release/bundle/dmg/*.dmg`
+
+If the build machine is configured like Copy & Taste, Tauri may sign the app and
+DMG but skip automatic notarization because the Apple API environment variables
+are not exported. In that case notarize and staple the generated DMG manually:
+
+```sh
+xcrun notarytool submit src-tauri/target/universal-apple-darwin/release/bundle/dmg/Bartleby_<version>_universal.dmg \
+  --keychain-profile notique-notary --wait
+xcrun stapler staple src-tauri/target/universal-apple-darwin/release/bundle/dmg/Bartleby_<version>_universal.dmg
+xcrun stapler validate src-tauri/target/universal-apple-darwin/release/bundle/dmg/Bartleby_<version>_universal.dmg
+```
 
 ## Publish artifacts
 

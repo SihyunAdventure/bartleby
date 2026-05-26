@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bartleby — 영어 회의를 한국어 노트로</title>
-    <meta name="description" content="Bartleby는 Mac에서 회의를 녹음하고 Soniox로 실시간 전사한 뒤 Upstage Solar Pro로 한국어 회의록을 정리하는 BYOK macOS 앱입니다." />
+    <meta name="description" content="Bartleby는 Mac에서 회의를 녹음하고 Soniox/Upstage로 한국어 회의록을 정리하는 Hosted 또는 BYOK macOS 앱입니다." />
     <meta property="og:title" content="Bartleby — 영어 회의를 한국어 노트로" />
-    <meta property="og:description" content="마이크와 시스템 오디오를 캡처하고, 영어 회의를 한국어 노트로 바꿉니다. Soniox + Upstage BYOK." />
+    <meta property="og:description" content="마이크와 시스템 오디오를 캡처하고, 영어 회의를 한국어 노트로 바꿉니다. Hosted beta token 또는 Soniox + Upstage BYOK." />
     <meta property="og:url" content="https://heybartleby.com" />
     <meta property="og:site_name" content="Bartleby" />
     <meta property="og:locale" content="ko_KR" />
@@ -178,7 +178,7 @@
         <nav aria-label="Primary">
           <a href="/pricing">Pricing</a>
           <a href="/changelog">Changelog</a>
-          <a class="nav-download" href="/releases/Bartleby_0.1.1_universal.dmg" download>Download</a>
+          <a class="nav-download" href="/releases/Bartleby_0.1.2_universal.dmg" download>Download</a>
         </nav>
       </header>
 
@@ -186,9 +186,9 @@
         <section class="hero" id="download">
           <img class="hero-icon" src="/app-icon.png" alt="Bartleby" />
           <h1>영어 회의를,<br /><span class="dim">한국어 노트로.</span></h1>
-          <p class="lead">마이크와 시스템 오디오를 함께 캡처하고, Soniox 실시간 전사를 Upstage Solar Pro 한국어 회의록으로 정리합니다. 모델 선택은 단순하게, 키는 내 계정으로.</p>
+          <p class="lead">마이크와 시스템 오디오를 함께 캡처하고, Soniox 실시간 전사를 Upstage Solar Pro 한국어 회의록으로 정리합니다. 지인 베타는 Hosted token으로, 파워 유저는 BYOK로.</p>
           <div class="actions">
-            <a class="button" href="/releases/Bartleby_0.1.1_universal.dmg" download>Download for Mac</a>
+            <a class="button" href="/releases/Bartleby_0.1.2_universal.dmg" download>Download for Mac</a>
             <div class="subtle">지금은 무료 · macOS 15 이상 · Apple Silicon + Intel · 서명·공증 완료</div>
           </div>
 
@@ -200,12 +200,12 @@
         <section>
           <div class="section-head">
             <h2>회의 녹음 앱의<br /><span class="dim">복잡함을 다시.</span></h2>
-            <p>유저가 헷갈릴 선택지는 줄이고, 실제로 필요한 설치·권한·BYOK 흐름만 첫 실행에서 끝냅니다.</p>
+            <p>유저가 헷갈릴 선택지는 줄이고, 실제로 필요한 설치·권한·Hosted/BYOK 흐름만 첫 실행에서 끝냅니다.</p>
           </div>
           <div class="grid">
             <article class="card"><span class="badge">01</span><h3>권한을 단계별로</h3><p>마이크와 화면 기록 권한을 한 번에 몰아 묻지 않고, 왜 필요한지 설명한 뒤 macOS 설정으로 안내합니다.</p></article>
             <article class="card"><span class="badge">02</span><h3>모델 선택 없음</h3><p>현재 릴리즈는 Soniox stt-rt-v4와 Upstage solar-pro3만 사용합니다. 로컬 모델 다운로드나 불필요한 LLM 옵션은 없습니다.</p></article>
-            <article class="card"><span class="badge">03</span><h3>BYOK by design</h3><p>Soniox와 Upstage API 키를 온보딩에서 검증하고 macOS Keychain에 저장합니다. 사용량 비용은 제공자 계정으로 직접 관리합니다.</p></article>
+            <article class="card"><span class="badge">03</span><h3>Hosted or BYOK</h3><p>지인 베타는 Bartleby relay token을 Keychain에 저장합니다. BYOK로 전환하면 Soniox와 Upstage 키를 직접 검증합니다.</p></article>
             <article class="card"><span class="badge">04</span><h3>실시간 전사</h3><p>회의 중 영어 발화를 바로 받아 적고, 세션별 오디오와 transcript를 로컬 라이브러리에 보관합니다.</p></article>
             <article class="card"><span class="badge">05</span><h3>한국어 회의록</h3><p>결정사항, 액션아이템, 인용을 한국어 중심으로 정리해 회의 직후 바로 공유 가능한 형태로 만듭니다.</p></article>
             <article class="card"><span class="badge">06</span><h3>조용한 업데이트</h3><p>서명된 Tauri updater feed로 다음 버전을 받을 수 있게 준비했습니다. DMG와 updater artifact는 모두 서명되어 배포됩니다.</p></article>
@@ -215,10 +215,10 @@
         <aside class="download-card">
           <div>
             <h2>지금 다운로드.</h2>
-            <p>설치 후 첫 실행에서 권한을 열고, Soniox와 Upstage 키만 붙여넣으면 바로 녹음할 수 있습니다.</p>
-            <p class="subtle">v0.1.1 · 49MB · universal DMG · Apple notarized</p>
+            <p>설치 후 첫 실행에서 권한을 열고, Hosted beta token 또는 Soniox/Upstage BYOK를 연결하면 바로 녹음할 수 있습니다.</p>
+            <p class="subtle">v0.1.2 · universal DMG · Apple notarized</p>
           </div>
-          <a class="button" href="/releases/Bartleby_0.1.1_universal.dmg" download>Download for Mac · v0.1.1</a>
+          <a class="button" href="/releases/Bartleby_0.1.2_universal.dmg" download>Download for Mac · v0.1.2</a>
         </aside>
       </main>
 

@@ -26,6 +26,14 @@
   ],
   "rewrites": [
     {
+      "source": "/downloads/Bartleby-latest.dmg",
+      "destination": "/releases/Bartleby_0.1.2_universal.dmg"
+    },
+    {
+      "source": "/downloads/Bartleby-0.1.2-universal.dmg",
+      "destination": "/releases/Bartleby_0.1.2_universal.dmg"
+    },
+    {
       "source": "/downloads/Bartleby-0.1.1-universal.dmg",
       "destination": "/releases/Bartleby_0.1.1_universal.dmg"
     },
