@@ -33,3 +33,4 @@ web/.vercel/
 *.njsproj
 *.sln
 *.sw?
+.vercel
