@@ -31,11 +31,45 @@
   gap: var(--s-8);
 }
 
+.brandRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
 .brand {
   font-family: var(--font-serif);
   font-size: 28px;
   letter-spacing: -0.04em;
   color: var(--ink);
+}
+
+.languageSwitch {
+  width: fit-content;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+}
+
+.languageButton {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: var(--tracking-wider);
+  padding: 6px 10px;
+  text-transform: uppercase;
+}
+
+.languageActive {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .steps {
@@ -408,6 +442,12 @@
     border-right: 0;
     border-bottom: 1px solid var(--rule);
     gap: var(--s-4);
+  }
+
+  .brandRow {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .steps {

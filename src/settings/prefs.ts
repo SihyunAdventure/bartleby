@@ -9,10 +9,12 @@ const STORAGE_KEY = "bartleby.prefs.v1";
 const EVENT_NAME = "prefs_changed";
 
 export type ProviderMode = "hosted" | "byok";
+export type AppLanguage = "ko" | "en";
 
 export interface Prefs {
   // Onboarding
   onboarding_completed: boolean;
+  onboarding_language: AppLanguage;
 
   // Provider access
   // hosted = Notique/Bartleby relay token (friends beta), byok = user's own Soniox/Upstage keys.
@@ -30,6 +32,7 @@ export interface Prefs {
 
 export const DEFAULT_PREFS: Prefs = {
   onboarding_completed: false,
+  onboarding_language: "ko",
 
   provider_mode: "hosted",
 
@@ -50,6 +53,9 @@ export function loadPrefs(): Prefs {
     const merged = { ...DEFAULT_PREFS, ...parsed };
     if (merged.provider_mode !== "hosted" && merged.provider_mode !== "byok") {
       merged.provider_mode = DEFAULT_PREFS.provider_mode;
+    }
+    if (merged.onboarding_language !== "ko" && merged.onboarding_language !== "en") {
+      merged.onboarding_language = DEFAULT_PREFS.onboarding_language;
     }
     return merged;
   } catch {
