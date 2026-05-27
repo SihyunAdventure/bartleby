@@ -23,6 +23,33 @@ pub struct RecordingPermissionStatus {
     pub screen_recording: PermissionState,
 }
 
+impl PermissionState {
+    pub fn as_label(self) -> &'static str {
+        match self {
+            PermissionState::Granted => "granted",
+            PermissionState::NotDetermined => "not determined",
+            PermissionState::Denied => "denied",
+            PermissionState::Restricted => "restricted",
+            PermissionState::Unknown => "unknown",
+        }
+    }
+}
+
+impl RecordingPermissionStatus {
+    pub fn ready(self) -> bool {
+        matches!(self.microphone, PermissionState::Granted)
+            && matches!(self.screen_recording, PermissionState::Granted)
+    }
+
+    pub fn error_message(self) -> String {
+        format!(
+            "Recording permissions are missing (Microphone: {}, Screen Recording: {}). Open the first-run checklist or macOS System Settings, enable both permissions for Bartleby, then fully quit and reopen Bartleby if Screen Recording was just changed.",
+            self.microphone.as_label(),
+            self.screen_recording.as_label(),
+        )
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn audio_media_type() -> Option<&'static objc2_av_foundation::AVMediaType> {
     // SAFETY: `AVMediaTypeAudio` is a global NSString constant; safe to read
@@ -122,8 +149,7 @@ pub fn recording_status() -> RecordingPermissionStatus {
 
 #[cfg(target_os = "macos")]
 pub fn recording_ready() -> bool {
-    matches!(microphone_status(), PermissionState::Granted)
-        && matches!(screen_recording_status(), PermissionState::Granted)
+    recording_status().ready()
 }
 
 #[cfg(not(target_os = "macos"))]

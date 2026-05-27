@@ -18,7 +18,7 @@
 
 use anyhow::{Context, Result};
 use std::io::{BufReader, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::Sender;
@@ -143,14 +143,85 @@ pub fn start(
 
 fn locate_sidecar() -> Result<PathBuf> {
     let exe = std::env::current_exe().context("current_exe")?;
+    let candidates = sidecar_candidates(&exe)?;
+
+    for path in &candidates {
+        if path.exists() {
+            return Ok(path.clone());
+        }
+    }
+
+    anyhow::bail!(
+        "bartleby-mic sidecar not found. Tried: {}",
+        candidates
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn sidecar_candidates(exe: &Path) -> Result<Vec<PathBuf>> {
     let dir = exe.parent().context("exe has no parent")?;
-    let path = dir.join("bartleby-mic");
-    if path.exists() {
-        Ok(path)
-    } else {
-        anyhow::bail!(
-            "bartleby-mic sidecar not found at {} — dev-run.sh swiftc step missing?",
-            path.display()
-        )
+    let names = [
+        "bartleby-mic",
+        "bartleby-mic-universal-apple-darwin",
+        #[cfg(target_arch = "aarch64")]
+        "bartleby-mic-aarch64-apple-darwin",
+        #[cfg(target_arch = "x86_64")]
+        "bartleby-mic-x86_64-apple-darwin",
+        "bartleby-mic-aarch64-apple-darwin",
+        "bartleby-mic-x86_64-apple-darwin",
+    ];
+
+    let mut candidates = Vec::new();
+    for name in names {
+        candidates.push(dir.join(name));
+    }
+
+    if let Some(contents_dir) = dir.parent() {
+        let resources_dir = contents_dir.join("Resources");
+        for name in names {
+            candidates.push(resources_dir.join(name));
+        }
+    }
+
+    // Dev/build fallback: `pnpm build:sidecar` writes target-suffixed binaries
+    // here before Tauri embeds them. This keeps `tauri dev` and direct cargo
+    // runs diagnosable instead of depending on a manually copied sidecar.
+    if let Some(manifest_dir) = option_env!("CARGO_MANIFEST_DIR") {
+        let binaries_dir = PathBuf::from(manifest_dir).join("binaries");
+        for name in names {
+            candidates.push(binaries_dir.join(name));
+        }
+    }
+
+    candidates.sort();
+    candidates.dedup();
+    Ok(candidates)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sidecar_candidates_include_bundle_and_generated_binary_locations() {
+        let exe = Path::new("/Applications/Bartleby.app/Contents/MacOS/bartleby");
+        let candidates = sidecar_candidates(exe).expect("candidates");
+        let rendered = candidates
+            .iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(rendered
+            .iter()
+            .any(|path| path.ends_with("Contents/MacOS/bartleby-mic")));
+        assert!(rendered
+            .iter()
+            .any(|path| path.ends_with("Contents/Resources/bartleby-mic")));
+        assert!(rendered
+            .iter()
+            .any(|path| path.ends_with("binaries/bartleby-mic-universal-apple-darwin")));
     }
 }

@@ -531,11 +531,9 @@ async fn start_capture(
     translate_enabled: bool,
     provider_mode: Option<String>,
 ) -> Result<(), String> {
-    if !capture::permission::recording_ready() {
-        return Err(
-            "Recording permissions are missing. Grant Microphone and Screen Recording in the first-run checklist or macOS System Settings."
-                .into(),
-        );
+    let permission_status = capture::permission::recording_status();
+    if !permission_status.ready() {
+        return Err(permission_status.error_message());
     }
 
     let mut guard = state.capture.lock().unwrap();

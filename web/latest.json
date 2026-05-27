@@ -1,15 +1,15 @@
 {
-  "version": "0.1.2",
-  "notes": "Hosted beta access: relay token onboarding, BYOK fallback, hosted Soniox/Upstage routing, and updated web/pricing/privacy copy for friends testing.",
-  "pub_date": "2026-05-26T08:45:24Z",
+  "version": "0.1.3",
+  "notes": "Fixes microphone capture after install/reboot by packaging the AVAudioEngine mic sidecar, and makes first-run recording permission errors show the exact missing macOS permission.",
+  "pub_date": "2026-05-27T05:06:25Z",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU3RuZm9sU0Y2dmc3NWNpK3g4dUVwVnJmcXRqVlZ6L1V0QUU2SlFCSkZzcnczd3lIclFKd2dGRlNVMU55Vko0TlRrOVo0ck51T0oxQTJTdnQ2YTZTQndjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5Nzg1MDMyCWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpqMzdkc2tEK3Q0UnZ1NEllYXZWVEJnV2NiYm8zTHh2Ly9JMTRnVlp3Ym4xb3ZPamJwWThJZUgwT0RwWnhmdGRyYThEbGtPMGRKejNBVFlRSkROV2JDUT09Cg==",
-      "url": "https://heybartleby.com/releases/Bartleby_0.1.2_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2xMSE5Cc0JHbGt2YUdYNit6V0liS1Q4d1VxT3VZSzJNR2R2bnUwc2tWUTVlUE8vSjdlbDJnVDNRVVBTV2lYbTNGZUJhV0dDK3pHUFQ2UTBaYmNpYmdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5ODU4MjkzCWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpTczJyZ1BJaUNPS0FhbmxzWE9XL1Z1Vm5YVFIzeTZKeVNCMEFoenZnSnZaSGZabTZUYzVkTFpqUURnejVac1lmNXZyakwrY01qVGhyaC9PMnpGb0VDQT09Cg==",
+      "url": "https://heybartleby.com/releases/Bartleby_0.1.3_universal.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU3RuZm9sU0Y2dmc3NWNpK3g4dUVwVnJmcXRqVlZ6L1V0QUU2SlFCSkZzcnczd3lIclFKd2dGRlNVMU55Vko0TlRrOVo0ck51T0oxQTJTdnQ2YTZTQndjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5Nzg1MDMyCWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpqMzdkc2tEK3Q0UnZ1NEllYXZWVEJnV2NiYm8zTHh2Ly9JMTRnVlp3Ym4xb3ZPamJwWThJZUgwT0RwWnhmdGRyYThEbGtPMGRKejNBVFlRSkROV2JDUT09Cg==",
-      "url": "https://heybartleby.com/releases/Bartleby_0.1.2_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2xMSE5Cc0JHbGt2YUdYNit6V0liS1Q4d1VxT3VZSzJNR2R2bnUwc2tWUTVlUE8vSjdlbDJnVDNRVVBTV2lYbTNGZUJhV0dDK3pHUFQ2UTBaYmNpYmdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5ODU4MjkzCWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpTczJyZ1BJaUNPS0FhbmxzWE9XL1Z1Vm5YVFIzeTZKeVNCMEFoenZnSnZaSGZabTZUYzVkTFpqUURnejVac1lmNXZyakwrY01qVGhyaC9PMnpGb0VDQT09Cg==",
+      "url": "https://heybartleby.com/releases/Bartleby_0.1.3_universal.app.tar.gz"
     }
   }
 }

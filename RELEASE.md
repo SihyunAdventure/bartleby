@@ -26,6 +26,7 @@ export TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.config/secrets/bartleby-updater.
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 
 pnpm install
+pnpm build:sidecar
 pnpm build
 pnpm build:mac
 ```
@@ -35,6 +36,12 @@ For a single universal macOS updater asset, use:
 ```sh
 pnpm build:mac:universal
 ```
+
+`tauri build` also runs `pnpm build:sidecar` through `beforeBuildCommand`,
+but running it explicitly first makes Swift/compiler failures visible before
+signing starts. The release bundle must contain the AVAudioEngine microphone
+sidecar; verify `Contents/MacOS/bartleby-mic` (or a target-suffixed
+`bartleby-mic-*apple-darwin`) is present before notarization.
 
 Tauri v2 generates updater artifacts when `bundle.createUpdaterArtifacts` is true:
 
@@ -69,6 +76,8 @@ xcrun stapler validate src-tauri/target/universal-apple-darwin/release/bundle/dm
 ```sh
 pnpm build
 git diff --check
+find src-tauri/target/universal-apple-darwin/release/bundle/macos/Bartleby.app/Contents/MacOS \
+  -maxdepth 1 -type f -name 'bartleby-mic*' -print
 ```
 
 Then verify manually on a clean macOS account or VM:

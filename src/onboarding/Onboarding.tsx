@@ -76,6 +76,8 @@ export default function Onboarding({ keysOk, onKeysChanged, onClose }: Props) {
     onClose();
   };
 
+  const canStart = permissionsOk && keysOk;
+
   const goNext = () => setStepIndex((idx) => Math.min(idx + 1, STEPS.length - 1));
   const goBack = () => setStepIndex((idx) => Math.max(idx - 1, 0));
 
@@ -179,14 +181,19 @@ export default function Onboarding({ keysOk, onKeysChanged, onClose }: Props) {
 
           <footer className={styles.footer}>
             <button className="btn" onClick={finish}>
-              Skip for now
+              Finish later
             </button>
             <div className={styles.navButtons}>
               <button className="btn" onClick={goBack} disabled={stepIndex === 0}>
                 Back
               </button>
               {stepIndex === STEPS.length - 1 ? (
-                <button className="btn btn-primary" onClick={finish}>
+                <button
+                  className="btn btn-primary"
+                  onClick={finish}
+                  disabled={!canStart}
+                  title={!canStart ? "Grant recording permissions and connect hosted/BYOK access first." : undefined}
+                >
                   Start using Bartleby
                 </button>
               ) : (

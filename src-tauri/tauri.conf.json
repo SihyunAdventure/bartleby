@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Bartleby",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "identifier": "com.heybartleby.bartleby",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm build:sidecar && pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm build && pnpm build:sidecar",
     "frontendDist": "../dist"
   },
   "app": {
@@ -24,13 +24,18 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/audio/**"]
+        "scope": [
+          "$APPDATA/audio/**"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
@@ -45,12 +50,17 @@
       "hardenedRuntime": true,
       "providerShortName": "7M2DZPHB8R",
       "entitlements": "entitlements.plist"
-    }
+    },
+    "externalBin": [
+      "binaries/bartleby-mic"
+    ]
   },
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRBMDRGQ0RERjI2MEM0MTYKUldRV3hHRHkzZndFU2wycktYN0krTTM0ZlBudEFDM08yL0V5d0I1RUhYdHVJQkZTS3dJL3RjQXYK",
-      "endpoints": ["https://heybartleby.com/latest.json"]
+      "endpoints": [
+        "https://heybartleby.com/latest.json"
+      ]
     }
   }
 }

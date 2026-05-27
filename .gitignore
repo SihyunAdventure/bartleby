@@ -34,3 +34,6 @@ web/.vercel/
 *.sln
 *.sw?
 .vercel
+
+# Generated Swift sidecar binaries
+src-tauri/binaries/bartleby-mic*
