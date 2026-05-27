@@ -1,0 +1,38 @@
+name: Deploy Bartleby website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/web-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: bartleby-web-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if Vercel token is not configured
+        if: env.VERCEL_TOKEN == ''
+        run: |
+          echo "VERCEL_TOKEN is not configured. Skipping because Vercel Git integration or local pnpm release:ship may own deploys."
+
+      - name: Deploy web root to Vercel production
+        if: env.VERCEL_TOKEN != ''
+        working-directory: web
+        env:
+          VERCEL_ORG_ID: team_25lLq8GXMYRPLCUs2nJCiM85
+          VERCEL_PROJECT_ID: prj_VKZkVnDRqKtt4cLLEwhR6qAG3oSd
+        run: |
+          npm install -g vercel@latest
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+          vercel build --prod --token "$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"

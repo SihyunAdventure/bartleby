@@ -10,7 +10,9 @@
     "tauri": "tauri",
     "build:mac": "tauri build",
     "build:mac:universal": "tauri build --target universal-apple-darwin",
-    "build:sidecar": "node scripts/build-mic-sidecar.mjs"
+    "build:sidecar": "node scripts/build-mic-sidecar.mjs",
+    "release:ship": "node scripts/ship-release.mjs",
+    "release:dry-run": "node scripts/ship-release.mjs --dry-run"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
