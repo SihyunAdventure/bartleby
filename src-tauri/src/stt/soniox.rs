@@ -134,6 +134,7 @@ async fn connect_route(
 /// Pre-replay: all chunks currently in `ring` are sent as binary frames
 /// before consuming new chunks from `chunk_rx`. This lets a reconnect resume
 /// without losing the last ~30s of speech.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_session(
     api_key: &str,
     route: &SttRoute,
@@ -142,6 +143,8 @@ pub async fn run_session(
     stop: &Arc<AtomicBool>,
     ring: &Arc<Mutex<AudioRing>>,
     source: SttSource,
+    replay_ring: bool,
+    final_tx: Option<std::sync::mpsc::Sender<String>>,
 ) -> Result<SessionEnd> {
     let (ws, _resp) = connect_route(route).await?;
     let (mut sink, mut stream) = ws.split();
@@ -159,11 +162,13 @@ pub async fn run_session(
     sink.send(Message::Text(config.to_string())).await?;
     println!("[stt] connected to Soniox stt-rt-v4 via {}", route.ws_url);
 
-    // Ring replay — drain whatever the bridge has already buffered. On the
-    // first session this is whatever audio arrived before the websocket was
-    // ready (rare, near-empty); on reconnect it's up to ~30s of speech we'd
-    // otherwise lose to the gap.
-    {
+    // Ring replay — on reconnect, drain up to ~30s of speech the new session
+    // would otherwise lose to the gap. Skipped on the first connect
+    // (`replay_ring == false`): there, `chunk_rx` still holds the full
+    // pre-connect history the bridge buffered during the handshake, so the
+    // writer loop below delivers it. Replaying the ring as well would send
+    // those frames twice (dictation: garbled/duplicated first word).
+    if replay_ring {
         let snapshot = ring.lock().expect("ring mutex poisoned").snapshot();
         if !snapshot.is_empty() {
             let total_bytes: usize = snapshot.iter().map(|c| c.len()).sum();
@@ -241,6 +246,12 @@ pub async fn run_session(
                             }
                         }
                         if !final_text.is_empty() {
+                            // Dictation: hand the raw final text to the PTT
+                            // session so it can accumulate + inject on release.
+                            // Meeting path passes None and ignores this.
+                            if let Some(tx) = &final_tx {
+                                let _ = tx.send(final_text.clone());
+                            }
                             let _ = app_for_reader.emit(
                                 "stt_final",
                                 SttFinal {

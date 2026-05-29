@@ -1,6 +1,7 @@
 pub mod encoding;
 pub mod mic;
 pub mod mic_avengine;
+pub mod mic_dictation;
 pub mod permission;
 pub mod rss;
 pub mod silence;

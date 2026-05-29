@@ -1,4 +1,5 @@
 pub mod capture;
+pub mod dictation;
 pub mod inject;
 pub mod registration;
 pub mod secrets;
@@ -34,6 +35,10 @@ struct CaptureSession {
 #[derive(Default)]
 struct AppState {
     capture: Mutex<Option<CaptureSession>>,
+    /// Active push-to-talk dictation session, if the hotkey is held. Separate
+    /// from `capture` (meeting recording) — they can't run at the same time in
+    /// practice but are tracked independently.
+    dictation: Mutex<Option<dictation::DictationSession>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -309,6 +314,13 @@ fn accessibility_status(prompt: Option<bool>) -> bool {
     }
 }
 
+/// Whether a push-to-talk dictation session is currently active (hotkey held).
+/// The overlay can use this to recover its state after a reload.
+#[tauri::command]
+fn dictation_status(app: tauri::AppHandle) -> bool {
+    dictation::is_active(&app)
+}
+
 /// Debug/dev: inject text into the frontmost app via the dictation path,
 /// without STT. Lets us verify the injection + focus behavior in isolation.
 #[tauri::command]
@@ -430,12 +442,14 @@ fn spawn_capture(
                     route.clone(),
                     app.clone(),
                     stt::SttSource::Sys,
+                    None,
                 );
                 let (mic_tx, mic_sess) = stt::start(
                     key.clone(),
                     route.clone(),
                     app.clone(),
                     stt::SttSource::Mic,
+                    None,
                 );
                 (Some(sys_tx), Some(sys_sess), Some(mic_tx), Some(mic_sess))
             }
@@ -486,6 +500,23 @@ fn spawn_capture(
         stt_mic: stt_mic_session,
         summary: summary_session,
     }
+}
+
+/// Resolve the STT key + route for a dictation session, the same way meeting
+/// capture does (Keychain → ENV → secret-file). Prefers Hosted (Bartleby relay
+/// token) when present, falling back to BYOK (direct Soniox key). Returns
+/// `None` when neither credential is configured — dictation can't start.
+fn resolve_dictation_stt_route() -> Option<(String, stt::SttRoute)> {
+    if let Some(token) = resolve_key("BARTLEBY_RELAY_TOKEN") {
+        return Some((
+            "relay".to_string(),
+            stt::SttRoute::hosted(relay_ws_url(), token),
+        ));
+    }
+    if let Some(key) = resolve_key("SONIOX_API_KEY") {
+        return Some((key, stt::SttRoute::direct()));
+    }
+    None
 }
 
 /// Wait for a summary session to wind down. Cancel flag exits the 500ms
@@ -852,6 +883,23 @@ pub fn run() {
                     }
                 }
             })?;
+
+            // ⌃⌥D — push-to-talk dictation. Held: capture mic → STT. Released:
+            // stop, flush, inject the transcript at the frontmost app's cursor.
+            // global-hotkey 0.7 emits both Pressed (repeating while held) and
+            // Released on macOS; `dictation::start` is idempotent so the repeat
+            // is harmless. ⌥Space is deliberately avoided — it inserts a global
+            // non-breaking space.
+            let ctrl_opt_d = Shortcut::new(
+                Some(Modifiers::CONTROL | Modifiers::ALT),
+                Code::KeyD,
+            );
+            app.global_shortcut().on_shortcut(ctrl_opt_d, |app, _shortcut, event| {
+                match event.state() {
+                    ShortcutState::Pressed => dictation::start(app),
+                    ShortcutState::Released => dictation::stop(app),
+                }
+            })?;
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -886,6 +934,7 @@ pub fn run() {
             open_screen_recording_settings,
             open_accessibility_settings,
             accessibility_status,
+            dictation_status,
             inject_text
         ])
         .run(tauri::generate_context!())

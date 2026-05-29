@@ -69,11 +69,17 @@ pub struct SttSession {
 ///
 /// Dropping the returned sender flushes remaining samples and closes the
 /// websocket — capture-thread teardown does this for us automatically.
+///
+/// `final_tx` (dictation only) receives a copy of every finalized token batch
+/// as plain text, so a push-to-talk session can accumulate the finals in Rust
+/// and inject them on release. The meeting path passes `None` and is
+/// unaffected — it consumes finals via the `stt_final` Tauri event instead.
 pub fn start(
     api_key: String,
     route: SttRoute,
     app: AppHandle,
     source: SttSource,
+    final_tx: Option<std::sync::mpsc::Sender<String>>,
 ) -> (std::sync::mpsc::Sender<Vec<f32>>, SttSession) {
     let (sample_tx, sample_rx) = std::sync::mpsc::channel::<Vec<f32>>();
     let stop = Arc::new(AtomicBool::new(false));
@@ -122,6 +128,7 @@ pub fn start(
                 stop_for_thread,
                 ring,
                 source,
+                final_tx,
             )
             .await;
 
@@ -138,6 +145,7 @@ pub fn start(
 /// Each attempt drains the ring as the new session's first frames. Pending
 /// chunks queued in `chunk_rx` during the backoff sleep are discarded so
 /// the new session doesn't double-send what's already in the ring.
+#[allow(clippy::too_many_arguments)]
 async fn run_with_reconnect(
     api_key: String,
     route: SttRoute,
@@ -146,12 +154,23 @@ async fn run_with_reconnect(
     stop: Arc<AtomicBool>,
     ring: Arc<Mutex<AudioRing>>,
     source: SttSource,
+    final_tx: Option<std::sync::mpsc::Sender<String>>,
 ) {
     let mut attempt: u32 = 0;
     loop {
         if stop.load(Ordering::SeqCst) {
             break;
         }
+
+        // Replay the ring only on reconnects (attempt > 0). On the *first*
+        // connect, `chunk_rx` still holds every chunk the bridge buffered
+        // during the ~1s websocket handshake (nothing has consumed it yet),
+        // so the writer loop delivers the full pre-connect history. Replaying
+        // the ring here too would send that audio twice — for dictation that
+        // garbles/duplicates the first word (the whole point of the cold-start
+        // buffering). Reconnects DO need the replay: `sleep_with_drain` empties
+        // chunk_rx during backoff, so the ring is the only surviving copy.
+        let replay_ring = attempt > 0;
 
         let outcome = soniox::run_session(
             &api_key,
@@ -161,6 +180,8 @@ async fn run_with_reconnect(
             &stop,
             &ring,
             source,
+            replay_ring,
+            final_tx.clone(),
         )
         .await;
 
