@@ -695,6 +695,12 @@ async fn record_usage(duration_sec: u64) -> Result<(), String> {
     registration::record_usage(duration_sec).await
 }
 
+/// Submit in-app feedback (optional 1–5 rating + free text). Surfaces result to UI.
+#[tauri::command]
+async fn submit_review(rating: Option<u8>, body: String) -> Result<(), String> {
+    registration::submit_review(rating, body).await
+}
+
 #[tauri::command]
 async fn finalize_session(
     transcript: Vec<summary::finalize::InputUtterance>,
@@ -889,6 +895,7 @@ pub fn run() {
             clear_api_key,
             verify_api_key,
             record_usage,
+            submit_review,
             finalize_session,
             log_frontend,
             list_audio_segments,

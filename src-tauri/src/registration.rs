@@ -64,6 +64,28 @@ pub async fn register() -> Result<(), String> {
     Ok(())
 }
 
+/// Submit in-app feedback: optional 1–5 rating + free text the user typed.
+/// Unlike register/record_usage this surfaces success/failure to the UI.
+pub async fn submit_review(rating: Option<u8>, body: String) -> Result<(), String> {
+    let hash = machine_id_hash()?;
+    let payload = serde_json::json!({
+        "machineIdHash": hash,
+        "rating": rating,
+        "body": body,
+        "appVersion": env!("CARGO_PKG_VERSION"),
+    });
+    let resp = client()?
+        .post(format!("{}/api/review", site_base_url()))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("review request: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("review failed: HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
 /// Report one finished recording's duration in seconds. Numbers only.
 pub async fn record_usage(duration_sec: u64) -> Result<(), String> {
     let hash = machine_id_hash()?;

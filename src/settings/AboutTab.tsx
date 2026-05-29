@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import type { Update } from "@tauri-apps/plugin-updater";
 import {
   checkForAppUpdate,
@@ -8,9 +10,34 @@ import {
 } from "../update/updater";
 import styles from "./AboutTab.module.css";
 
-const VERSION = "0.1.1";
-
 export default function AboutTab() {
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => {});
+  }, []);
+
+  // In-app feedback (stored in Neon via the /api/review backend).
+  const [rating, setRating] = useState(0);
+  const [feedback, setFeedback] = useState("");
+  const [sending, setSending] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
+
+  const sendFeedback = async () => {
+    if (!feedback.trim() && rating === 0) return;
+    setSending(true);
+    setFeedbackStatus(null);
+    try {
+      await invoke("submit_review", { rating: rating || null, body: feedback.trim() });
+      setFeedbackStatus("보내주셔서 감사합니다.");
+      setRating(0);
+      setFeedback("");
+    } catch (err) {
+      setFeedbackStatus(`전송 실패: ${String(err)}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const [update, setUpdate] = useState<Update | null>(null);
   const [checking, setChecking] = useState(false);
   const [installing, setInstalling] = useState(false);
@@ -62,7 +89,7 @@ export default function AboutTab() {
     <div className={styles.root}>
       <div className={styles.hero}>
         <span className={styles.name}>Bartleby</span>
-        <span className={styles.version}>v{VERSION}</span>
+        <span className={styles.version}>v{version}</span>
         <p className={styles.tagline}>"I would prefer not to listen in English."</p>
       </div>
 
@@ -111,6 +138,40 @@ export default function AboutTab() {
             disabled={!update || checking || installing}
           >
             {installing ? "Installing…" : "Install"}
+          </button>
+        </div>
+      </section>
+
+      <section className={styles.feedbackCard}>
+        <span className={styles.fieldLabel}>피드백 보내기</span>
+        <div className={styles.stars}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`${styles.star} ${n <= rating ? styles.starOn : ""}`}
+              aria-label={`${n}점`}
+              onClick={() => setRating(n === rating ? 0 : n)}
+            >
+              ★
+            </button>
+          ))}
+        </div>
+        <textarea
+          className={styles.textarea}
+          placeholder="좋았던 점, 불편한 점, 바라는 기능을 자유롭게 적어주세요. 회의 내용은 전송되지 않습니다."
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          maxLength={5000}
+        />
+        <div className={styles.feedbackActions}>
+          <span className={styles.feedbackStatus}>{feedbackStatus ?? ""}</span>
+          <button
+            className="btn btn-primary"
+            onClick={sendFeedback}
+            disabled={sending || (!feedback.trim() && rating === 0)}
+          >
+            {sending ? "보내는 중…" : "보내기"}
           </button>
         </div>
       </section>
