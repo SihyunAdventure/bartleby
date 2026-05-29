@@ -1,4 +1,5 @@
 pub mod capture;
+pub mod inject;
 pub mod registration;
 pub mod secrets;
 pub mod stt;
@@ -289,6 +290,33 @@ fn open_microphone_settings() -> Result<(), String> {
 #[tauri::command]
 fn open_screen_recording_settings() -> Result<(), String> {
     open_privacy_settings("Privacy_ScreenCapture")
+}
+
+#[tauri::command]
+fn open_accessibility_settings() -> Result<(), String> {
+    open_privacy_settings("Privacy_Accessibility")
+}
+
+/// Whether the app has macOS Accessibility trust (required to inject dictation
+/// text into other apps). The `prompt` arg triggers the system permission
+/// dialog the first time.
+#[tauri::command]
+fn accessibility_status(prompt: Option<bool>) -> bool {
+    if prompt.unwrap_or(false) {
+        inject::prompt_accessibility()
+    } else {
+        inject::accessibility_trusted()
+    }
+}
+
+/// Debug/dev: inject text into the frontmost app via the dictation path,
+/// without STT. Lets us verify the injection + focus behavior in isolation.
+#[tauri::command]
+fn inject_text(text: String) -> Result<(), String> {
+    if !inject::accessibility_trusted() {
+        return Err("accessibility_not_trusted".into());
+    }
+    inject::inject_text(&text)
 }
 
 /// List playable Opus files under a session's audio_dir. Prefers the
@@ -855,7 +883,10 @@ pub fn run() {
             request_microphone_permission,
             request_screen_recording_permission,
             open_microphone_settings,
-            open_screen_recording_settings
+            open_screen_recording_settings,
+            open_accessibility_settings,
+            accessibility_status,
+            inject_text
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
