@@ -28,6 +28,11 @@ export interface Prefs {
 
   // Storage
   audio_retention_days: number;     // 1-90
+
+  // Privacy
+  // 익명 사용 통계(PostHog) 전송 여부. 회의 내용·transcript·제목·키는
+  // 절대 전송하지 않고 이벤트 메타데이터만 보낸다. Settings 에서 끌 수 있음.
+  analytics_enabled: boolean;
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -43,6 +48,8 @@ export const DEFAULT_PREFS: Prefs = {
   translate_enabled: false,
 
   audio_retention_days: 30,
+
+  analytics_enabled: true,
 };
 
 export function loadPrefs(): Prefs {

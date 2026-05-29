@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import KeysTab from "../settings/KeysTab";
 import { loadPrefs, setPref, type AppLanguage } from "../settings/prefs";
+import { trackOnboardingCompleted } from "../analytics/analytics";
 import styles from "./Onboarding.module.css";
 
 type StepId = "welcome" | "permissions" | "models" | "keys" | "finish";
@@ -95,6 +96,8 @@ type OnboardingCopy = {
     routingDetail: string;
     updatesLabel: string;
     updatesDetail: string;
+    privacyLabel: string;
+    privacyDetail: string;
   };
 };
 
@@ -211,6 +214,8 @@ const COPY: Record<AppLanguage, OnboardingCopy> = {
       routingDetail: "Soniox stt-rt-v4 + Upstage solar-pro3",
       updatesLabel: "업데이트",
       updatesDetail: "서명된 Tauri updater feed 설정 완료",
+      privacyLabel: "사용 통계",
+      privacyDetail: "익명 이벤트만 수집 · 회의 내용은 절대 미전송 · Settings에서 끄기 가능",
     },
   },
   en: {
@@ -325,6 +330,8 @@ const COPY: Record<AppLanguage, OnboardingCopy> = {
       routingDetail: "Soniox stt-rt-v4 + Upstage solar-pro3",
       updatesLabel: "Updates",
       updatesDetail: "Signed Tauri updater feed configured",
+      privacyLabel: "Usage analytics",
+      privacyDetail: "Anonymous events only · meeting content never sent · turn off in Settings",
     },
   },
 };
@@ -375,6 +382,7 @@ export default function Onboarding({ keysOk, onKeysChanged, onClose }: Props) {
 
   const finish = () => {
     setPref("onboarding_completed", true);
+    trackOnboardingCompleted(language);
     onClose();
   };
 
@@ -695,6 +703,7 @@ function FinishStep({ copy, keysOk, permissionsOk }: { copy: OnboardingCopy; key
         <CheckLine ok={keysOk} label={copy.finish.accessLabel} detail={loadPrefs().provider_mode === "hosted" ? copy.finish.hostedDetail : copy.finish.byokDetail} />
         <CheckLine ok label={copy.finish.routingLabel} detail={copy.finish.routingDetail} />
         <CheckLine ok label={copy.finish.updatesLabel} detail={copy.finish.updatesDetail} />
+        <CheckLine ok label={copy.finish.privacyLabel} detail={copy.finish.privacyDetail} />
       </div>
     </div>
   );

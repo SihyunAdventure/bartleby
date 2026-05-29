@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { loadPrefs, setPref } from "./prefs";
 import Slider from "../components/Slider";
+import Toggle from "../components/Toggle";
+import { setAnalyticsEnabled } from "../analytics/analytics";
 import styles from "./StorageTab.module.css";
 
 interface StorageStatus {
@@ -25,6 +27,7 @@ function formatBytes(bytes: number): string {
 
 export default function StorageTab() {
   const [retentionDays, setRetentionDays] = useState(30);
+  const [analyticsEnabled, setAnalyticsEnabledState] = useState(true);
   const [status, setStatus] = useState<StorageStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +44,7 @@ export default function StorageTab() {
   useEffect(() => {
     const p = loadPrefs();
     setRetentionDays(p.audio_retention_days);
+    setAnalyticsEnabledState(p.analytics_enabled);
     void refresh();
   }, []);
 
@@ -107,6 +111,26 @@ export default function StorageTab() {
         <p className={styles.helper}>
           Clean up only removes local Opus audio older than this. Transcripts,
           summaries, and note metadata stay in SQLite.
+        </p>
+      </div>
+
+      <div className={styles.sliderRow}>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>사용 통계 보내기</span>
+          <Toggle
+            checked={analyticsEnabled}
+            label="사용 통계 보내기"
+            onChange={(v) => {
+              setAnalyticsEnabledState(v);
+              setPref("analytics_enabled", v);
+              setAnalyticsEnabled(v);
+            }}
+          />
+        </div>
+        <p className={styles.helper}>
+          제품 개선을 위해 익명 이벤트만 PostHog로 보냅니다: 앱 실행, 온보딩 완료,
+          녹음 시작/종료(녹음 길이 구간), 노트 생성, hosted/BYOK 모드, 앱 버전.
+          회의 오디오·transcript·요약·회의 제목·API 키는 절대 보내지 않습니다.
         </p>
       </div>
 

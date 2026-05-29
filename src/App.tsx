@@ -6,6 +6,7 @@ import Meeting from "./meeting/Meeting";
 import { loadSessions, persistSessions } from "./meeting/sessionsStore";
 import Onboarding from "./onboarding/Onboarding";
 import { checkForAppUpdate, installUpdateAndRelaunch } from "./update/updater";
+import { initAnalytics, trackAppOpened } from "./analytics/analytics";
 import type { CaptureStats } from "./types/capture";
 import type { MeetingSession } from "./meeting/types";
 import "./App.css";
@@ -29,6 +30,12 @@ function App() {
   const [sessions, setSessions] = useState<MeetingSession[]>([]);
   const [sessionsHydrated, setSessionsHydrated] = useState(false);
   const keysOk = !keysMissing;
+
+  // Boot anonymous usage analytics once and record the app launch. No
+  // meeting content ever flows through here — see analytics/analytics.ts.
+  useEffect(() => {
+    initAnalytics().then(() => trackAppOpened());
+  }, []);
 
   // Hydrate sessions from disk once on mount. Until this completes the
   // persist effect below is gated so an initial empty state doesn't

@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { CaptureStats } from "../types/capture";
 import { type MeetingSession, type SavedUtterance, formatTime } from "./types";
 import { persistSessions } from "./sessionsStore";
+import { trackRecordingStarted, trackRecordingStopped } from "../analytics/analytics";
 
 // Bridge frontend logs into the Rust debug.log via the log_frontend command,
 // so handleStop's flow is visible without opening the webview inspector.
@@ -300,6 +301,7 @@ export default function Meeting({
       1,
       Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000)
     );
+    trackRecordingStopped(durationSec);
 
     // If a partial ghost was visible at Stop, commit it as a final row so
     // the saved transcript visually matches the live screen.
@@ -403,6 +405,7 @@ export default function Meeting({
             onStart={() => {
               setCaptureRunning(true);
               setRecordingStart(new Date());
+              trackRecordingStarted();
             }}
             onStop={handleStop}
             onError={(msg) => {

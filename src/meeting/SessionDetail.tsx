@@ -6,6 +6,7 @@ import { formatDuration, formatRelativeDay, formatTime } from "./types";
 import Segmented from "../components/Segmented";
 import AudioPlayer from "./AudioPlayer";
 import { loadPrefs } from "../settings/prefs";
+import { trackNoteGenerated } from "../analytics/analytics";
 import styles from "./SessionDetail.module.css";
 
 interface Props {
@@ -112,6 +113,7 @@ export default function SessionDetail({
         generatedAt: new Date().toISOString(),
       };
       setFinalize({ status: "ok", summary: stamped });
+      trackNoteGenerated();
       onSessionUpdate({ ...session, finalSummary: stamped });
     } catch (e) {
       setFinalize({ status: "error", msg: String(e) });
