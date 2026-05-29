@@ -302,6 +302,9 @@ export default function Meeting({
       Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000)
     );
     trackRecordingStopped(durationSec);
+    // Report exact duration to the usage backend (neon). Fire-and-forget,
+    // non-fatal — numbers only, never meeting content.
+    invoke("record_usage", { durationSec }).catch(() => {});
 
     // If a partial ghost was visible at Stop, commit it as a final row so
     // the saved transcript visually matches the live screen.

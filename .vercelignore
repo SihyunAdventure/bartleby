@@ -4,3 +4,5 @@
 !/web
 !/web/**
 !/.vercelignore
+# Vercel installs function deps from web/package.json itself — don't upload local node_modules.
+/web/node_modules

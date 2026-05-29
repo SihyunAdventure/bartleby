@@ -1,0 +1,11 @@
+{
+  "name": "bartleby-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static marketing site + serverless functions for heybartleby.com",
+  "type": "module",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "posthog-node": "^5.35.6"
+  }
+}

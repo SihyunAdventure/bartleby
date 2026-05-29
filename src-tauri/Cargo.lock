@@ -308,6 +308,7 @@ dependencies = [
  "screencapturekit",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-global-shortcut",
@@ -318,6 +319,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "tokio-tungstenite",
+ "uuid",
 ]
 
 [[package]]

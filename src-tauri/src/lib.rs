@@ -1,4 +1,5 @@
 pub mod capture;
+pub mod registration;
 pub mod secrets;
 pub mod stt;
 pub mod summary;
@@ -687,6 +688,13 @@ async fn verify_relay_token(token: &str) -> Result<(), String> {
     ))
 }
 
+/// Report a finished recording's duration to the usage backend. Fire-and-forget
+/// from the frontend; numbers only (see registration.rs).
+#[tauri::command]
+async fn record_usage(duration_sec: u64) -> Result<(), String> {
+    registration::record_usage(duration_sec).await
+}
+
 #[tauri::command]
 async fn finalize_session(
     transcript: Vec<summary::finalize::InputUtterance>,
@@ -804,6 +812,15 @@ pub fn run() {
             // tray + ⌘⇧B remain as alt re-summon paths.
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
+            // Anonymous early-access registration (install/heartbeat). Best-effort
+            // and off the launch critical path — see registration.rs for the
+            // privacy contract (only a hashed machine id + version leave the device).
+            tauri::async_runtime::spawn(async {
+                if let Err(e) = registration::register().await {
+                    eprintln!("[registration] register failed: {e}");
+                }
+            });
+
             // Menu bar tray: Accessory policy hides dock icon, so this is the
             // only way to re-summon main window after it's closed.
             let show = MenuItem::with_id(app, "show", "Show Bartleby", true, None::<&str>)?;
@@ -871,6 +888,7 @@ pub fn run() {
             save_api_key,
             clear_api_key,
             verify_api_key,
+            record_usage,
             finalize_session,
             log_frontend,
             list_audio_segments,
