@@ -170,7 +170,14 @@ async fn run_with_reconnect(
         // garbles/duplicates the first word (the whole point of the cold-start
         // buffering). Reconnects DO need the replay: `sleep_with_drain` empties
         // chunk_rx during backoff, so the ring is the only surviving copy.
-        let replay_ring = attempt > 0;
+        //
+        // Dictation (`final_tx.is_some()`) NEVER replays: finals are re-emitted
+        // on replay and accumulated/injected as text, so a mid-session reconnect
+        // would double-inject the replayed window. Dictations are short, so
+        // losing a little audio on a rare reconnect beats duplicating text. The
+        // meeting path (`final_tx.is_none()`) keeps the reconnect replay — its
+        // visual dedupe makes re-emitted finals harmless.
+        let replay_ring = attempt > 0 && final_tx.is_none();
 
         let outcome = soniox::run_session(
             &api_key,

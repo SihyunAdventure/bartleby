@@ -43,8 +43,11 @@ mod imp {
         down.set_string(s);
         down.post(CGEventTapLocation::HID);
 
+        // Post a matching keyup WITHOUT the unicode string attached. Apps that
+        // insert text on keyup (rather than keydown) would otherwise double the
+        // text; the bare keyup keeps the event pair well-formed without a second
+        // insertion. Flags are already cleared by `make_event`.
         let up = make_event(false)?;
-        up.set_string(s);
         up.post(CGEventTapLocation::HID);
         Ok(())
     }

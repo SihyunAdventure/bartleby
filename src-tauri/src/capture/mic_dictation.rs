@@ -87,7 +87,11 @@ pub fn start(stt_sender: Sender<Vec<f32>>) -> Result<MicOnlyCapture, String> {
             Ok(engine) => Some(Source::Engine(engine)),
             Err(e) => {
                 eprintln!("[dictation mic] sidecar start failed ({e}); falling back to cpal");
-                match super::mic::start(sample_tx, Some(stt_sender), Arc::clone(&stop_for_thread)) {
+                match super::mic::start(
+                    sample_tx.clone(),
+                    Some(stt_sender),
+                    Arc::clone(&stop_for_thread),
+                ) {
                     Ok(cpal) => Some(Source::Cpal(cpal)),
                     Err(e2) => {
                         let _ = ready_tx
@@ -97,6 +101,14 @@ pub fn start(stt_sender: Sender<Vec<f32>>) -> Result<MicOnlyCapture, String> {
                 }
             }
         };
+
+        // Drop our local `sample_tx` now that the active source owns its own
+        // clone. Otherwise this original sender stays alive for the whole
+        // capture loop, so the discard drain thread's `recv()` never returns
+        // Err and `discard.join()` below would block forever (hanging
+        // `drop(mic)` on stop → no injection). After this, the only remaining
+        // senders are the source's clone(s), which drop when the source stops.
+        drop(sample_tx);
 
         let _ = ready_tx.send(Ok(()));
 

@@ -60,7 +60,7 @@ pub struct DictationError {
 /// Whether a dictation session is currently active.
 pub fn is_active(app: &AppHandle) -> bool {
     let state = app.state::<AppState>();
-    let active = state.dictation.lock().unwrap().is_some();
+    let active = state.dictation.lock().unwrap_or_else(|e| e.into_inner()).is_some();
     active
 }
 
@@ -68,7 +68,7 @@ pub fn is_active(app: &AppHandle) -> bool {
 /// active this is a no-op (Carbon global hotkeys repeat `Pressed` while held).
 pub fn start(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let mut guard = state.dictation.lock().unwrap();
+    let mut guard = state.dictation.lock().unwrap_or_else(|e| e.into_inner());
     if guard.is_some() {
         // Hotkey auto-repeat while held — already listening.
         return;
@@ -138,7 +138,7 @@ pub fn start(app: &AppHandle) {
 /// on a background thread so the hotkey handler returns immediately.
 pub fn stop(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let Some(session) = state.dictation.lock().unwrap().take() else {
+    let Some(session) = state.dictation.lock().unwrap_or_else(|e| e.into_inner()).take() else {
         // No active session (e.g. release without a tracked press).
         return;
     };
@@ -189,11 +189,23 @@ fn finish_session(app: &AppHandle, session: DictationSession) {
     }
 
     let text = accumulated.trim().to_string();
-    println!("[dictation] stopped — {} chars to inject", text.chars().count());
+    let char_count = text.chars().count();
+    println!("[dictation] stopped — {} chars to inject", char_count);
     // `idle` is already emitted by `stop()` when the session is taken, so the
     // overlay hides immediately on release — don't re-emit here.
 
     if text.is_empty() {
+        return;
+    }
+
+    // Guard against synthesizing a flood of key events from an absurdly long
+    // transcript (e.g. a runaway/stuck session). Skip injection rather than
+    // truncate — a partial paste is more confusing than none.
+    const MAX_INJECT_CHARS: usize = 20_000;
+    if char_count > MAX_INJECT_CHARS {
+        eprintln!(
+            "[dictation] transcript too long ({char_count} chars > {MAX_INJECT_CHARS}); skipping injection"
+        );
         return;
     }
 
