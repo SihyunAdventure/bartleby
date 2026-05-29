@@ -139,9 +139,15 @@ pub fn start(app: &AppHandle) {
 pub fn stop(app: &AppHandle) {
     let state = app.state::<AppState>();
     let Some(session) = state.dictation.lock().unwrap().take() else {
-        // No active session (e.g. Released without a tracked Pressed).
+        // No active session (e.g. release without a tracked press).
         return;
     };
+
+    // Emit `idle` immediately so the overlay hides the instant Fn is released —
+    // the join/drain/inject below take up to ~5s on the worker thread, and we
+    // don't want the "받아쓰는 중" overlay lingering for them. Only emitted when a
+    // session actually existed (the early return above preserves the no-op case).
+    let _ = app.emit("dictation_state", DictationState { state: "idle" });
 
     let app = app.clone();
     std::thread::spawn(move || {
@@ -184,7 +190,8 @@ fn finish_session(app: &AppHandle, session: DictationSession) {
 
     let text = accumulated.trim().to_string();
     println!("[dictation] stopped — {} chars to inject", text.chars().count());
-    let _ = app.emit("dictation_state", DictationState { state: "idle" });
+    // `idle` is already emitted by `stop()` when the session is taken, so the
+    // overlay hides immediately on release — don't re-emit here.
 
     if text.is_empty() {
         return;

@@ -18,6 +18,21 @@
         "width": 1280,
         "height": 860,
         "acceptFirstMouse": true
+      },
+      {
+        "label": "dictation",
+        "url": "index.html?dictation",
+        "title": "Dictation",
+        "width": 280,
+        "height": 76,
+        "visible": false,
+        "focus": false,
+        "alwaysOnTop": true,
+        "transparent": true,
+        "decorations": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "shadow": false
       }
     ],
     "security": {

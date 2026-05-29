@@ -1,5 +1,6 @@
 pub mod capture;
 pub mod dictation;
+pub mod dictation_hotkey;
 pub mod inject;
 pub mod registration;
 pub mod secrets;
@@ -884,22 +885,14 @@ pub fn run() {
                 }
             })?;
 
-            // ⌃⌥D — push-to-talk dictation. Held: capture mic → STT. Released:
-            // stop, flush, inject the transcript at the frontmost app's cursor.
-            // global-hotkey 0.7 emits both Pressed (repeating while held) and
-            // Released on macOS; `dictation::start` is idempotent so the repeat
-            // is harmless. ⌥Space is deliberately avoided — it inserts a global
-            // non-breaking space.
-            let ctrl_opt_d = Shortcut::new(
-                Some(Modifiers::CONTROL | Modifiers::ALT),
-                Code::KeyD,
-            );
-            app.global_shortcut().on_shortcut(ctrl_opt_d, |app, _shortcut, event| {
-                match event.state() {
-                    ShortcutState::Pressed => dictation::start(app),
-                    ShortcutState::Released => dictation::stop(app),
-                }
-            })?;
+            // Hold-Fn (🌐 globe key) — push-to-talk dictation. Held: capture
+            // mic → STT. Released: stop, flush, inject the transcript at the
+            // frontmost app's cursor. Fn can't be a Carbon global hotkey
+            // (global-hotkey needs a non-modifier key), so we detect it with a
+            // CGEventTap on FlagsChanged events (see dictation_hotkey.rs). This
+            // also fixes the old ⌃⌥D Carbon "Released" unreliability that left
+            // the overlay stuck.
+            dictation_hotkey::start_fn_listener(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
