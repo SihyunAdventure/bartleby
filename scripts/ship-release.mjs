@@ -20,6 +20,7 @@ Options:
   --version <x.y.z>                Explicit next version
   --title <text>                   Changelog / GitHub release title
   --notes <text>                   Changelog / latest.json / GitHub release notes
+  --min-version <x.y.z>            Mark update mandatory: apps older than this are forced to update
   --skip-push                      Do not git push, create GitHub release, or deploy Vercel
   --skip-github-release            Do not create GitHub release
   --skip-vercel                    Do not run vercel deploy --prod
@@ -33,6 +34,7 @@ function parseArgs(argv) {
     version: null,
     title: null,
     notes: null,
+    minVersion: null,
     skipPush: false,
     skipGithubRelease: false,
     skipVercel: false,
@@ -45,6 +47,7 @@ function parseArgs(argv) {
     else if (arg === "--version") args.version = argv[++i];
     else if (arg === "--title") args.title = argv[++i];
     else if (arg === "--notes") args.notes = argv[++i];
+    else if (arg === "--min-version") args.minVersion = argv[++i];
     else if (arg === "--skip-push") args.skipPush = true;
     else if (arg === "--skip-github-release") args.skipGithubRelease = true;
     else if (arg === "--skip-vercel") args.skipVercel = true;
@@ -183,11 +186,15 @@ function copyArtifacts(version) {
   return files;
 }
 
-function updateLatest(version, notes, sigPath) {
+function updateLatest(version, notes, sigPath, minVersion) {
   const signature = read(sigPath).trim();
   const latest = {
     version,
     notes,
+    // Optional custom field: the app reads it via the updater's rawJson and
+    // forces the update when the running version is older than min_version.
+    // The Tauri updater itself ignores unknown feed fields.
+    ...(minVersion ? { min_version: minVersion } : {}),
     pub_date: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
     platforms: {
       "darwin-aarch64": {
@@ -250,10 +257,14 @@ function main() {
   const next = args.version ?? bumpVersion(current, args.bump ?? "patch");
   if (!/^\d+\.\d+\.\d+$/.test(next)) throw new Error(`Invalid version: ${next}`);
   if (next === current) throw new Error(`Next version equals current version: ${next}`);
+  if (args.minVersion && !/^\d+\.\d+\.\d+$/.test(args.minVersion)) {
+    throw new Error(`Invalid --min-version: ${args.minVersion}`);
+  }
 
   console.log(`Release plan: ${current} -> ${next}`);
   console.log(`Title: ${args.title}`);
   console.log(`Notes: ${args.notes}`);
+  if (args.minVersion) console.log(`Mandatory below: ${args.minVersion}`);
   if (args.dryRun) return;
 
   assertCleanTree();
@@ -264,7 +275,7 @@ function main() {
   // Cargo.lock is updated by cargo test/build after Cargo.toml version changes.
   verifyAndNotarize(next);
   const files = copyArtifacts(next);
-  updateLatest(next, args.notes, files.sig);
+  updateLatest(next, args.notes, files.sig, args.minVersion);
   // Re-run lightweight checks after generated web metadata changes.
   run("pnpm", ["build"]);
   run("python3", ["-m", "json.tool", "web/latest.json"], { capture: true });

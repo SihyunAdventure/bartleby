@@ -5,7 +5,14 @@ import { loadPrefs } from "./settings/prefs";
 import Meeting from "./meeting/Meeting";
 import { loadSessions, persistSessions } from "./meeting/sessionsStore";
 import Onboarding from "./onboarding/Onboarding";
-import { checkForAppUpdate, installUpdateAndRelaunch } from "./update/updater";
+import {
+  checkForAppUpdate,
+  installUpdateAndRelaunch,
+  isUpdateMandatory,
+  type UpdateProgress,
+} from "./update/updater";
+import UpdateModal, { type UpdatePhase } from "./update/UpdateModal";
+import type { Update } from "@tauri-apps/plugin-updater";
 import { initAnalytics, trackAppOpened } from "./analytics/analytics";
 import type { CaptureStats } from "./types/capture";
 import type { MeetingSession } from "./meeting/types";
@@ -15,6 +22,10 @@ const Gallery = lazy(() => import("./gallery/Gallery"));
 
 const params = new URLSearchParams(window.location.search);
 const isGallery = params.has("gallery");
+// Dev affordance: the updater is disabled in `pnpm dev`, so the only way to
+// eyeball the update modal before shipping is a mock. `?update-preview` (or
+// `?update-preview=mandatory`) renders it with fake data.
+const updatePreview = params.get("update-preview");
 
 interface KeyStatus {
   present: boolean;
@@ -30,6 +41,25 @@ function App() {
   const [sessions, setSessions] = useState<MeetingSession[]>([]);
   const [sessionsHydrated, setSessionsHydrated] = useState(false);
   const keysOk = !keysMissing;
+
+  // App update flow (see update/UpdateModal). `update` non-null => modal shown.
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [updatePhase, setUpdatePhase] = useState<UpdatePhase>("prompt");
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  const runInstall = (u: Update) => {
+    setUpdatePhase("downloading");
+    setUpdateError(null);
+    setUpdateProgress(null);
+    // On success the app relaunches; on failure we surface a retry + manual
+    // download fallback rather than trapping the user (critical for a
+    // mandatory update — a failed install must never brick the app).
+    installUpdateAndRelaunch(u, setUpdateProgress).catch((err) => {
+      setUpdateError(String(err));
+      setUpdatePhase("error");
+    });
+  };
 
   // Boot anonymous usage analytics once and record the app launch. No
   // meeting content ever flows through here — see analytics/analytics.ts.
@@ -87,16 +117,17 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (isGallery) return;
+    if (isGallery || updatePreview !== null) return;
     const id = window.setTimeout(() => {
       void checkForAppUpdate()
-        .then((update) => {
-          if (!update) return;
-          const shouldInstall = window.confirm(
-            `Bartleby ${update.version} is ready. Install it now and restart?`,
-          );
-          if (shouldInstall) {
-            void installUpdateAndRelaunch(update);
+        .then((found) => {
+          if (!found) return;
+          setUpdate(found);
+          setUpdatePhase("prompt");
+          // A mandatory update starts installing immediately; the blocking
+          // modal still renders so the user sees progress and any failure.
+          if (isUpdateMandatory(found)) {
+            runInstall(found);
           }
         })
         .catch((err) => {
@@ -111,6 +142,34 @@ function App() {
       <Suspense fallback={null}>
         <Gallery />
       </Suspense>
+    );
+  }
+
+  if (updatePreview !== null) {
+    const previewNotes =
+      "### Bartleby 0.2.0\n\n- 새 인앱 업데이트 화면\n- 강제 업데이트 지원\n- 안정성 개선";
+    return (
+      <UpdateModal
+        version="0.2.0"
+        notes={previewNotes}
+        mandatory={updatePreview === "mandatory"}
+        phase={
+          updatePreview === "downloading"
+            ? "downloading"
+            : updatePreview === "error"
+              ? "error"
+              : "prompt"
+        }
+        progress={
+          updatePreview === "downloading"
+            ? { downloadedBytes: 5_200_000, contentLength: 12_000_000, finished: false }
+            : null
+        }
+        errorMsg={updatePreview === "error" ? "network timeout" : null}
+        onInstall={() => {}}
+        onLater={() => {}}
+        onRetry={() => {}}
+      />
     );
   }
 
@@ -137,6 +196,19 @@ function App() {
           keysOk={keysOk}
           onKeysChanged={refreshKeyStatus}
           onClose={() => setShowOnboarding(false)}
+        />
+      )}
+      {update && (
+        <UpdateModal
+          version={update.version}
+          notes={update.body}
+          mandatory={isUpdateMandatory(update)}
+          phase={updatePhase}
+          progress={updateProgress}
+          errorMsg={updateError}
+          onInstall={() => runInstall(update)}
+          onLater={() => setUpdate(null)}
+          onRetry={() => runInstall(update)}
         />
       )}
     </main>
