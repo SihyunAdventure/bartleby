@@ -1,15 +1,15 @@
 {
-  "version": "0.1.4",
-  "notes": "Adds Korean-first onboarding with a 한국어/English selector, localized permission/model/access guidance, and Korean key-entry copy for hosted beta and BYOK setup.",
-  "pub_date": "2026-05-27T06:31:26Z",
+  "version": "0.1.5",
+  "notes": "Bartleby now records anonymous usage events (app opens, recording start/stop, note generation) to guide improvements. Meeting audio, transcripts, summaries, titles, and API keys are never sent, and you can turn analytics off anytime in Settings.",
+  "pub_date": "2026-05-29T05:44:22Z",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU3BRRkpPaUtvLzZZZTF3OEo3ZkFMYXpMc2NzMmRPNjZXbzN3RkE1NnJYRlgxaUlISE5oT3FrL2FVUkp0bFU5UUd2a25NR0dqcHRjR1V4bVV1cXE2UHdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5ODYzMzk4CWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpjS3RLWnl5ZmQzSU1CTmZscnBEUTFMRWQ5Qzl5QzJYWEFvOFlNd0h4VDdmdHN2ZlVlVml6dHVrV3dRZVR3aC9MSUF2blEyRGtMSnlQLzJBTTFqM3NCQT09Cg==",
-      "url": "https://heybartleby.com/releases/Bartleby_0.1.4_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2lyZXIxZ0YzQkc5bWwzTkdYNGtRZE1wU3ZqZUo3VU9oUExCYktWRHFvc0hHbjhMT3JMdE55L3A3VmRyVEwvM0QzeFFsa0lBOGV2QlBjUG4rRE5DM3dVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMDMzNDA1CWZpbGU6QmFydGxlYnkuYXBwLnRhci5negprSkdZNUhwTEMyaUJTVXNxbWU5eUM5cEFETk0yZS9TYjdoWjlTcEJUdnRqUFdnTWkxZWFnenNYRGVRamNWL3B6Um9zQjFtY3NUaUVnQnRBeUxrUWFDZz09Cg==",
+      "url": "https://heybartleby.com/releases/Bartleby_0.1.5_universal.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU3BRRkpPaUtvLzZZZTF3OEo3ZkFMYXpMc2NzMmRPNjZXbzN3RkE1NnJYRlgxaUlISE5oT3FrL2FVUkp0bFU5UUd2a25NR0dqcHRjR1V4bVV1cXE2UHdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5ODYzMzk4CWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpjS3RLWnl5ZmQzSU1CTmZscnBEUTFMRWQ5Qzl5QzJYWEFvOFlNd0h4VDdmdHN2ZlVlVml6dHVrV3dRZVR3aC9MSUF2blEyRGtMSnlQLzJBTTFqM3NCQT09Cg==",
-      "url": "https://heybartleby.com/releases/Bartleby_0.1.4_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2lyZXIxZ0YzQkc5bWwzTkdYNGtRZE1wU3ZqZUo3VU9oUExCYktWRHFvc0hHbjhMT3JMdE55L3A3VmRyVEwvM0QzeFFsa0lBOGV2QlBjUG4rRE5DM3dVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMDMzNDA1CWZpbGU6QmFydGxlYnkuYXBwLnRhci5negprSkdZNUhwTEMyaUJTVXNxbWU5eUM5cEFETk0yZS9TYjdoWjlTcEJUdnRqUFdnTWkxZWFnenNYRGVRamNWL3B6Um9zQjFtY3NUaUVnQnRBeUxrUWFDZz09Cg==",
+      "url": "https://heybartleby.com/releases/Bartleby_0.1.5_universal.app.tar.gz"
     }
   }
 }
