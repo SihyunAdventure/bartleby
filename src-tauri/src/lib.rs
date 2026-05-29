@@ -3,7 +3,6 @@ pub mod registration;
 pub mod secrets;
 pub mod stt;
 pub mod summary;
-pub mod translate;
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -20,18 +19,14 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 /// In-progress capture session — stop flag drives the capture thread out of
 /// its polling loop, the join handle returns final stats once it's done.
 /// `stt` is `Some` iff `SONIOX_API_KEY` was set when the session started.
-/// `translator` is `Some` iff *both* keys (SONIOX + OPENROUTER) are set —
-/// translation can't operate without an STT source. Both are joined on
-/// stop_capture in dependency order: capture → STT → translator.
+/// Sessions are joined on stop_capture in dependency order: capture → STT.
 struct CaptureSession {
     stop: Arc<AtomicBool>,
     handle: std::thread::JoinHandle<Result<CaptureStats, String>>,
-    /// Two STT sessions — sys is the canonical wedge ("Korean ears for English
-    /// audio"), feeds the translator. mic is the user's own voice, surfaced
-    /// directly without translation (Phase 6 S3 wire). Both join on stop.
+    /// Two STT sessions — one per audio source. sys is system audio, mic is
+    /// the user's own voice (Phase 6 S3 wire). Both join on stop.
     stt_sys: Option<stt::SttSession>,
     stt_mic: Option<stt::SttSession>,
-    translator: Option<translate::TranslatorSession>,
     summary: Option<summary::SummarySession>,
 }
 
@@ -350,7 +345,6 @@ fn list_audio_segments(dir: String) -> Result<AudioSegments, String> {
 fn spawn_capture(
     app: tauri::AppHandle,
     max_seconds: Option<u64>,
-    translate_enabled: bool,
     provider_mode: ProviderMode,
 ) -> CaptureSession {
     let stop = Arc::new(AtomicBool::new(false));
@@ -383,32 +377,6 @@ fn spawn_capture(
             .map(|token| stt::SttRoute::hosted(relay_ws_url(), token.clone())),
         ProviderMode::Byok => Some(stt::SttRoute::direct()),
     };
-    let translate_route = match provider_mode {
-        ProviderMode::Hosted => translate::TranslateRoute::hosted(relay_base_url()),
-        ProviderMode::Byok => translate::TranslateRoute::direct(),
-    };
-
-    // Translator is the upstream consumer of STT finals — start it first so
-    // STT can hand it the final-text sender at construction.
-    // translate_enabled=false 이면 사용자가 Settings 에서 토글 끔 (한국어 미팅 등) →
-    // translator session 안 띄움 + final_tx None → STT 가 finals 만 event 로 emit.
-    let (final_tx, translator_session) = match (&stt_key, &upstage_key, translate_enabled) {
-        (Some(_), Some(up_key), true) => {
-            let (tx, sess) = translate::start(up_key.clone(), translate_route.clone(), app.clone());
-            (Some(tx), Some(sess))
-        }
-        (Some(_), Some(_), false) => {
-            println!(
-                "[translate] translate_enabled=false — Korean translation disabled by user pref"
-            );
-            (None, None)
-        }
-        (Some(_), None, _) => {
-            println!("[translate] UPSTAGE_API_KEY not set — Korean translation disabled (English-only captions)");
-            (None, None)
-        }
-        _ => (None, None),
-    };
 
     // Phase 5 S1 — Live 30s summary tick disabled. The live SummaryPanel was
     // removed (advisor + Hyprnote precedent: meeting info value comes from
@@ -419,11 +387,8 @@ fn spawn_capture(
     let summary_session: Option<summary::SummarySession> = None;
 
     // Phase 6 S3 — two parallel Soniox sessions, one per audio source.
-    // - sys (system audio): English-leaning lecture/podcast content, hands
-    //   English finals to the translator for Korean caption.
-    // - mic (user voice): mixed-language conversational content, no
-    //   translation by default (the user speaking their own language doesn't
-    //   need to be translated to itself).
+    // - sys (system audio): English-leaning lecture/podcast content.
+    // - mic (user voice): mixed-language conversational content.
     // Soniox's protocol has no per-channel labeling on a stereo stream, so
     // sending sys+mic as one stereo session would collapse on the server's
     // single endpoint detector — empirically observed: finals lag ~7s when
@@ -437,14 +402,12 @@ fn spawn_capture(
                     route.clone(),
                     app.clone(),
                     stt::SttSource::Sys,
-                    final_tx,
                 );
                 let (mic_tx, mic_sess) = stt::start(
                     key.clone(),
                     route.clone(),
                     app.clone(),
                     stt::SttSource::Mic,
-                    None, // mic finals stay in their own language; no translate path
                 );
                 (Some(sys_tx), Some(sys_sess), Some(mic_tx), Some(mic_sess))
             }
@@ -493,7 +456,6 @@ fn spawn_capture(
         handle,
         stt_sys: stt_sys_session,
         stt_mic: stt_mic_session,
-        translator: translator_session,
         summary: summary_session,
     }
 }
@@ -514,22 +476,12 @@ fn join_stt(stt: stt::SttSession) {
     }
 }
 
-/// Wait for a translator session to wind down. STT teardown drops the
-/// final-text sender, which closes the translator's recv loop; this joins
-/// the runtime thread.
-fn join_translator(translator: translate::TranslatorSession) {
-    if let Err(e) = translator.join.join() {
-        eprintln!("[translate] thread panicked: {e:?}");
-    }
-}
-
 /// Start an indefinite capture. The session lives in app state until
 /// `stop_capture` is called. Errors if a capture is already in progress.
 #[tauri::command]
 async fn start_capture(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-    translate_enabled: bool,
     provider_mode: Option<String>,
 ) -> Result<(), String> {
     let permission_status = capture::permission::recording_status();
@@ -560,7 +512,7 @@ async fn start_capture(
         }
         _ => {}
     }
-    *guard = Some(spawn_capture(app, None, translate_enabled, provider_mode));
+    *guard = Some(spawn_capture(app, None, provider_mode));
     Ok(())
 }
 
@@ -584,9 +536,6 @@ async fn stop_capture(state: State<'_, AppState>) -> Result<CaptureStats, String
         }
         if let Some(stt) = session.stt_mic {
             join_stt(stt);
-        }
-        if let Some(translator) = session.translator {
-            join_translator(translator);
         }
         if let Some(s) = session.summary {
             join_summary(s);
@@ -656,7 +605,7 @@ async fn verify_api_key(name: String, value: String) -> Result<(), String> {
     }
     match name.as_str() {
         "SONIOX_API_KEY" => stt::soniox::verify_key(&value).await,
-        "UPSTAGE_API_KEY" => translate::upstage::verify_key(&value).await,
+        "UPSTAGE_API_KEY" => summary::upstage::verify_key(&value).await,
         "BARTLEBY_RELAY_TOKEN" => verify_relay_token(&value).await,
         other => Err(format!("Unknown key: {other}")),
     }

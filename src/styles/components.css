@@ -357,13 +357,6 @@
   line-height: 1.55;
 }
 .tbl-utt .speech.kr { font-family: var(--font-body-kr); }
-.tbl-utt .trans {
-  color: var(--ink-4);
-  font-style: italic;
-  font-family: var(--font-serif);
-  font-size: var(--t-sm);
-  margin-top: 4px;
-}
 
 /* ════════════ SUMMARY BLOCK ════════════ */
 

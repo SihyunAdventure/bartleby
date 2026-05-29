@@ -79,11 +79,7 @@ export default function SessionDetail({
 
   function transcriptAsText(): string {
     return session.transcript
-      .map(
-        (u) =>
-          `[${u.time}] ${u.speaker}: ${u.enText}` +
-          (u.koText ? `\n  └ ${u.koText}` : "")
-      )
+      .map((u) => `[${u.time}] ${u.speaker}: ${u.enText}`)
       .join("\n");
   }
 
@@ -349,7 +345,6 @@ export default function SessionDetail({
                         >
                           {u.enText}
                         </div>
-                        {u.koText && <div className="trans">{u.koText}</div>}
                       </div>
                     </div>
                   );

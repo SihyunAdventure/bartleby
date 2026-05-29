@@ -133,6 +133,40 @@ pub async fn summarize(
     parse_response(&content)
 }
 
+/// Probe an Upstage API key with a minimal non-streaming completion. 200 →
+/// accepted, 401 → rejected, anything else → surfaced as a generic error
+/// so the user knows verification couldn't decide.
+pub async fn verify_key(api_key: &str) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let body = json!({
+        "model": MODEL,
+        "messages": [{"role": "user", "content": "ping"}],
+        "max_tokens": 1,
+        "stream": false,
+    });
+    let resp = client
+        .post(UPSTAGE_URL)
+        .bearer_auth(api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {e}"))?;
+
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return Err("Upstage rejected the key (401)".into());
+    }
+    let body_text = resp.text().await.unwrap_or_default();
+    Err(format!(
+        "HTTP {}: {}",
+        status,
+        body_text.chars().take(200).collect::<String>()
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

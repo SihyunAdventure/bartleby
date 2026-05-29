@@ -88,7 +88,6 @@ export default function TranscriptView({ utterances, partial }: Props) {
                         </span>
                       )}
                     </p>
-                    {u.koText && <p className={styles.koText}>{u.koText}</p>}
                   </div>
                 </div>
               );

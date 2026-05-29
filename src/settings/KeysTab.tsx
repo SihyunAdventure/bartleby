@@ -35,7 +35,7 @@ const COPY = {
     sonioxHelper: "Speech-to-text: Soniox stt-rt-v4 실시간 스트리밍. EN/KO 회의록에 필요합니다.",
     upstageLabel: "Upstage API 키",
     upstageHelper:
-      "LLM: Upstage solar-pro3 직접 API. 한국어 번역과 final note에 사용하며 OpenRouter/local model은 쓰지 않습니다.",
+      "LLM: Upstage solar-pro3 직접 API. final note에 사용하며 OpenRouter/local model은 쓰지 않습니다.",
   },
   en: {
     aria: "Provider access mode",
@@ -55,7 +55,7 @@ const COPY = {
     sonioxHelper: "Speech-to-text: Soniox stt-rt-v4 realtime streaming. Required for EN/KO transcription.",
     upstageLabel: "Upstage API Key",
     upstageHelper:
-      "LLM: Upstage solar-pro3 direct API. Used for Korean translation and final notes; no OpenRouter/local model.",
+      "LLM: Upstage solar-pro3 direct API. Used for final notes; no OpenRouter/local model.",
   },
 } as const;
 

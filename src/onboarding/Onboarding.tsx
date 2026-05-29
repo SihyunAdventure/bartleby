@@ -184,7 +184,7 @@ const COPY: Record<AppLanguage, OnboardingCopy> = {
         "마이크와 시스템 오디오 chunk를 Soniox stt-rt-v4로 스트리밍합니다. Hosted relay 또는 BYOK 직접 호출 모두 같은 모델을 사용하며, 시스템/마이크 endpointing을 분리하기 위해 두 세션을 씁니다.",
       llmRequired: "한국어 노트 필수",
       llmBody:
-        "Upstage Solar Pro 3가 한국어 번역, TL;DR, outline, one-pager, quote, final note를 생성합니다. Hosted relay 또는 BYOK 직접 호출로만 동작합니다.",
+        "Upstage Solar Pro 3가 TL;DR, outline, one-pager, quote, final note를 생성합니다. Hosted relay 또는 BYOK 직접 호출로만 동작합니다.",
       modelPrefix: "모델",
       sonioxLink: "Soniox 키 받기",
       upstageLink: "Upstage 키 받기",
@@ -300,7 +300,7 @@ const COPY: Record<AppLanguage, OnboardingCopy> = {
         "Streams mic + system audio chunks to Soniox stt-rt-v4, either through the hosted relay or directly in BYOK mode. Two sessions keep system and microphone endpointing separate.",
       llmRequired: "Required for Korean notes",
       llmBody:
-        "Generates Korean translation, TL;DR, outline, one-pager, quote, and final note through Upstage Solar Pro 3 via hosted relay or direct BYOK.",
+        "Generates TL;DR, outline, one-pager, quote, and final note through Upstage Solar Pro 3 via hosted relay or direct BYOK.",
       modelPrefix: "Model",
       sonioxLink: "Get Soniox key",
       upstageLink: "Get Upstage key",

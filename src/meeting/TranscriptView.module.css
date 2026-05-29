@@ -93,15 +93,6 @@
   margin: 0;
 }
 
-.koText {
-  font-family: "Gowun Batang", "Nanum Myeongjo", var(--font-serif);
-  font-style: italic;
-  font-size: 12px;
-  color: var(--ink-3);
-  line-height: 1.5;
-  margin: 0;
-}
-
 /* In-flight STT partial — italic, dimmed, settles into a real row when
    Soniox emits stt_final. */
 .partial .enText {

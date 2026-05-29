@@ -50,11 +50,6 @@ export interface PartialEntry {
   speaker: "user" | "system";
 }
 
-interface TranslationFinalPayload {
-  original: string;
-  translation: string;
-}
-
 const MAX_UTTERANCES = 100;
 
 // formatTimeWithSec: TranscriptView 의 내부 formatTime 과 동일 (HH:MM:SS)
@@ -128,17 +123,9 @@ export default function Meeting({
   // longer rows from STT continuing for ~1s after Stop).
   const frozenRef = useRef(false);
 
-  // stt_final + translation_final listeners — only active while recording
+  // stt_partial + stt_final listeners — only active while recording
   useEffect(() => {
     if (view !== "recording") return;
-
-    // FIFO queue per raw text: translation_final carries only `original` text,
-    // so we match by dequeuing the oldest pending id for that text string.
-    // Cap at 50 total queued ids to bound memory when translations stall.
-    const pendingTranslation = new Map<string, number[]>();
-
-    const pendingTotal = () =>
-      [...pendingTranslation.values()].reduce((s, q) => s + q.length, 0);
 
     const subs = [
       listen<SttPartialPayload>("stt_partial", (event) => {
@@ -171,16 +158,6 @@ export default function Meeting({
           .filter((p) => p.length > 0);
         if (parts.length === 0) return;
 
-        if (pendingTotal() >= 50) {
-          const firstKey = pendingTranslation.keys().next().value;
-          if (firstKey !== undefined) {
-            const q = pendingTranslation.get(firstKey)!;
-            q.shift();
-            if (q.length === 0) pendingTranslation.delete(firstKey);
-          }
-        }
-
-        let lastNewId = idRef.current;
         setUtterances((prev) => {
           const next: SavedUtterance[] = [...prev];
           for (const part of parts) {
@@ -211,7 +188,6 @@ export default function Meeting({
                 ...last,
                 enText: `${last.enText} ${part}`.trim(),
               };
-              lastNewId = last.id;
             } else {
               const id = ++idRef.current;
               next.push({
@@ -219,9 +195,7 @@ export default function Meeting({
                 time: nowStr,
                 speaker,
                 enText: part,
-                koText: null,
               });
-              lastNewId = id;
             }
           }
           return next.length > MAX_UTTERANCES
@@ -229,40 +203,7 @@ export default function Meeting({
             : next;
         });
 
-        // Best-effort translation mapping: pair the entire incoming text with
-        // the most recently touched row. translation_final carries the full
-        // EN text as `original`, so this works for single-sentence finals and
-        // degrades gracefully for multi-sentence ones (KO lands on the last
-        // row only — acceptable while translate toggle is default-off).
-        const q = pendingTranslation.get(text) ?? [];
-        q.push(lastNewId);
-        pendingTranslation.set(text, q);
-
         lastFinalAtRef.current = now;
-      }),
-
-      listen<TranslationFinalPayload>("translation_final", (event) => {
-        if (frozenRef.current) return;
-        const { original, translation } = event.payload;
-        const q = pendingTranslation.get(original);
-        if (!q?.length) return;
-        const targetId = q.shift()!;
-        if (q.length === 0) pendingTranslation.delete(original);
-
-        // 같은 row 에 여러 EN chunk 가 merge 된 상태면, 그에 대한 번역들도
-        // 시간 순서대로 도착하므로 기존 koText 에 append (cumulative).
-        setUtterances((prev) =>
-          prev.map((u) =>
-            u.id === targetId
-              ? {
-                  ...u,
-                  koText: u.koText
-                    ? `${u.koText} ${translation}`.trim()
-                    : translation,
-                }
-              : u
-          )
-        );
       }),
     ];
 
@@ -287,8 +228,8 @@ export default function Meeting({
   const handleStop = (stats: CaptureStats) => {
     dbg(`handleStop fired stats=${JSON.stringify(stats).slice(0, 200)}`);
     try {
-    // Freeze immediately so any in-flight stt_final / translation_final
-    // arriving while backend stop_capture wraps up cannot mutate state.
+    // Freeze immediately so any in-flight stt_final arriving while backend
+    // stop_capture wraps up cannot mutate state.
     // This keeps the SessionDetail snapshot identical to the live view at
     // the moment of Stop.
     frozenRef.current = true;
@@ -317,7 +258,6 @@ export default function Meeting({
           time: formatTimeWithSec(endedAt),
           speaker: partial.speaker,
           enText: partial.text,
-          koText: null,
         },
       ];
     }
@@ -439,7 +379,6 @@ export default function Meeting({
                     time: nowStr,
                     speaker: partial.speaker,
                     enText: partial.text,
-                    koText: null,
                   },
                 ]);
                 setPartial(null);

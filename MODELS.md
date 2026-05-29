@@ -12,8 +12,7 @@ Provider access has two planned modes:
 | Layer | Active provider/model | Key | Data sent |
 |---|---|---|---|
 | Speech-to-text | Soniox `stt-rt-v4` realtime streaming | BYOK `SONIOX_API_KEY` or hosted relay server key | System audio + microphone audio chunks |
-| Korean translation | Upstage `solar-pro3` direct API | BYOK `UPSTAGE_API_KEY` or hosted relay server key | Finalized transcript text |
-| Final note | Upstage `solar-pro3` direct API | BYOK `UPSTAGE_API_KEY` or hosted relay server key | End-of-session transcript text |
+| Korean notes | Upstage `solar-pro3` direct API | BYOK `UPSTAGE_API_KEY` or hosted relay server key | End-of-session transcript text |
 
 Not active in the public model surface:
 

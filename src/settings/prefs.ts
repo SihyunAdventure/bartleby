@@ -22,9 +22,6 @@ export interface Prefs {
 
   // Meeting mode
   auto_summarize: boolean;
-  // 영어 → 한국어 번역 가동 여부. false 면 translator session 안 띄움 (네트워크/비용 절약).
-  // 한국어 미팅 (모두 한국어 발화) 에서 KO line 이 EN 의 자가 번역 같아 어색할 때 끄기.
-  translate_enabled: boolean;
 
   // Storage
   audio_retention_days: number;     // 1-90
@@ -42,10 +39,6 @@ export const DEFAULT_PREFS: Prefs = {
   provider_mode: "hosted",
 
   auto_summarize: true,
-  // 한국어 미팅 위주 user 가 default. 영어 시청 / 영어 client call 시
-  // Settings 에서 켜는 형태. STT 가 audio 언어 자동 인식하므로 한국어
-  // 미팅엔 toggle 무관하게 KO 발화는 자체 transcribe.
-  translate_enabled: false,
 
   audio_retention_days: 30,
 

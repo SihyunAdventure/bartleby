@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSummaryRequest, buildTranscript, buildTranslateRequest, parseSummaryContent } from "../src/upstage.js";
+import { buildSummaryRequest, buildTranscript, parseSummaryContent } from "../src/upstage.js";
 
 test("buildTranscript accepts transcript string", () => {
   assert.equal(buildTranscript({ transcript: " hello " }), "hello");
@@ -27,12 +27,6 @@ test("buildSummaryRequest asks for JSON object with Solar Pro 3", () => {
   assert.equal(req.model, "solar-pro3");
   assert.equal(req.stream, false);
   assert.deepEqual(req.response_format, { type: "json_object" });
-});
-
-test("buildTranslateRequest supports streaming flag", () => {
-  const req = buildTranslateRequest("hello", true);
-  assert.equal(req.model, "solar-pro3");
-  assert.equal(req.stream, true);
 });
 
 test("parseSummaryContent accepts fenced finalize JSON", () => {

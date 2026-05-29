@@ -6,7 +6,7 @@ import { createAuthenticator } from "./auth.js";
 import { loadConfig } from "./config.js";
 import { json, methodNotAllowed, readJson } from "./http.js";
 import { proxySonioxSession } from "./soniox.js";
-import { streamTranslation, summarize, translate } from "./upstage.js";
+import { summarize } from "./upstage.js";
 
 const config = loadConfig();
 const authenticate = createAuthenticator(config.betaTokens);
@@ -67,18 +67,6 @@ async function route(req, res) {
       if (req.method !== "POST") return methodNotAllowed(res);
       const body = await readJson(req, 2 * 1024 * 1024);
       const result = await summarize(config.upstageApiKey, body);
-      json(res, 200, result);
-      return;
-    }
-
-    if (url.pathname === "/v1/translate") {
-      if (req.method !== "POST") return methodNotAllowed(res);
-      const body = await readJson(req, 256 * 1024);
-      if (url.searchParams.get("stream") === "1" || url.searchParams.get("stream") === "true") {
-        await streamTranslation(config.upstageApiKey, body, res);
-        return;
-      }
-      const result = await translate(config.upstageApiKey, body);
       json(res, 200, result);
       return;
     }

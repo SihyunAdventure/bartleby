@@ -28,8 +28,6 @@ Field rules:
 If the transcript is too short / sparse to produce a meaningful note, return:
 {"tldr": "", "outline": [], "onepager": "", "quote": null}`;
 
-const TRANSLATE_SYSTEM_PROMPT = "You translate English speech to natural Korean. Output ONLY the Korean translation — no explanation, no quotes, no English, no romanization. Match the conversational register and tone of the source. Preserve technical terms when no clean Korean equivalent exists.";
-
 export const EMPTY_FINALIZE_RESULT = {
   tldr: "",
   outline: [],
@@ -89,18 +87,6 @@ export function buildSummaryRequest(transcript) {
   };
 }
 
-export function buildTranslateRequest(text, stream = false) {
-  return {
-    model: MODEL,
-    messages: [
-      { role: "system", content: TRANSLATE_SYSTEM_PROMPT },
-      { role: "user", content: text.trim() },
-    ],
-    stream,
-    temperature: 0.3,
-  };
-}
-
 export function parseSummaryContent(raw) {
   const trimmed = String(raw || "").trim();
   const body = trimmed.startsWith("```json")
@@ -150,50 +136,3 @@ export async function summarize(apiKey, requestBody) {
   return parseSummaryContent(content);
 }
 
-export async function translate(apiKey, requestBody) {
-  const text = String(requestBody?.text || "").trim();
-  if (!text) {
-    const err = new Error("empty text");
-    err.status = 400;
-    throw err;
-  }
-  const resp = await callUpstage(apiKey, buildTranslateRequest(text, false));
-  if (!resp.ok) {
-    const err = new Error(`Upstage translation failed: ${resp.status}`);
-    err.status = resp.status;
-    err.detail = (await resp.text()).slice(0, 500);
-    throw err;
-  }
-  const parsed = await resp.json();
-  const translation = parsed?.choices?.[0]?.message?.content?.trim();
-  if (!translation) {
-    const err = new Error("Upstage translation returned no content");
-    err.status = 502;
-    throw err;
-  }
-  return { translation };
-}
-
-export async function streamTranslation(apiKey, requestBody, res) {
-  const text = String(requestBody?.text || "").trim();
-  if (!text) {
-    res.writeHead(400, { "content-type": "application/json" });
-    res.end(JSON.stringify({ error: "empty text" }));
-    return;
-  }
-  const upstream = await callUpstage(apiKey, buildTranslateRequest(text, true));
-  if (!upstream.ok) {
-    res.writeHead(upstream.status, { "content-type": "application/json" });
-    res.end(JSON.stringify({ error: "upstage_translation_failed" }));
-    return;
-  }
-  res.writeHead(200, {
-    "content-type": upstream.headers.get("content-type") || "text/event-stream; charset=utf-8",
-    "cache-control": "no-cache, no-transform",
-    connection: "keep-alive",
-  });
-  for await (const chunk of upstream.body) {
-    res.write(Buffer.from(chunk));
-  }
-  res.end();
-}

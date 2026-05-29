@@ -7,7 +7,6 @@ export interface SavedUtterance {
   time: string;
   speaker: "user" | "system";
   enText: string;
-  koText: string | null;
 }
 
 /** Phase 5 S2 — finalize-on-Stop Solar Pro 3 batch output. */

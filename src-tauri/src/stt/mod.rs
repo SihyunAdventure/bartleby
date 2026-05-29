@@ -69,16 +69,11 @@ pub struct SttSession {
 ///
 /// Dropping the returned sender flushes remaining samples and closes the
 /// websocket — capture-thread teardown does this for us automatically.
-///
-/// `final_tx` is an optional sink for finalized English text — when set,
-/// every `stt_final` event also forwards its text to the translator
-/// pipeline (Day 16a).
 pub fn start(
     api_key: String,
     route: SttRoute,
     app: AppHandle,
     source: SttSource,
-    final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 ) -> (std::sync::mpsc::Sender<Vec<f32>>, SttSession) {
     let (sample_tx, sample_rx) = std::sync::mpsc::channel::<Vec<f32>>();
     let stop = Arc::new(AtomicBool::new(false));
@@ -125,7 +120,6 @@ pub fn start(
                 app,
                 chunk_rx,
                 stop_for_thread,
-                final_tx,
                 ring,
                 source,
             )
@@ -150,7 +144,6 @@ async fn run_with_reconnect(
     app: AppHandle,
     mut chunk_rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
     stop: Arc<AtomicBool>,
-    final_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     ring: Arc<Mutex<AudioRing>>,
     source: SttSource,
 ) {
@@ -166,7 +159,6 @@ async fn run_with_reconnect(
             &app,
             &mut chunk_rx,
             &stop,
-            final_tx.clone(),
             &ring,
             source,
         )
