@@ -44,6 +44,10 @@ mod imp {
     /// `setup()`.
     pub fn start_fn_listener(app: tauri::AppHandle) {
         std::thread::spawn(move || {
+            eprintln!(
+                "[dictdbg] Fn listener thread starting; AXIsProcessTrusted={}",
+                crate::inject::accessibility_trusted()
+            );
             // Serialized worker: the tap callback only `send`s Start/Stop and
             // returns immediately, keeping the runloop responsive. The worker
             // processes commands in order, so a fast down→up can't run Stop
@@ -94,6 +98,16 @@ mod imp {
                         if let Some(tap) = cb_cell.get() {
                             tap.enable();
                         }
+                        // macOS dropped events while the tap was disabled — the
+                        // Fn *release* edge may have been among them. If we
+                        // thought Fn was held, the up-edge is now lost and every
+                        // future press would read as "still down" (no Start),
+                        // wedging dictation permanently. Reset to idle and stop
+                        // any half-open session so the next press works cleanly.
+                        if prev_fn.get() {
+                            prev_fn.set(false);
+                            let _ = cmd_tx.send(DictCmd::Stop);
+                        }
                         return None;
                     }
 
@@ -143,7 +157,7 @@ mod imp {
                 current.add_source(&source, kCFRunLoopCommonModes);
             }
             tap.enable();
-            println!("[dictation-hotkey] Fn(🌐) push-to-talk listener active");
+            eprintln!("[dictdbg] Fn(🌐) push-to-talk listener active (tap enabled, runloop entering)");
 
             CFRunLoop::run_current();
         });

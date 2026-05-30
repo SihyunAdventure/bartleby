@@ -854,7 +854,10 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
             let _tray = TrayIconBuilder::with_id("bartleby-tray")
-                .icon(app.default_window_icon().expect("window icon").clone())
+                // Dedicated black quill silhouette (template image) so the menu
+                // bar shows a crisp feather, not a squashed color icon. Embedded
+                // at compile time — no runtime resource resolution needed.
+                .icon(tauri::include_image!("icons/tray-icon.png"))
                 .icon_as_template(true)
                 .menu(&menu)
                 .show_menu_on_left_click(true)

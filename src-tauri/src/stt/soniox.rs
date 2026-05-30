@@ -322,17 +322,22 @@ pub async fn run_session(
             break;
         }
     }
-    // Soniox EOS = empty text frame, then explicit close. Wrap the entire
-    // teardown in a single timeout so that *any* await in here — the EOS
-    // send, the sink.close handshake, or reader.next() pending on the
-    // server's Close frame — can't deadlock stop_capture. Five seconds is
-    // generous enough for a clean shutdown but short enough that the user
-    // sees the SessionDetail snap into place. The reader task is then
-    // abandoned (process-exit cleans it up).
+
+    // Soniox EOS = empty text frame. IMPORTANT: we must send EOS, then WAIT
+    // for the reader task to receive the server's trailing finals + `finished`
+    // flag, and ONLY THEN close the websocket. Closing before the reader has
+    // finished causes the server to abort the in-flight final flush, leaving
+    // zero final tokens for a short push-to-talk utterance.
+    //
+    // Wrap in a 5s timeout so a slow/dropped socket can't hang stop_capture.
     let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        // Step 1: signal EOS so Soniox finalizes in-flight audio.
         let _ = sink.send(Message::Text(String::new())).await;
-        let _ = sink.close().await;
+        // Step 2: wait for the reader to see `finished:true` or drop — this
+        // is where trailing finals arrive. Only then close the socket.
         let _ = reader.await;
+        // Step 3: close the websocket cleanly.
+        let _ = sink.close().await;
     })
     .await;
 

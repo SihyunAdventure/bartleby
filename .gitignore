@@ -38,3 +38,6 @@ web/.vercel/
 # Generated Swift sidecar binaries
 src-tauri/binaries/bartleby-mic*
 .gstack/
+
+# Icon design scratch (codex-generated candidates, source PNGs)
+/design/

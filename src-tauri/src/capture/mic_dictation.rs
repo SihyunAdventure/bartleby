@@ -26,6 +26,8 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use tauri::AppHandle;
+
 /// A running mic-only capture. Drop to stop. `Send` because the non-`Send`
 /// `cpal::Stream` is confined to the capture thread and never stored here.
 pub struct MicOnlyCapture {
@@ -53,7 +55,7 @@ impl Drop for MicOnlyCapture {
 /// Returns once the mic source has successfully started (or errors if neither
 /// source could start). The mic stream then runs on the spawned thread until
 /// the returned handle is dropped.
-pub fn start(stt_sender: Sender<Vec<f32>>) -> Result<MicOnlyCapture, String> {
+pub fn start(stt_sender: Sender<Vec<f32>>, _app: AppHandle) -> Result<MicOnlyCapture, String> {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_for_thread = Arc::clone(&stop);
 
@@ -66,7 +68,13 @@ pub fn start(stt_sender: Sender<Vec<f32>>) -> Result<MicOnlyCapture, String> {
         // encoding in dictation). The drain thread keeps the receiver alive so
         // `mic_avengine`'s reader loop doesn't bail on the first `send`.
         let (sample_tx, sample_rx) = std::sync::mpsc::channel::<Vec<f32>>();
-        let discard = std::thread::spawn(move || while sample_rx.recv().is_ok() {});
+        // Drain the raw-mic fan-out so `mic_avengine`'s reader doesn't bail when
+        // its `sample_tx.send` would otherwise have no receiver. The glow is
+        // static now, so we just discard; the overlay is shown on a fixed short
+        // delay from `dictation::start` (see note there).
+        let discard = std::thread::spawn(move || {
+            while sample_rx.recv().is_ok() {}
+        });
 
         // No system audio → sys peak stays zero → crosstalk gate never engages.
         let sys_peak_bits = Arc::new(AtomicU32::new(0));

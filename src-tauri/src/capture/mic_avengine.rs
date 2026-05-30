@@ -80,29 +80,17 @@ pub fn start(
     let reader = std::thread::spawn(move || {
         let mut reader = BufReader::with_capacity(64 * 1024, stdout);
         let mut buf = vec![0u8; CHUNK_BYTES];
-        let mut callback: u64 = 0;
         let mut sys_envelope: f32 = 0.0;
 
         while !stop.load(Ordering::Relaxed) {
-            if let Err(e) = reader.read_exact(&mut buf) {
-                eprintln!("[mic engine] reader exit: {e}");
+            if reader.read_exact(&mut buf).is_err() {
                 break;
             }
-            callback += 1;
 
             let mono: Vec<f32> = buf
                 .chunks_exact(4)
                 .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
                 .collect();
-
-            if callback <= 3 || callback % 100 == 0 {
-                let peak = mono.iter().fold(0.0_f32, |m, &s| m.max(s.abs()));
-                println!(
-                    "[mic engine] callback #{callback} frames={} peak={:.4}",
-                    mono.len(),
-                    peak
-                );
-            }
 
             let mut stereo: Vec<f32> = Vec::with_capacity(mono.len() * 2);
             for s in &mono {

@@ -31,6 +31,13 @@ use crate::{stt, AppState};
 const FINAL_FLUSH_TIMEOUT: Duration = Duration::from_secs(5);
 /// Poll cadence while draining trailing finals.
 const FINAL_DRAIN_TICK: Duration = Duration::from_millis(50);
+/// After Fn release, keep the mic capturing for this long before dropping it
+/// and sending EOS — otherwise the last syllable gets clipped (the mic stream
+/// + sidecar are still in flight when the user stops speaking).
+const TAIL_CAPTURE: Duration = Duration::from_millis(220);
+/// Delay between Fn-down and showing the overlay. Lets the mic/STT warm up so
+/// the user waits for the visible cue before speaking (absorbs front-clip).
+const OVERLAY_SHOW_DELAY: Duration = Duration::from_millis(180);
 
 /// Live dictation session state. Held in `AppState` behind a mutex. Present iff
 /// a PTT session is currently active (hotkey held).
@@ -112,7 +119,7 @@ pub fn start(app: &AppHandle) {
 
     // Mic-only capture → STT. If this fails, tear down the STT session we just
     // started (dropping the sample sender closes its socket).
-    let mic = match crate::capture::mic_dictation::start(sample_tx) {
+    let mic = match crate::capture::mic_dictation::start(sample_tx, app.clone()) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("[dictation] mic capture failed: {e}");
@@ -136,8 +143,19 @@ pub fn start(app: &AppHandle) {
     });
     drop(guard);
 
-    println!("[dictation] listening");
-    let _ = app.emit("dictation_state", DictationState { state: "listening" });
+    // Show the overlay on a short fixed delay rather than instantly. The mic
+    // sidecar + Soniox socket take a moment to warm up; if the user starts
+    // speaking the instant they press Fn, the first word is clipped. Delaying
+    // the visible cue nudges them to wait that moment out, absorbing the
+    // cold-start. Guarded by `is_active` so a quick tap (released before the
+    // delay) doesn't flash the overlay after it already hid.
+    let app_overlay = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(OVERLAY_SHOW_DELAY);
+        if is_active(&app_overlay) {
+            let _ = app_overlay.emit("dictation_state", DictationState { state: "listening" });
+        }
+    });
 }
 
 /// Stop the active session, flush trailing finals, and inject the accumulated
@@ -165,16 +183,22 @@ pub fn stop(app: &AppHandle) {
 /// Tear down a session on a worker thread: stop mic + STT, drain trailing
 /// finals, concatenate, and inject.
 fn finish_session(app: &AppHandle, session: DictationSession) {
-    // 1. Stop the mic first so no new audio is sent, then join STT. The STT
-    //    teardown flushes EOS and waits on the server's trailing finals, which
-    //    the reader task forwards into `final_rx` — so we MUST join before the
-    //    final drain below, or we'd miss the last words.
     let DictationSession {
         mic,
         stt,
         final_rx,
         mut accumulated,
     } = session;
+
+    // 0. Keep the mic running for a short tail after Fn release so the last
+    //    syllable still flows into STT before we drop the mic and send EOS —
+    //    otherwise the trailing word gets clipped.
+    std::thread::sleep(TAIL_CAPTURE);
+
+    // 1. Stop the mic first so no new audio is sent, then join STT. The STT
+    //    teardown flushes EOS and waits on the server's trailing finals, which
+    //    the reader task forwards into `final_rx` — so we MUST join before the
+    //    final drain below, or we'd miss the last words.
     drop(mic);
     crate::join_stt(stt);
 
