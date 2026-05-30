@@ -1,15 +1,15 @@
 {
-  "version": "0.1.6",
-  "notes": "Updates now appear in-app with release notes and a progress bar instead of a system dialog, including support for required updates. Bartleby also records anonymous install and usage counts (a hashed machine id and plain numbers only, never meeting content) to guide future improvements; see the privacy page.",
-  "pub_date": "2026-05-29T12:48:45Z",
+  "version": "0.1.7",
+  "notes": "New: hold the Fn key anywhere to dictate — your speech is typed straight into the focused app, and every dictation is saved in a new dictation list. Enable it in Settings, Recording (needs macOS Accessibility permission). Added in-app feedback in Settings, About. Removed the live English to Korean transcript translation to focus on clean Korean notes; meeting recording and Korean summaries are unchanged.",
+  "pub_date": "2026-05-30T00:46:43Z",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2tXTXFPQjA5eWZFamIzT1FObW5xTWhPNDZEUHpCcDNYc2RxbldodXB6VUF2Mk9EK1o3cFQ5cE5GUDZ5aWFMUWxZTEVScTR4VTRFcnUyUS9XK0dzUmdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMDU4ODgyCWZpbGU6QmFydGxlYnkuYXBwLnRhci5negovakx1SGRnR3BWU212bGxhVTdmazFlSm9nbjhEdFozemxRUFY5Z1RaWlFoa08xVWM0dXF2NVhHdWdWWWF0cjJxcWhPVTJDS2kyVmV4bEpxTk1QYUpDUT09Cg==",
-      "url": "https://heybartleby.com/releases/Bartleby_0.1.6_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU29yZ0ROZUw5Rzl2OEJlOGU0M003VHJ1ZVVlQTF2NjlqTk1HMjlSRkkzRElhREZXNVFTN2FtUjF0bjM1Njdha0IxSElWNURkSEFpQURlRDF4NXhPeFF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMTAxOTQ3CWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpkbjFpZlhkYjJSdXI0M3pobkJEUk9SNW5lR3V6Q3lNVHFVbjQxdE9TWTE5VFg1U3RVOVlnNnRVUWJVWmZmamxPNGZHV1BzU01VTmo1Vkd1MXM5TkhDdz09Cg==",
+      "url": "https://heybartleby.com/releases/Bartleby_0.1.7_universal.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2tXTXFPQjA5eWZFamIzT1FObW5xTWhPNDZEUHpCcDNYc2RxbldodXB6VUF2Mk9EK1o3cFQ5cE5GUDZ5aWFMUWxZTEVScTR4VTRFcnUyUS9XK0dzUmdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMDU4ODgyCWZpbGU6QmFydGxlYnkuYXBwLnRhci5negovakx1SGRnR3BWU212bGxhVTdmazFlSm9nbjhEdFozemxRUFY5Z1RaWlFoa08xVWM0dXF2NVhHdWdWWWF0cjJxcWhPVTJDS2kyVmV4bEpxTk1QYUpDUT09Cg==",
-      "url": "https://heybartleby.com/releases/Bartleby_0.1.6_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU29yZ0ROZUw5Rzl2OEJlOGU0M003VHJ1ZVVlQTF2NjlqTk1HMjlSRkkzRElhREZXNVFTN2FtUjF0bjM1Njdha0IxSElWNURkSEFpQURlRDF4NXhPeFF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMTAxOTQ3CWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpkbjFpZlhkYjJSdXI0M3pobkJEUk9SNW5lR3V6Q3lNVHFVbjQxdE9TWTE5VFg1U3RVOVlnNnRVUWJVWmZmamxPNGZHV1BzU01VTmo1Vkd1MXM5TkhDdz09Cg==",
+      "url": "https://heybartleby.com/releases/Bartleby_0.1.7_universal.app.tar.gz"
     }
   }
 }
