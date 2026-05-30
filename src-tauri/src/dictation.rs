@@ -48,6 +48,9 @@ pub struct DictationSession {
     final_rx: Receiver<String>,
     /// Finals accumulated so far (also drained on stop).
     accumulated: String,
+    /// When the session started (Fn pressed). Used to bill the spoken duration
+    /// (press→release), which is what metering/paywall charges against.
+    started_at: std::time::Instant,
 }
 
 /// Payload for the `dictation_state` event the overlay subscribes to.
@@ -61,6 +64,8 @@ pub struct DictationState {
 #[derive(Debug, Clone, Serialize)]
 pub struct DictationCommitted {
     pub text: String,
+    /// Spoken duration in milliseconds (Fn press → release), for usage metering.
+    pub duration_ms: u64,
 }
 
 /// Payload for the `dictation_error` event — surfaced when injection can't
@@ -140,6 +145,7 @@ pub fn start(app: &AppHandle) {
         stt: stt_session,
         final_rx,
         accumulated: String::new(),
+        started_at: std::time::Instant::now(),
     });
     drop(guard);
 
@@ -188,7 +194,13 @@ fn finish_session(app: &AppHandle, session: DictationSession) {
         stt,
         final_rx,
         mut accumulated,
+        started_at,
     } = session;
+
+    // Spoken duration = press → release (now). Captured before the tail sleep /
+    // STT drain below so it reflects how long the user actually held Fn, which
+    // is the metering/billing unit. Clamped to u64 ms.
+    let duration_ms = started_at.elapsed().as_millis() as u64;
 
     // 0. Keep the mic running for a short tail after Fn release so the last
     //    syllable still flows into STT before we drop the mic and send EOS —
@@ -269,5 +281,5 @@ fn finish_session(app: &AppHandle, session: DictationSession) {
     // Injection succeeded with non-empty text — emit so the main window can
     // persist this dictation to its history. Best-effort; the inject is the
     // primary effect and must not be gated on the listener existing.
-    let _ = app.emit("dictation_committed", DictationCommitted { text });
+    let _ = app.emit("dictation_committed", DictationCommitted { text, duration_ms });
 }

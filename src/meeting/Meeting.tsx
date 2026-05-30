@@ -110,10 +110,10 @@ export default function Meeting({
   // (with the injected text) only after a successful, non-empty inject — so we
   // never save failed/empty ones. Save then prepend to the in-memory list.
   useEffect(() => {
-    const sub = listen<{ text: string }>("dictation_committed", (event) => {
+    const sub = listen<{ text: string; duration_ms?: number }>("dictation_committed", (event) => {
       const text = event.payload?.text;
       if (!text) return;
-      saveDictation(text)
+      saveDictation(text, event.payload?.duration_ms ?? 0)
         .then((d) => setDictations((prev) => [d, ...prev]))
         .catch((e) => console.warn("[dictations] save failed:", e));
     });

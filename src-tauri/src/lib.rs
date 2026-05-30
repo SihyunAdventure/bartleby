@@ -823,6 +823,14 @@ pub fn run() {
                             deleted_at INTEGER\
                         ); CREATE INDEX IF NOT EXISTS idx_dictations_created_at ON dictations(created_at); CREATE INDEX IF NOT EXISTS idx_dictations_deleted_at ON dictations(deleted_at);",
                         kind: tauri_plugin_sql::MigrationKind::Up,
+                    },
+                    tauri_plugin_sql::Migration {
+                        version: 3,
+                        description: "add duration_ms to dictations for usage metering",
+                        // Spoken length (Fn press→release) in ms. 0 for rows
+                        // created before this column existed (unknown duration).
+                        sql: "ALTER TABLE dictations ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0;",
+                        kind: tauri_plugin_sql::MigrationKind::Up,
                     }],
                 )
                 .build(),
