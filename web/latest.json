@@ -1,15 +1,15 @@
 {
-  "version": "0.1.8",
-  "notes": "받아쓰기 연속 사용 시 전사가 비던 문제를 고치고(STT 종료 순서 수정), 첫·끝 단어 잘림을 보정했습니다. 받아쓰기 오버레이를 양피지 깃펜 디자인으로 새로 만들고, 앱·메뉴바 아이콘을 깃펜으로 리브랜드했습니다. heybartleby.com도 미팅 노트 + 받아쓰기 메시지로 리뉴얼했습니다.",
-  "pub_date": "2026-05-30T13:06:04Z",
+  "version": "0.1.9",
+  "notes": "받아쓰기 사용 시간을 정확히 기록하도록 내부 미터링을 추가했습니다(향후 사용량 기반 과금 대비). 기능 동작은 0.1.8과 동일합니다.",
+  "pub_date": "2026-05-30T13:55:29Z",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2tYek9vdHdBbXZIWnBRakZCcHJ5YjBCMGIxOXlkckpVVU5IdnB4UXhVREE5ajBHQ0VYaG8xcmdWU2NZdncvSGlObnJLV2tvRllJcDh0WWZJNzFuZFFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMTQ2MzE3CWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpXTFpsRG5wTGRzSjY5eFg5R3c1ODVRSjQ2VlBKT2JtUm5PdENiRU9pOVlEWlV5eEl2MVB5M3piMnYzL0Vad0dEMHpZY3R4eDREdm03K25DcE5LL3FBdz09Cg==",
-      "url": "https://heybartleby.com/releases/Bartleby_0.1.8_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2tBVWdFY1RadGtUYUpWZGd2UHJuVmF2KzVwQXVzcitkOTVUWWpjZW1OQWZqMHVuc2NHbktwUm1FZ0VqL0JQS3J1VXhNa0d3TFlMV0hQR1k3azlLOUFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMTQ5MjgxCWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpYeW92VU5MbTVQazNEdHlKR2Q1VUxiK0tnL0ZSODRFNHZ6dU91OTVzakNJbytBcFFuSE8yUlNnUDhOb2pIWFV6enF6WWpBcWpnWkRRMUhzSmgyUGlEQT09Cg==",
+      "url": "https://heybartleby.com/releases/Bartleby_0.1.9_universal.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2tYek9vdHdBbXZIWnBRakZCcHJ5YjBCMGIxOXlkckpVVU5IdnB4UXhVREE5ajBHQ0VYaG8xcmdWU2NZdncvSGlObnJLV2tvRllJcDh0WWZJNzFuZFFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMTQ2MzE3CWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpXTFpsRG5wTGRzSjY5eFg5R3c1ODVRSjQ2VlBKT2JtUm5PdENiRU9pOVlEWlV5eEl2MVB5M3piMnYzL0Vad0dEMHpZY3R4eDREdm03K25DcE5LL3FBdz09Cg==",
-      "url": "https://heybartleby.com/releases/Bartleby_0.1.8_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRV3hHRHkzZndFU2tBVWdFY1RadGtUYUpWZGd2UHJuVmF2KzVwQXVzcitkOTVUWWpjZW1OQWZqMHVuc2NHbktwUm1FZ0VqL0JQS3J1VXhNa0d3TFlMV0hQR1k3azlLOUFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMTQ5MjgxCWZpbGU6QmFydGxlYnkuYXBwLnRhci5negpYeW92VU5MbTVQazNEdHlKR2Q1VUxiK0tnL0ZSODRFNHZ6dU91OTVzakNJbytBcFFuSE8yUlNnUDhOb2pIWFV6enF6WWpBcWpnWkRRMUhzSmgyUGlEQT09Cg==",
+      "url": "https://heybartleby.com/releases/Bartleby_0.1.9_universal.app.tar.gz"
     }
   }
 }
