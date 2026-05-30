@@ -15,6 +15,13 @@ import Sidebar, { type LibraryFilter } from "./Sidebar";
 import Library from "./Library";
 import Recording from "./Recording";
 import SessionDetail from "./SessionDetail";
+import DictationList from "../dictation/DictationList";
+import {
+  loadDictations,
+  saveDictation,
+  deleteDictation,
+  type Dictation,
+} from "../dictation/dictationsStore";
 import styles from "./Meeting.module.css";
 
 // Phase 6 S3 — Soniox sessions now carry a `source` tag ("sys" | "mic") so
@@ -83,10 +90,37 @@ export default function Meeting({
   keysOk,
 }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [view, setView] = useState<"library" | "recording" | "detail">("library");
+  const [view, setView] = useState<
+    "library" | "recording" | "detail" | "dictation"
+  >("library");
   const [recordingStart, setRecordingStart] = useState<Date | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("all");
+  const [dictations, setDictations] = useState<Dictation[]>([]);
+
+  // Hydrate dictation history once on mount (this is the main window — the
+  // overlay window renders only DictationOverlay and never imports this).
+  useEffect(() => {
+    loadDictations()
+      .then(setDictations)
+      .catch((e) => console.warn("[dictations] load failed:", e));
+  }, []);
+
+  // Persist each committed dictation. The Rust side emits `dictation_committed`
+  // (with the injected text) only after a successful, non-empty inject — so we
+  // never save failed/empty ones. Save then prepend to the in-memory list.
+  useEffect(() => {
+    const sub = listen<{ text: string }>("dictation_committed", (event) => {
+      const text = event.payload?.text;
+      if (!text) return;
+      saveDictation(text)
+        .then((d) => setDictations((prev) => [d, ...prev]))
+        .catch((e) => console.warn("[dictations] save failed:", e));
+    });
+    return () => {
+      sub.then((fn) => fn());
+    };
+  }, []);
 
   // Date-bucketed views. Today = startedAt is on or after local midnight.
   // Week = startedAt is within the last 7 days from now (rolling, not
@@ -308,6 +342,18 @@ export default function Meeting({
     setView("library");
   };
 
+  const handleSelectDictations = () => {
+    setSelectedSessionId(null);
+    setView("dictation");
+  };
+
+  const handleDeleteDictation = (id: number) => {
+    setDictations((prev) => prev.filter((d) => d.id !== id));
+    deleteDictation(id).catch((e) =>
+      console.warn("[dictations] delete failed:", e)
+    );
+  };
+
   return (
     <div className={styles.shell}>
       <Sidebar
@@ -326,12 +372,16 @@ export default function Meeting({
           // the live transcript disappears, which reads as "녹음이
           // 꺼져버림". Only auto-navigate to the (now filtered) Library
           // when nothing is live; otherwise just store the filter so
-          // it takes effect once they're done recording.
+          // it takes effect once they're done recording. The dictation
+          // view has no live capture, so clicking a meeting filter always
+          // switches back to meetings.
           if (view !== "library" && !captureRunning) {
             setSelectedSessionId(null);
             setView("library");
           }
         }}
+        dictationCount={dictations.length}
+        onSelectDictations={handleSelectDictations}
       />
       <div className={styles.main}>
         {view === "library" ? (
@@ -386,6 +436,11 @@ export default function Meeting({
             }}
             utterances={utterances}
             partial={partial}
+          />
+        ) : view === "dictation" ? (
+          <DictationList
+            dictations={dictations}
+            onDelete={handleDeleteDictation}
           />
         ) : (
           <SessionDetail

@@ -10,9 +10,11 @@ interface Props {
   sessionCount: number;
   todayCount: number;
   weekCount: number;
-  view: "library" | "recording";
+  view: "library" | "recording" | "dictation";
   libraryFilter: LibraryFilter;
   onSelectFilter: (f: LibraryFilter) => void;
+  dictationCount: number;
+  onSelectDictations: () => void;
 }
 
 const LIBRARY_NAV: Array<{
@@ -66,6 +68,24 @@ function SideIcon({ name }: { name: string }) {
   }
 }
 
+function DictationIcon() {
+  return (
+    <svg
+      width={12}
+      height={12}
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4.5" y="1.5" width="3" height="6" rx="1.5" />
+      <path d="M3 6a3 3 0 0 0 6 0M6 9v1.5" />
+    </svg>
+  );
+}
+
 export default function Sidebar({
   onOpenSettings,
   captureRunning,
@@ -76,6 +96,8 @@ export default function Sidebar({
   view,
   libraryFilter,
   onSelectFilter,
+  dictationCount,
+  onSelectDictations,
 }: Props) {
   const providerMode = loadPrefs().provider_mode;
   const readyLabel = providerMode === "hosted" ? "Hosted token ready" : "Keys verified";
@@ -116,6 +138,23 @@ export default function Sidebar({
             </div>
           );
         })}
+
+        <div className="sidebar-header" style={{ marginTop: 16 }}>
+          받아쓰기
+        </div>
+        <div
+          className="side-item"
+          role="button"
+          tabIndex={0}
+          aria-selected={view === "dictation"}
+          onClick={onSelectDictations}
+        >
+          <span className="ico">
+            <DictationIcon />
+          </span>
+          <span style={{ flex: 1 }}>받아쓰기 기록</span>
+          <span className="count tabular">{dictationCount}</span>
+        </div>
       </div>
 
       <button className={styles.settingsBtn} onClick={onOpenSettings}>

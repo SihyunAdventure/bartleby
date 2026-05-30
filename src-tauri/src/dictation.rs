@@ -49,6 +49,13 @@ pub struct DictationState {
     pub state: &'static str,
 }
 
+/// Payload for the `dictation_committed` event — emitted once injection
+/// succeeds so the main window can persist the dictation to its history.
+#[derive(Debug, Clone, Serialize)]
+pub struct DictationCommitted {
+    pub text: String,
+}
+
 /// Payload for the `dictation_error` event — surfaced when injection can't
 /// proceed (e.g. Accessibility not granted) so the UI can prompt the user.
 #[derive(Debug, Clone, Serialize)]
@@ -232,5 +239,11 @@ fn finish_session(app: &AppHandle, session: DictationSession) {
                 message: e,
             },
         );
+        return;
     }
+
+    // Injection succeeded with non-empty text — emit so the main window can
+    // persist this dictation to its history. Best-effort; the inject is the
+    // primary effect and must not be gated on the listener existing.
+    let _ = app.emit("dictation_committed", DictationCommitted { text });
 }

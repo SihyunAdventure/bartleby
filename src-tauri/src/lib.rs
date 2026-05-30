@@ -811,6 +811,18 @@ pub fn run() {
                             deleted_at INTEGER\
                         ); CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at); CREATE INDEX IF NOT EXISTS idx_sessions_deleted_at ON sessions(deleted_at);",
                         kind: tauri_plugin_sql::MigrationKind::Up,
+                    },
+                    tauri_plugin_sql::Migration {
+                        version: 2,
+                        description: "create dictations table",
+                        sql: "CREATE TABLE IF NOT EXISTS dictations (\
+                            id INTEGER PRIMARY KEY, \
+                            text TEXT NOT NULL, \
+                            created_at INTEGER NOT NULL, \
+                            updated_at INTEGER NOT NULL, \
+                            deleted_at INTEGER\
+                        ); CREATE INDEX IF NOT EXISTS idx_dictations_created_at ON dictations(created_at); CREATE INDEX IF NOT EXISTS idx_dictations_deleted_at ON dictations(deleted_at);",
+                        kind: tauri_plugin_sql::MigrationKind::Up,
                     }],
                 )
                 .build(),
