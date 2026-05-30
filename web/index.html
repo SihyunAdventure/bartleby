@@ -44,8 +44,8 @@
     /* ---------- header ---------- */
     .topbar{position:relative; z-index:3}
     header{display:flex; align-items:center; justify-content:space-between; padding:22px 0}
-    .brand{display:flex; align-items:center; gap:11px; font-weight:600; font-size:19px; letter-spacing:-.01em}
-    .brand img{width:30px; height:30px; border-radius:8px}
+    .brand{display:flex; align-items:center; gap:11px; font-weight:600; font-size:19px; letter-spacing:-.01em; color:var(--cream); text-decoration:none}
+    .brand img{width:32px; height:32px; border-radius:9px; box-shadow:0 0 0 1px rgba(220,162,51,.22), 0 6px 18px -8px rgba(0,0,0,.6)}
     nav{display:flex; align-items:center}
     nav a{margin-left:26px; color:var(--cream-dim); text-decoration:none; font-size:15px; transition:color .18s ease}
     nav a:hover{color:var(--cream)}
@@ -54,32 +54,53 @@
 
     /* ---------- hero (dark, glowing quill) ---------- */
     .hero-shell{
+      position:relative; overflow:hidden;
       background:
-        radial-gradient(1100px 520px at 50% -8%, rgba(220,162,51,.20), rgba(220,162,51,0) 60%),
-        linear-gradient(180deg, var(--char) 0%, var(--char-2) 70%, #221b14 100%);
+        radial-gradient(1200px 560px at 50% -12%, rgba(220,162,51,.22), rgba(220,162,51,0) 58%),
+        radial-gradient(900px 600px at 88% 8%, rgba(176,126,29,.10), rgba(176,126,29,0) 55%),
+        linear-gradient(180deg, #100d0b 0%, var(--char) 38%, var(--char-2) 78%, #221b14 100%);
       color:var(--cream);
       border-bottom:1px solid rgba(220,162,51,.18);
     }
-    .hero{padding:30px 0 96px; text-align:center; position:relative}
-    .glow-mark{position:relative; display:inline-block; margin:34px 0 30px}
-    .glow-mark::before{
-      content:""; position:absolute; inset:-46px; border-radius:50%;
-      background:radial-gradient(closest-side, rgba(224,168,58,.55), rgba(224,168,58,0));
-      filter:blur(6px); z-index:0;
+    /* faint ruled-paper texture behind the hero, very low contrast */
+    .hero-shell::after{
+      content:""; position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.5;
+      background:repeating-linear-gradient(180deg, rgba(220,162,51,.035) 0, rgba(220,162,51,.035) 1px, transparent 1px, transparent 38px);
+      mask-image:radial-gradient(70% 60% at 50% 40%, #000 0, transparent 100%);
+      -webkit-mask-image:radial-gradient(70% 60% at 50% 40%, #000 0, transparent 100%);
     }
-    .glow-mark img{position:relative; z-index:1; width:96px; height:96px; border-radius:22px;
-      box-shadow:0 18px 60px -18px rgba(0,0,0,.7), 0 0 0 1px rgba(220,162,51,.22)}
+    .hero{padding:26px 0 104px; text-align:center; position:relative; z-index:1}
+    .glow-mark{position:relative; display:inline-block; margin:40px 0 34px; animation:rise .9s cubic-bezier(.2,.7,.2,1) both}
+    .glow-mark::before{
+      content:""; position:absolute; inset:-54px; border-radius:50%;
+      background:radial-gradient(closest-side, rgba(224,168,58,.58), rgba(224,168,58,0));
+      filter:blur(8px); z-index:0; animation:pulse 5.5s ease-in-out infinite;
+    }
+    .glow-mark img{position:relative; z-index:1; width:104px; height:104px; border-radius:24px;
+      box-shadow:0 24px 70px -20px rgba(0,0,0,.75), 0 0 0 1px rgba(220,162,51,.28), inset 0 1px 0 rgba(255,255,255,.06)}
     .eyebrow{
-      font-size:13px; letter-spacing:.22em; text-transform:uppercase;
-      color:var(--gold); font-weight:600; margin:0 0 18px;
+      display:inline-block; font-size:12.5px; letter-spacing:.26em; text-transform:uppercase;
+      color:var(--gold); font-weight:600; margin:0 0 20px; padding:6px 14px;
+      border:1px solid rgba(220,162,51,.26); border-radius:999px;
+      background:rgba(220,162,51,.06);
+      animation:rise .9s cubic-bezier(.2,.7,.2,1) .06s both;
     }
     .hero h1{
-      font-weight:600; font-size:60px; line-height:1.08; margin:0 0 20px;
-      letter-spacing:-.01em;
+      font-weight:600; font-size:66px; line-height:1.06; margin:0 0 22px;
+      letter-spacing:-.015em;
+      animation:rise .9s cubic-bezier(.2,.7,.2,1) .12s both;
     }
     .hero h1 .accent{color:var(--gold); font-style:italic}
-    .hero .sub{font-size:20px; color:var(--cream-dim); margin:0 auto 34px; max-width:660px; line-height:1.6}
-    .cta-row{display:flex; gap:14px; justify-content:center; align-items:center; flex-wrap:wrap}
+    .hero .sub{font-size:20px; color:var(--cream-dim); margin:0 auto 36px; max-width:640px; line-height:1.62;
+      animation:rise .9s cubic-bezier(.2,.7,.2,1) .18s both}
+    .cta-row{display:flex; gap:14px; justify-content:center; align-items:center; flex-wrap:wrap;
+      animation:rise .9s cubic-bezier(.2,.7,.2,1) .24s both}
+    @keyframes rise{from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none}}
+    @keyframes pulse{0%,100%{opacity:.8; transform:scale(1)} 50%{opacity:1; transform:scale(1.06)}}
+    @media (prefers-reduced-motion:reduce){
+      .glow-mark,.eyebrow,.hero h1,.hero .sub,.cta-row{animation:none}
+      .glow-mark::before{animation:none}
+    }
     .btn{
       display:inline-block; background:var(--gold); color:var(--char);
       padding:15px 30px; border-radius:14px; text-decoration:none; font-weight:700; font-size:16px;
@@ -91,30 +112,33 @@
       padding:15px 18px; border-radius:14px; border:1px solid rgba(220,162,51,.28); transition:border-color .16s ease, color .16s ease;
     }
     .btn-ghost:hover{border-color:var(--gold); color:var(--gold)}
-    .meta{font-size:13.5px; color:var(--cream-dim); margin-top:22px; letter-spacing:.01em}
+    .meta{font-size:13.5px; color:var(--cream-dim); margin-top:24px; letter-spacing:.01em;
+      animation:rise .9s cubic-bezier(.2,.7,.2,1) .3s both}
+    .meta b{color:var(--gold); font-weight:600}
 
     /* ---------- generic section ---------- */
-    .section{padding:84px 0}
+    .section{padding:92px 0}
     .section + .section{padding-top:0}
-    .lede{max-width:640px}
-    .kicker{font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold-deep); font-weight:700; margin:0 0 14px}
+    .lede{max-width:660px}
+    .kicker{display:inline-flex; align-items:center; gap:10px; font-size:12.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-deep); font-weight:700; margin:0 0 16px}
+    .kicker::before{content:""; width:26px; height:1px; background:var(--gold-deep); opacity:.6}
     .section h2{
-      font-weight:600; font-size:40px; line-height:1.12; margin:0 0 16px; letter-spacing:-.01em;
+      font-weight:600; font-size:44px; line-height:1.1; margin:0 0 16px; letter-spacing:-.015em;
     }
     .section h2 .accent{color:var(--gold-deep); font-style:italic}
-    .section p.intro{font-size:18px; color:var(--muted); margin:0 0 8px; max-width:620px}
+    .section p.intro{font-size:18px; color:var(--muted); margin:0 0 8px; max-width:620px; line-height:1.62}
 
     /* pillar blocks */
     .pillar{
-      display:grid; grid-template-columns:1.05fr 1fr; gap:40px; align-items:center;
-      padding:40px 0; border-top:1px solid var(--line);
+      display:grid; grid-template-columns:1.05fr 1fr; gap:48px; align-items:center;
+      padding:52px 0; border-top:1px solid var(--line);
     }
     .pillar.reverse{grid-template-columns:1fr 1.05fr}
     .pillar.reverse .ptext{order:2}
     .pillar.reverse .pvis{order:1}
-    .pnum{font-family:"Cormorant Garamond",serif; font-style:italic; font-size:22px; color:var(--gold-deep); font-weight:600; margin:0 0 6px}
-    .pillar h3{font-weight:600; font-size:28px; margin:0 0 12px; letter-spacing:-.01em}
-    .pillar p{color:var(--muted); font-size:16.5px; margin:0 0 18px}
+    .pnum{font-family:"Cormorant Garamond",serif; font-style:italic; font-size:23px; color:var(--gold-deep); font-weight:600; margin:0 0 8px; letter-spacing:.01em}
+    .pillar h3{font-weight:600; font-size:30px; margin:0 0 14px; letter-spacing:-.015em; line-height:1.2}
+    .pillar p{color:var(--muted); font-size:16.5px; margin:0 0 20px; line-height:1.62}
     .steps{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px}
     .steps li{display:flex; gap:12px; align-items:flex-start; font-size:15.5px; color:var(--ink)}
     .steps li b{display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
@@ -123,9 +147,15 @@
 
     /* visual chip (mock) */
     .pvis{position:relative}
+    .pvis::before{
+      content:""; position:absolute; inset:-8% -6% -14% -6%; border-radius:26px; z-index:0;
+      background:radial-gradient(60% 60% at 60% 30%, rgba(220,162,51,.16), rgba(220,162,51,0) 70%);
+      filter:blur(4px);
+    }
     .mock{
-      background:var(--char); border-radius:18px; padding:22px; color:var(--cream);
-      box-shadow:0 24px 60px -28px rgba(20,17,16,.5); border:1px solid rgba(220,162,51,.16);
+      position:relative; z-index:1;
+      background:linear-gradient(180deg, #181310 0%, var(--char) 100%); border-radius:18px; padding:24px; color:var(--cream);
+      box-shadow:0 30px 70px -30px rgba(20,17,16,.6), 0 0 0 1px rgba(220,162,51,.14), inset 0 1px 0 rgba(255,255,255,.05);
       font-size:14.5px;
     }
     .mock .bar{display:flex; gap:7px; margin-bottom:16px}
@@ -140,15 +170,26 @@
     .mock .row b{color:var(--gold); flex:0 0 auto}
 
     /* feature grid (secondary) */
-    .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:36px}
+    .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:40px}
     .card{
-      border:1px solid var(--line); border-radius:18px; padding:24px; background:var(--bg-soft);
-      transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      position:relative; border:1px solid var(--line); border-radius:18px; padding:26px 24px; background:var(--bg-soft);
+      transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
     }
-    .card:hover{transform:translateY(-3px); box-shadow:0 18px 40px -26px rgba(28,24,20,.4); border-color:#dccaa9}
-    .card .ic{font-size:22px; line-height:1; margin-bottom:14px}
+    .card::before{
+      content:""; position:absolute; inset:0; border-radius:18px; pointer-events:none; opacity:0;
+      background:linear-gradient(180deg, rgba(220,162,51,.06), rgba(220,162,51,0) 60%);
+      transition:opacity .18s ease;
+    }
+    .card:hover{transform:translateY(-4px); box-shadow:0 22px 46px -26px rgba(28,24,20,.45); border-color:#d9c49d}
+    .card:hover::before{opacity:1}
+    .card .ic{
+      display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; margin-bottom:16px;
+      border-radius:12px; background:rgba(220,162,51,.1); border:1px solid rgba(220,162,51,.22); color:var(--gold-deep);
+    }
+    .card .ic svg{width:22px; height:22px; display:block}
     .card h4{margin:0 0 8px; font-size:17.5px; font-weight:600; letter-spacing:-.01em}
-    .card p{margin:0; color:var(--muted); font-size:15px}
+    .card p{margin:0; color:var(--muted); font-size:15px; line-height:1.6}
+    .card p code{font-family:inherit; color:var(--gold-deep); font-weight:600}
 
     /* download band */
     .download{
@@ -197,8 +238,9 @@
   <div class="hero-shell">
     <div class="wrap topbar">
       <header>
-        <div class="brand"><img src="/app-icon.png" alt="Bartleby 깃펜 아이콘" /> Bartleby</div>
+        <a class="brand" href="/"><img src="/app-icon.png" alt="Bartleby 깃펜 아이콘" /> Bartleby</a>
         <nav>
+          <a href="#pillars">기능</a>
           <a href="/pricing">Pricing</a>
           <a href="/changelog">Changelog</a>
           <a class="navcta" href="/releases/Bartleby_0.1.9_universal.dmg" download>Download</a>
@@ -216,7 +258,7 @@
           <a class="btn" href="/releases/Bartleby_0.1.9_universal.dmg" download>Download for Mac</a>
           <a class="btn-ghost" href="#pillars">기능 둘러보기 ↓</a>
         </div>
-        <div class="meta">지금은 무료 · macOS 15+ · Apple Silicon + Intel · 서명·공증 완료</div>
+        <div class="meta"><b>지금은 무료</b> · macOS 15+ · Apple Silicon + Intel · 서명·공증 완료</div>
       </section>
     </div>
   </div>
@@ -285,32 +327,32 @@
       </div>
       <div class="grid">
         <div class="card">
-          <div class="ic">🇰🇷</div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h7M6.5 5v2.5M9.5 12C8 9 7 7.5 6.5 7.5S5 9 3.5 12M14 19l4-10 4 10M15.2 16h5.6"/></svg></div>
           <h4>한국어 · 한영 혼용에 강함</h4>
-          <p>다른 받아쓰기 도구가 약한 한국어와 코드 스위칭을, 회의 용어와 함께 정확하게 인식합니다.</p>
+          <p>다른 받아쓰기 도구가 약한 한국어와 코드 스위칭을, 회의 용어와 함께 한 세션 안에서 정확하게 인식합니다.</p>
         </div>
         <div class="card">
-          <div class="ic">🔑</div>
-          <h4>Hosted 또는 BYOK</h4>
-          <p>Bartleby 릴레이 토큰으로 바로 쓰거나, 본인의 Soniox · Upstage 키를 직접 연결해 쓸 수 있습니다.</p>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 9a5 5 0 1 0-9.6 2L3 15.4V20h4.6l.8-.8H10v-1.6h1.6V16h1.4l1-1A5 5 0 0 0 17 9Z"/><circle cx="16.2" cy="7.8" r="1"/></svg></div>
+          <h4>설정 없는 Hosted</h4>
+          <p>키 입력도, 별도 계정도 필요 없습니다. Notique가 Soniox·Upstage 비용을 처리하니 받아쓰기에만 집중하세요.</p>
         </div>
         <div class="card">
-          <div class="ic">🔒</div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.2"/></svg></div>
           <h4>기록은 내 기기에</h4>
           <p>녹음과 받아쓰기 기록은 사용자 Mac에 보관됩니다. 내 데이터는 내 손 안에.</p>
         </div>
         <div class="card">
-          <div class="ic">⚡</div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg></div>
           <h4>실시간 인식</h4>
-          <p>Soniox <code style="font-family:inherit">stt-rt-v4</code> 엔진으로 말과 거의 동시에 글자가 따라옵니다.</p>
+          <p>Soniox <code>stt-rt-v4</code> 엔진으로 말과 거의 동시에 글자가 따라옵니다.</p>
         </div>
         <div class="card">
-          <div class="ic">✒️</div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5 20.5 7.5 9 19l-4.5 1L5.5 15.5 16.5 3.5Z"/><path d="M14.5 5.5 18.5 9.5"/></svg></div>
           <h4>한국어 요약 엔진</h4>
-          <p>Upstage <code style="font-family:inherit">solar-pro3</code>가 회의의 맥락을 살린 깔끔한 한국어 요약을 만듭니다.</p>
+          <p>Upstage <code>solar-pro3</code>가 회의의 맥락을 살린 깔끔한 한국어 요약을 만듭니다.</p>
         </div>
         <div class="card">
-          <div class="ic">🛡️</div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9V6l-7-3Z"/><path d="M9.2 12 11.3 14 15 9.8"/></svg></div>
           <h4>조용한 자동 업데이트</h4>
           <p>서명·공증된 빌드로 백그라운드에서 매끄럽게 업데이트됩니다.</p>
         </div>

@@ -1,1 +1,163 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Changelog — Bartleby</title><link rel="icon" href="/favicon.ico"><style>body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;color:#18181b;background:#fff}main{max-width:760px;margin:0 auto;padding:72px 24px}a{color:inherit}.back{color:#71717a;text-decoration:none}h1{font-size:52px;letter-spacing:-.06em;line-height:1.05;margin:42px 0 16px}.entry{border-top:1px solid #e4e4e7;padding:28px 0}p,li{color:#71717a;line-height:1.75}.version{font-weight:800}</style><script src="/analytics.js" defer></script></head><body><main><a class="back" href="/">← Bartleby</a><h1>Changelog</h1><section class="entry"><div class="version">v0.1.9 — 받아쓰기 사용량 측정</div><p>받아쓰기 사용 시간을 정확히 기록하도록 내부 미터링을 추가했습니다(향후 사용량 기반 과금 대비). 기능 동작은 0.1.8과 동일합니다.</p></section><section class="entry"><div class="version">v0.1.8 — 받아쓰기 안정화 + 깃펜 리브랜드</div><p>받아쓰기 연속 사용 시 전사가 비던 문제를 고치고(STT 종료 순서 수정), 첫·끝 단어 잘림을 보정했습니다. 받아쓰기 오버레이를 양피지 깃펜 디자인으로 새로 만들고, 앱·메뉴바 아이콘을 깃펜으로 리브랜드했습니다. heybartleby.com도 미팅 노트 + 받아쓰기 메시지로 리뉴얼했습니다.</p></section><section class="entry"><div class="version">v0.1.7 — Dictation + in-app feedback</div><p>New: hold the Fn key anywhere to dictate — your speech is typed straight into the focused app, and every dictation is saved in a new dictation list. Enable it in Settings, Recording (needs macOS Accessibility permission). Added in-app feedback in Settings, About. Removed the live English to Korean transcript translation to focus on clean Korean notes; meeting recording and Korean summaries are unchanged.</p></section><section class="entry"><div class="version">v0.1.6 — In-app updates + anonymous usage</div><p>Updates now appear in-app with release notes and a progress bar instead of a system dialog, including support for required updates. Bartleby also records anonymous install and usage counts (a hashed machine id and plain numbers only, never meeting content) to guide future improvements; see the privacy page.</p></section><section class="entry"><div class="version">v0.1.5 — Usage analytics with opt-out</div><p>Bartleby now records anonymous usage events (app opens, recording start/stop, note generation) to guide improvements. Meeting audio, transcripts, summaries, titles, and API keys are never sent, and you can turn analytics off anytime in Settings.</p></section><section class="entry"><div class="version">v0.1.4 — Korean onboarding</div><p>Made first-run onboarding Korean-first with a 한국어/English selector, localized permission/model/access guidance, and Korean hosted/BYOK key-entry copy.</p></section><section class="entry"><div class="version">v0.1.3 — Microphone capture fix</div><p>Packaged the AVAudioEngine microphone sidecar into the signed Mac app so first-run/reboot installs capture the user microphone for STT, and made recording permission errors name the exact missing macOS permission.</p></section><section class="entry"><div class="version">v0.1.2 — Hosted beta access</div><p>Added Hosted beta token onboarding, BYOK fallback, relay token verification, and hosted Soniox/Upstage routing for transcription, translation, and final notes.</p></section><section class="entry"><div class="version">v0.1.1 — Visual refresh</div><p>Replaced the landing mockup with a fitted real app screenshot and refreshed the app icon to a flatter white writing mark across web and macOS assets.</p></section><section class="entry"><div class="version">v0.1.0 — Public beta</div><p>Signed and notarized universal macOS DMG, first-run permission onboarding, Soniox/Upstage BYOK setup, local meeting library, and signed Tauri updater feed.</p></section></main></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Changelog — Bartleby</title>
+  <meta name="description" content="Bartleby 업데이트 기록. 받아쓰기, 미팅 노트, 한국어 음성 인식 개선 내역." />
+  <meta property="og:title" content="Changelog — Bartleby" />
+  <meta property="og:image" content="/og-image.png" />
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    :root{
+      --bg:#f6efe1; --bg-soft:#fbf6ec; --ink:#1c1814; --muted:#6f6354; --line:#e6dac4;
+      --gold:#dca233; --gold-deep:#b07e1d; --char:#141110; --char-2:#1d1813;
+      --cream:#f5edda; --cream-dim:#c9bca3;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Segoe UI","Noto Sans KR",sans-serif;
+      color:var(--ink); background:var(--bg); line-height:1.7;
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    }
+    .serif{font-family:"Cormorant Garamond","Gowun Batang",Georgia,"Apple SD Gothic Neo",serif}
+    .wrap{max-width:1020px; margin:0 auto; padding:0 24px}
+    .narrow{max-width:760px; margin:0 auto; padding:0 24px}
+
+    .hero-shell{
+      position:relative; overflow:hidden;
+      background:
+        radial-gradient(1100px 420px at 50% -16%, rgba(220,162,51,.20), rgba(220,162,51,0) 60%),
+        linear-gradient(180deg, #100d0b 0%, var(--char) 55%, var(--char-2) 100%);
+      color:var(--cream); border-bottom:1px solid rgba(220,162,51,.18);
+    }
+    header{display:flex; align-items:center; justify-content:space-between; padding:22px 0; position:relative; z-index:2}
+    .brand{display:flex; align-items:center; gap:11px; font-weight:600; font-size:19px; letter-spacing:-.01em; color:var(--cream); text-decoration:none}
+    .brand img{width:32px; height:32px; border-radius:9px; box-shadow:0 0 0 1px rgba(220,162,51,.22), 0 6px 18px -8px rgba(0,0,0,.6)}
+    nav{display:flex; align-items:center}
+    nav a{margin-left:24px; color:var(--cream-dim); text-decoration:none; font-size:15px; transition:color .18s ease}
+    nav a:hover{color:var(--cream)}
+    nav a.navcta{color:var(--char); background:var(--gold); padding:8px 16px; border-radius:999px; font-weight:600}
+    nav a.navcta:hover{background:#f0b441}
+
+    .page-head{padding:42px 0 56px; position:relative; z-index:1}
+    .eyebrow{display:inline-block; font-size:12.5px; letter-spacing:.26em; text-transform:uppercase; color:var(--gold); font-weight:600;
+      margin:0 0 16px; padding:6px 14px; border:1px solid rgba(220,162,51,.26); border-radius:999px; background:rgba(220,162,51,.06)}
+    .page-head h1{font-weight:600; font-size:52px; line-height:1.06; margin:0; letter-spacing:-.015em}
+
+    /* timeline */
+    .log{padding:56px 0 8px}
+    .entry{position:relative; padding:0 0 36px 30px; border-left:2px solid var(--line)}
+    .entry:last-child{padding-bottom:8px}
+    .entry::before{content:""; position:absolute; left:-7px; top:5px; width:12px; height:12px; border-radius:50%;
+      background:var(--gold); box-shadow:0 0 0 4px rgba(220,162,51,.16)}
+    .entry.latest::before{background:var(--gold); box-shadow:0 0 0 5px rgba(220,162,51,.22)}
+    .ver{display:flex; align-items:center; gap:12px; margin:0 0 8px}
+    .ver .v{font-family:"Cormorant Garamond",serif; font-weight:600; font-style:italic; font-size:24px; color:var(--gold-deep); letter-spacing:.01em}
+    .ver .t{font-weight:600; font-size:17px; color:var(--ink)}
+    .tag{font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--char); background:var(--gold); padding:3px 9px; border-radius:999px}
+    .entry p{color:var(--muted); font-size:15.5px; margin:0; line-height:1.74}
+
+    .foot{padding:48px 0; color:var(--muted); font-size:14px; border-top:1px solid var(--line); margin-top:64px}
+    .foot-inner{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px}
+    .foot a{color:var(--muted); margin-left:18px; text-decoration:none; transition:color .16s ease}
+    .foot a:first-of-type{margin-left:0}
+    .foot a:hover{color:var(--gold-deep)}
+
+    @media (max-width:820px){
+      .page-head h1{font-size:40px}
+      nav a{margin-left:14px; font-size:14px}
+      .brand{font-size:17px}
+      .ver{flex-wrap:wrap; gap:8px}
+    }
+    @media (max-width:520px){ header{flex-direction:column; gap:14px} }
+  </style>
+</head>
+<body>
+
+  <div class="hero-shell">
+    <div class="wrap">
+      <header>
+        <a class="brand" href="/"><img src="/app-icon.png" alt="Bartleby 깃펜 아이콘" /> Bartleby</a>
+        <nav>
+          <a href="/#pillars">기능</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/changelog">Changelog</a>
+          <a class="navcta" href="/releases/Bartleby_0.1.9_universal.dmg" download>Download</a>
+        </nav>
+      </header>
+    </div>
+    <div class="narrow">
+      <div class="page-head">
+        <span class="eyebrow">업데이트 기록</span>
+        <h1 class="serif">Changelog</h1>
+      </div>
+    </div>
+  </div>
+
+  <div class="narrow">
+    <div class="log">
+      <div class="entry latest">
+        <div class="ver"><span class="v">v0.1.9</span><span class="t">받아쓰기 사용량 측정</span><span class="tag">최신</span></div>
+        <p>받아쓰기 사용 시간을 정확히 기록하도록 내부 미터링을 추가했습니다(향후 사용량 기반 과금 대비). 기능 동작은 0.1.8과 동일합니다.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.8</span><span class="t">받아쓰기 안정화 + 깃펜 리브랜드</span></div>
+        <p>받아쓰기 연속 사용 시 전사가 비던 문제를 고치고(STT 종료 순서 수정), 첫·끝 단어 잘림을 보정했습니다. 받아쓰기 오버레이를 양피지 깃펜 디자인으로 새로 만들고, 앱·메뉴바 아이콘을 깃펜으로 리브랜드했습니다. heybartleby.com도 미팅 노트 + 받아쓰기 메시지로 리뉴얼했습니다.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.7</span><span class="t">Dictation + in-app feedback</span></div>
+        <p>New: hold the Fn key anywhere to dictate — your speech is typed straight into the focused app, and every dictation is saved in a new dictation list. Enable it in Settings, Recording (needs macOS Accessibility permission). Added in-app feedback in Settings, About. Removed the live English to Korean transcript translation to focus on clean Korean notes; meeting recording and Korean summaries are unchanged.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.6</span><span class="t">In-app updates + anonymous usage</span></div>
+        <p>Updates now appear in-app with release notes and a progress bar instead of a system dialog, including support for required updates. Bartleby also records anonymous install and usage counts (a hashed machine id and plain numbers only, never meeting content) to guide future improvements; see the privacy page.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.5</span><span class="t">Usage analytics with opt-out</span></div>
+        <p>Bartleby now records anonymous usage events (app opens, recording start/stop, note generation) to guide improvements. Meeting audio, transcripts, summaries, titles, and API keys are never sent, and you can turn analytics off anytime in Settings.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.4</span><span class="t">Korean onboarding</span></div>
+        <p>Made first-run onboarding Korean-first with a 한국어/English selector, localized permission and model guidance, and Korean access copy.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.3</span><span class="t">Microphone capture fix</span></div>
+        <p>Packaged the AVAudioEngine microphone sidecar into the signed Mac app so first-run/reboot installs capture the user microphone for STT, and made recording permission errors name the exact missing macOS permission.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.2</span><span class="t">Hosted beta access</span></div>
+        <p>Added Hosted token onboarding, relay token verification, and hosted Soniox/Upstage routing for transcription and final notes.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.1</span><span class="t">Visual refresh</span></div>
+        <p>Replaced the landing mockup with a fitted real app screenshot and refreshed the app icon to a flatter white writing mark across web and macOS assets.</p>
+      </div>
+      <div class="entry">
+        <div class="ver"><span class="v">v0.1.0</span><span class="t">Public beta</span></div>
+        <p>Signed and notarized universal macOS DMG, first-run permission onboarding, hosted Soniox/Upstage setup, local meeting library, and signed Tauri updater feed.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <footer class="foot">
+      <div class="foot-inner">
+        <span class="copy">© 2026 notique</span>
+        <div>
+          <a href="/pricing">Pricing</a>
+          <a href="/changelog">Changelog</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="https://github.com/SihyunAdventure/bartleby">GitHub</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+  <script src="/analytics.js" defer></script>
+</body>
+</html>
